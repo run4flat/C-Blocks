@@ -1,3 +1,4 @@
+#define PERL_NO_GET_CONTEXT
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -22,12 +23,16 @@ int my_keyword_plugin(pTHX_
 			keyword_ptr, keyword_len, op_ptr);
 	}
 	
+	/* o = newUNOP(OP_RAND, 0, newSVOP(OP_CONST, 0, newSViv(42))); o->op_ppaddr = pp_mything; and get an SV holding the IV 42 using POPs or whatever in pp_mything */
+	/* PL_op */
+	/* Params::Classify, Scope::Cleanup, Memoize::Once */
+	
 	/* Add the code necessary for the function declaration */
-	#if pTHX
+	/*#if pTHX
 		lex_stuff_pv("void op_func(void * thread_context)", 0);
-	#else
-		lex_stuff_pv("void op_func(
-	#endif
+	#else*/
+		lex_stuff_pv("void op_func()", 0);
+	/*#endif*/
 
 	/* expand the buffer until we encounter the matching closing bracket */
 	char *end = PL_bufptr;
@@ -92,8 +97,7 @@ BOOT:
 	/* Set up the keyword plugin to a useful initial value. */
 	next_keyword_plugin = PL_keyword_plugin;
 	
-	/* Set up the custom op */
+	/* Set up the custom op * /
 	XopENTRY_set(&tcc_xop, xop_name, "tccop");
 	XopENTRY_set(&tcc_xop, xop_desc, "Op to run jit-compiled C code");
-	Perl_custom_op_register(aTHX_ tcc_pp, &tcc_xop);
- 
+	Perl_custom_op_register(aTHX_ tcc_pp, &tcc_xop); */
