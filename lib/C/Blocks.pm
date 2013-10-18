@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Alien::TinyCC;
 
-our $VERSION = "0.000_001";
+our $VERSION = "0.001";
 $VERSION = eval $VERSION;
 
 use XSLoader;
