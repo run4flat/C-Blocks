@@ -12,6 +12,8 @@ our $VERSION = "0.000_001";
 XSLoader::load('C::Blocks', $VERSION);
 $VERSION = eval $VERSION;
 
+our (%__code_cache_hash, @__code_cache_array);
+
 sub import {
 	my $class  = shift;
 	my $caller = caller;
