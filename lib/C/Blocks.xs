@@ -19,10 +19,6 @@ PP(tcc_pp) {
 	RETURN;
 }
 
-void say (char * something) {
-	printf("%s", something);
-}
-
 /* Error handling should store the message and return to the normal execution
  * order. In other words, croak is inappropriate here. */
 void my_tcc_error_func (void * message_sv, const char * msg ) {
@@ -45,7 +41,7 @@ int my_keyword_plugin(pTHX_
 	
 	/* Add the code necessary for the function declaration */
 /*	#if pTHX==void
-*/		lex_stuff_pv("void say(char * something); void op_func()", 0);
+*/		lex_stuff_pv("void op_func()", 0);
 /*	#else
 		lex_stuff_pv("void op_func(void * thread_context)", 0);
 	#endif
@@ -114,9 +110,6 @@ int my_keyword_plugin(pTHX_
 		*end = 0;
 		tcc_compile_string(state, PL_bufptr);
 		*end = backup;
-		
-		/* Link in the say function */
-		tcc_add_symbol(state, "say", say);
 		
 		/* Check for compile errors */
 		if (SvOK(error_msg_sv)) croak_sv(error_msg_sv);
