@@ -18,3 +18,9 @@ C {
 }
 
 print "All done!\n";
+
+for (1..10) {
+	eval qq{ C{
+		printf("This is number $_ in the loop\n");
+	}}
+}
