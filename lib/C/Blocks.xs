@@ -173,6 +173,9 @@ CODE:
 void
 unimport(...)
 CODE:
+	/* This appears to be broken. But I'll put it on the backburner
+	 * for now and see if switching to Devel::CallChecker and
+	 * Devel::CallParser fix it. */
 	PL_keyword_plugin = next_keyword_plugin;
 
 BOOT:
