@@ -193,3 +193,8 @@ BOOT:
 	XopENTRY_set(&tcc_xop, xop_name, "tccop");
 	XopENTRY_set(&tcc_xop, xop_desc, "Op to run jit-compiled C code");
 	Perl_custom_op_register(aTHX_ Perl_tcc_pp, &tcc_xop);
+	
+	/* Set up the extended symbol table lookup callbacks */
+	tcc_set_extended_symtab_callbacks(
+		&symtab_lookup_by_name, &symtab_lookup_by_number
+	);
