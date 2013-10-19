@@ -105,7 +105,7 @@ int my_keyword_plugin(pTHX_
 		tcc_set_error_func(state, error_msg_sv, my_tcc_error_func);
 		tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
 		
-		/* Add/compiler the code, temporarily adding a null terminator */
+		/* compile the code, temporarily adding a null terminator */
 		char backup = *end;
 		*end = 0;
 		tcc_compile_string(state, PL_bufptr);
@@ -160,6 +160,13 @@ int my_keyword_plugin(pTHX_
 	
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
+}
+
+TokenSym* symtab_lookup_by_name(char * name, int len) {
+	return 0;
+}
+TokenSym* symtab_lookup_by_number(int tok_id) {
+	return 0;
 }
 
 MODULE = C::Blocks       PACKAGE = C::Blocks
