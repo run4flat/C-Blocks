@@ -19,6 +19,14 @@ PP(tcc_pp) {
 	RETURN;
 }
 
+/* ---- Extended symbol table handling ---- */
+TokenSym* my_symtab_lookup_by_name(char * name, int len, void * data) {
+	return 0;
+}
+TokenSym* my_symtab_lookup_by_number(int tok_id, void * data) {
+	return 0;
+}
+
 /* Error handling should store the message and return to the normal execution
  * order. In other words, croak is inappropriate here. */
 void my_tcc_error_func (void * message_sv, const char * msg ) {
@@ -96,14 +104,21 @@ int my_keyword_plugin(pTHX_
 	/* If it's not already in the cache... */
 	if (!SvOK(*code_cache_SV_p)) {
 		/* Build the compiler */
-		/* create a new state with error handling */
+		/* create a new state */
 		TCCState * state = tcc_new();
 		if (!state) {
 			croak("Unable to create C::TinyCompiler state!\n");
 		}
+		
+		/* Setup error handling */
 		SV * error_msg_sv = newSV(0);
 		tcc_set_error_func(state, error_msg_sv, my_tcc_error_func);
 		tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
+		
+		/* Set the extended callback handling */
+		tcc_set_extended_symtab_callbacks(state,
+			&my_symtab_lookup_by_name, &my_symtab_lookup_by_number, 0
+		);
 		
 		/* compile the code, temporarily adding a null terminator */
 		char backup = *end;
@@ -162,13 +177,6 @@ int my_keyword_plugin(pTHX_
 	return KEYWORD_PLUGIN_STMT;
 }
 
-TokenSym* symtab_lookup_by_name(char * name, int len) {
-	return 0;
-}
-TokenSym* symtab_lookup_by_number(int tok_id) {
-	return 0;
-}
-
 MODULE = C::Blocks       PACKAGE = C::Blocks
 
 void
@@ -193,8 +201,3 @@ BOOT:
 	XopENTRY_set(&tcc_xop, xop_name, "tccop");
 	XopENTRY_set(&tcc_xop, xop_desc, "Op to run jit-compiled C code");
 	Perl_custom_op_register(aTHX_ Perl_tcc_pp, &tcc_xop);
-	
-	/* Set up the extended symbol table lookup callbacks */
-	tcc_set_extended_symtab_callbacks(
-		&symtab_lookup_by_name, &symtab_lookup_by_number
-	);
