@@ -6,7 +6,7 @@
 /*#include "ppport.h"*/
 #include "libtcc.h"
 
-typedef void (*my_void_func)(void);
+typedef void (*my_void_func)(pTHX);
 
 int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 XOP tcc_xop;
@@ -15,15 +15,55 @@ PP(tcc_pp) {
     dSP;
 	IV pointer_iv = POPi;
 	my_void_func p_to_call = INT2PTR(my_void_func, pointer_iv);
-	p_to_call();
+	p_to_call(aTHX);
 	RETURN;
 }
 
 /* ---- Extended symbol table handling ---- */
-TokenSym* my_symtab_lookup_by_name(char * name, int len, void * data) {
+typedef struct _ext_sym_callback_data {
+	TCCState * state;
+	#ifdef PERL_IMPLICIT_CONTEXT
+		/* will the Perl police be angry that I'm using the undocumented
+		 * tTHX? Oh well, it makes things clearer. */
+		tTHX perl_interp;
+	#endif
+} ext_sym_callback_data;
+TokenSym* my_symtab_lookup_by_name(char * name, int len, void * data, int is_identifier) {
+	/* Unpack the callback data */
+	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
+	#ifdef PERL_IMPLICIT_CONTEXT
+		tTHX my_perl_interp = callback_data->perl_interp;
+		#define my_perl_interp_ my_perl_interp,
+	#else
+		#define my_perl_interp_
+	#endif
+	
+	/* Get hints hash entry for C::Blocks packages to check for symbols */
+	
+	/*  */
+	
+	/*
+	if (is_identifier) {
+		tcc_add_symbol(callback_data->state, name, pointer);
+	}
+	*/
 	return 0;
 }
-TokenSym* my_symtab_lookup_by_number(int tok_id, void * data) {
+TokenSym* my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier) {
+	/* Unpack the callback data */
+	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
+	#ifdef PERL_IMPLICIT_CONTEXT
+		tTHX my_perl_interp = callback_data->perl_interp;
+		#define my_perl_interp_ my_perl_interp,
+	#else
+		#define my_perl_interp_
+	#endif
+	
+	/*
+	if (is_identifier) {
+		tcc_add_symbol(data->state, name, pointer);
+	}
+	*/
 	return 0;
 }
 
@@ -48,12 +88,12 @@ int my_keyword_plugin(pTHX_
 	}
 	
 	/* Add the code necessary for the function declaration */
-/*	#if pTHX==void
-*/		lex_stuff_pv("void op_func()", 0);
-/*	#else
+	#ifdef PERL_IMPLICIT_CONTEXT
 		lex_stuff_pv("void op_func(void * thread_context)", 0);
+	#else
+		lex_stuff_pv("void op_func()", 0);
 	#endif
-*/
+
 	
 	/**********************/
 	/* Extract the C code */
