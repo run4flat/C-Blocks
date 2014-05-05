@@ -38,7 +38,7 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  print "Before block\n";
  
- C {
+ cblock {
      /* This is bare C code! */
      printf("From C block\n");
      int foo = 1;
@@ -47,9 +47,29 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  print "After first block\n";
  
- C {
-     printf("From second block\n");
+ cdecl {
+     /* This is a collection of declarations and definitions. This
+      * code is not run like a cblock code, but the declarations 
+      * and definitions are available to any cblock, cdecl, or csub
+      * declared later in this lexical scope. */
+     
+     void print_location(int block_numb) {
+         printf("From block number %d\n", block_numb);
+     }
  }
+ 
+ cblock {
+     print_location(2);
+ }
+ 
+ # Finally, we can declare xsubs inline with this:
+ csub my_xsub {
+     /* This one really needs quite a bit more work... */
+     
+     /* shift off args? Allow for $_[0] syntax? */
+ }
+ 
+ my_xsub('called from perl!');
  
  print "All done!\n"; 
 
@@ -66,9 +86,46 @@ blow up.
 
 =head1 DESCRIPTION
 
-This module uses Perl's pluggable keyword API to add a new keyword, C<C>.
-The C<C> keyword precedes a block of C code that gets compiled and
-inserted into the Perl op tree at the precise location of the block.
+This module uses Perl's pluggable keyword API to add a few new keywords:
+C<cblock>, C<cdecl>, and C<csub>. These keywords precede a block of C code
+encapsulated in curly brackets.
+
+=over
+
+=item cblock { code }
+
+C code contained in a cblock gets wrapped into a special type of C function and
+compiled during the compilation stage of the surrounding Perl code. The
+resulting function is inserted into the Perl op tree at the precise location of
+the block and is called when the interpreter reaches this part of the code.
+
+The behavior of a cblock is somewhat like writing C code that is included in an
+implicit main() function. In particular, there is no way to declare functions,
+data structures, or typedefs. Use a C<cdecl> for that.
+
+You should not include a return statement in this code.
+
+=item cdecl { code }
+
+C code contained in a cdecl block is extracted from the rest of the Perl source
+code and compiled. Any later C<cblock>, C<cdecl>, or C<csub> has access to the
+functions, macros, typedefs, structs, enums, etc.
+
+At most, sigil interpolation would only be allowed in functions, and even then
+only for package globals, not lexicals. This is because any lexical variables
+that might be used would need to be closed over, and I am not sure how to do
+that correctly.
+
+=item csub name { code }
+
+C code contained in a csub block is wrapped into an xsub function definition.
+This means that after this code is compiled, it is accessible just like any
+other xsub.
+
+Interpolation of sigils is open to discussion. Sigils such as C<$_[0]> could
+be very useful for manipulating the stack, for example.
+
+=back
 
 =head1 GOALS
 
