@@ -119,7 +119,7 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
  * order. In other words, croak is inappropriate here. */
 void my_tcc_error_func (void * message_sv, const char * msg ) {
 	/* set the message in the error_message key of the compiler context */
-	sv_catpvf((SV*)message_sv, "C::Blocks compile-time error - %s", msg);
+	sv_catpvf((SV*)message_sv, "%s", msg);
 }
 
 enum { IS_CBLOCK = 1, IS_CLIB, IS_CLEX, IS_CSUB, IS_CUSE } keyword_type;
@@ -364,8 +364,34 @@ int my_keyword_plugin(pTHX_
 		*(end-1) = '}';
 	}
 	
-	/* Check for compile errors */
-	if (SvOK(error_msg_sv)) croak_sv(error_msg_sv);
+	/*****************************/
+	/* Handle compilation errors */
+	/*****************************/
+	if (SvOK(error_msg_sv)) {
+		/* Manipulate the contents of the error message and the current line
+		 * number before croaking. */
+		
+		/* First extract the number of lines down. The error message is of
+		 * the form "<string>:LINENUMBER: error", so look for the first
+		 * colon. */
+		char * message_string = SvPVbyte_nolen(error_msg_sv);
+		while(*message_string != ':') message_string++;
+		sv_chop(error_msg_sv, message_string + 1);
+		
+		/* Find the second colon */
+		message_string = SvPVbyte_nolen(error_msg_sv);
+		while(*message_string != ':') message_string++;
+		
+		/* Here we use a trick. We are going to set the location of the
+		 * colon temporarily to the null character, pass the SV's string
+		 * to atoi to extract the number, and finally chop off all of the
+		 * string up to and including the null character. */
+		*message_string = '\0';
+		int lines = atoi(SvPVbyte_nolen(error_msg_sv));
+		sv_chop(error_msg_sv, message_string + 1);
+		
+		croak("C::Blocks compile-time%s", SvPV_nolen(error_msg_sv));
+	}
 	
 	/******************************************/
 	/* Apply the list of symbols and relocate */
