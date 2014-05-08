@@ -202,11 +202,17 @@ int my_keyword_plugin(pTHX_
 	/**********************/
 	
 	/* Get the hint hash for later retrieval */
-	SV * tokensym_list_SV = cop_hints_fetch_pvs(PL_curcop, "C::Blocks/tokensym_list", 0);
+	HV* hint_hash = get_hv("^H", 0);
+	if (hint_hash == NULL) {
+		croak("C::Blocks unable to retrieve hints hash!");
+	}
+	SV ** tokensym_list_p = NULL;
 	
 	int keep_curly_brackets = 1;
 	char * xsub_name = NULL;
 	if (keyword_type == IS_CBLOCK) {
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 0);
+
 		#ifdef PERL_IMPLICIT_CONTEXT
 			lex_stuff_pv("void op_func(void * thread_context)", 0);
 		#else
@@ -214,6 +220,8 @@ int my_keyword_plugin(pTHX_
 		#endif
 	}
 	else if (keyword_type == IS_CSUB) {
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 0);
+		
 		/* extract the function name */
 		while (1) {
 			ENSURE_LEX_BUFFER(
@@ -246,6 +254,7 @@ int my_keyword_plugin(pTHX_
 	}
 	else if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
 		keep_curly_brackets = 0;
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 1);
 	}
 	else if (keyword_type == IS_CUSE) {
 		/* Extract the stash name */
@@ -284,7 +293,11 @@ int my_keyword_plugin(pTHX_
 		}
 		
 		/* Copy these to the hints hash entry, creating said entry if necessary */
-		sv_catsv_mg(tokensym_list_SV, serialized_TokenSyms_SV);
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 1);
+		if (tokensym_list_p == 0) {
+			croak("C::Blocks deep error: cuse unable to obtain tokensym_list from hint hash!");
+		}
+		sv_catsv_mg(*tokensym_list_p, serialized_TokenSyms_SV);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
 		sv_2mortal(import_package_name);
@@ -292,6 +305,9 @@ int my_keyword_plugin(pTHX_
 		
 		/* Skip over all the rest until the end of the function. */
 		goto all_done;
+	}
+	if (tokensym_list_p == 0) {
+		croak("C::Blocks deep error: unable to obtain tokensym_list from hint hash!");
 	}
 	
 	/**********************/
@@ -334,9 +350,9 @@ int my_keyword_plugin(pTHX_
 	/* Set the extended callback handling */
 	ext_sym_callback_data callback_data = { state, NULL, 0, NULL, NULL };
 	/* Set the extended symbol table lists if they exist */
-	if (SvCUR(tokensym_list_SV)) {
-		callback_data.N_TokenSym_lists = SvCUR(tokensym_list_SV) / 2 / sizeof(void*);
-		callback_data.TokenSym_lists = (TokenSym_p**) SvPV_nolen(tokensym_list_SV);
+	if (SvCUR(*tokensym_list_p)) {
+		callback_data.N_TokenSym_lists = SvCUR(*tokensym_list_p) / 2 / sizeof(void*);
+		callback_data.TokenSym_lists = (TokenSym_p**) SvPV_nolen(*tokensym_list_p);
 	}
 	extended_symtab_copy_callback copy_callback
 		= (keyword_type == IS_CLIB || keyword_type == IS_CLEX)
@@ -406,8 +422,8 @@ int my_keyword_plugin(pTHX_
 		char * state_to_serialize = (char*)state;
 		
 		/* add the serialized pointer address to the hints hash entry */
-		sv_catpvn_mg(tokensym_list_SV, symtab_to_serialize, sizeof(void*));
-		sv_catpvn_mg(tokensym_list_SV, state_to_serialize, sizeof(void*));
+		sv_catpvn_mg(*tokensym_list_p, symtab_to_serialize, sizeof(void*));
+		sv_catpvn_mg(*tokensym_list_p, state_to_serialize, sizeof(void*));
 		
 		if (keyword_type == IS_CLIB) {
 			/* add the serialized pointer address to the published pointer
