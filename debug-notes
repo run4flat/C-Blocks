@@ -1,0 +1,26 @@
+May 8
+=====
+
+I have a number of things working nicely with C::Blocks. One thing that is not
+working is shared symbol tables, as demonstrated with the simple test called
+05-shared.t
+
+The problem in that test is that I get a segfault. The segfault does not occur
+during compilation, but during runtime. This is rather odd. Preliminary
+investigation has revealed that the compiler is *not* looking up symbols in the
+extended symbol tables, so I would have expected to get a number of compilation
+errors. Furthermore, the test shows that the segfault occurs even before the
+first printf can display its message.
+
+Here's the first interesting bit: if I comment-out the call to the function
+defined in the clex block, it runs without segfaulting. Since this might be
+some issue with defaulting to a signature of int func(int), and since print_ok
+does not have that signature, I tried the int-int form and still go segfaults.
+This suggests that the presence of the unknown and undeclared symbol print_ok
+somehow screws up the pointer accounting in the compilation unit.
+
+A simple test for how easy, or not, it is to cause this complication is to
+simply add a call to the (yet undeclared) print_ok function, and see if it
+breaks the original block. Apparently it does! This suggests that tcc is making
+some assumption about the function for me. Perhaps this can be solved by
+setting an appropriate flag.
