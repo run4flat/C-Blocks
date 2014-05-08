@@ -6,9 +6,10 @@
 /*#include "ppport.h"*/
 #include "libtcc.h"
 
+int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
+
 typedef void (*my_void_func)(pTHX);
 
-int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 XOP tcc_xop;
 PP(tcc_pp) {
     dVAR;
@@ -19,51 +20,98 @@ PP(tcc_pp) {
 	RETURN;
 }
 
+typedef struct _identifier_ll {
+	char * name;
+	void * pointer;
+	struct _identifier_ll * next;
+} identifier_ll;
+
 /* ---- Extended symbol table handling ---- */
 typedef struct _ext_sym_callback_data {
 	TCCState * state;
-	#ifdef PERL_IMPLICIT_CONTEXT
-		/* will the Perl police be angry that I'm using the undocumented
-		 * tTHX? Oh well, it makes things clearer. */
-		tTHX perl_interp;
-	#endif
+	TokenSym_p ** TokenSym_lists;
+	int N_TokenSym_lists;
+	TokenSym_p* new_symtab;
+	identifier_ll* identifiers;
 } ext_sym_callback_data;
-TokenSym* my_symtab_lookup_by_name(char * name, int len, void * data, int is_identifier) {
+
+void add_identifier (ext_sym_callback_data * callback_data, char * name, void * pointer) {
+	/* Build the identifier */
+	identifier_ll* new_id;
+	Newx(new_id, 1, identifier_ll);
+	new_id->name = name;
+	new_id->pointer = pointer;
+	new_id->next = NULL;
+	
+	/* Find where to put it */
+	if (callback_data->identifiers == NULL) {
+		callback_data->identifiers = new_id;
+		return;
+	}
+	identifier_ll* id = callback_data->identifiers;
+	while(id->next != NULL) id = id->next;
+	id->next = new_id;
+}
+
+void apply_and_clear_identifiers (ext_sym_callback_data * callback_data) {
+	if (callback_data->identifiers == NULL) return;
+	identifier_ll * curr = callback_data->identifiers;
+	identifier_ll * next;
+	while(curr) {
+		next = curr->next;
+		tcc_add_symbol(callback_data->state, curr->name, curr->pointer);
+		Safefree(curr);
+		curr = next;
+	}
+}
+
+void my_copy_symtab(TokenSym_p* copied_symtab, void * data) {
 	/* Unpack the callback data */
 	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
-	#ifdef PERL_IMPLICIT_CONTEXT
-		tTHX my_perl_interp = callback_data->perl_interp;
-		#define my_perl_interp_ my_perl_interp,
-	#else
-		#define my_perl_interp_
-	#endif
+	callback_data->new_symtab = copied_symtab;
+}
+TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, int is_identifier) {
+	/* Unpack the callback data */
+	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
 	
-	/* Get hints hash entry for C::Blocks packages to check for symbols */
-	
-	/*  */
-	
-	/*
-	if (is_identifier) {
-		tcc_add_symbol(callback_data->state, name, pointer);
+	/* Run through all of the available TokenSym lists and look for this
+	 * identifier. This could be sped up, eventually, with a hash lookup. */
+	int i, j;
+	for (i = 0; i < callback_data->N_TokenSym_lists; i++) {
+		TokenSym_p* ts_list = callback_data->TokenSym_lists[2*i];
+		int list_length = tcc_tokensym_list_length(ts_list);
+		for (j = 0; j < list_length; j++) {
+			char * curr_name = tcc_tokensym_name(ts_list[j]);
+			if (strcmp(curr_name, name) == 0) return ts_list[j];
+		}
 	}
-	*/
+	
 	return 0;
 }
-TokenSym* my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier) {
+TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier) {
 	/* Unpack the callback data */
 	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
-	#ifdef PERL_IMPLICIT_CONTEXT
-		tTHX my_perl_interp = callback_data->perl_interp;
-		#define my_perl_interp_ my_perl_interp,
-	#else
-		#define my_perl_interp_
-	#endif
 	
-	/*
-	if (is_identifier) {
-		tcc_add_symbol(data->state, name, pointer);
+	/* Run through all of the available TokenSym lists and look for this token.
+	 */
+	int i;
+	for (i = 0; i < callback_data->N_TokenSym_lists; i++) {
+		TokenSym_p* ts_list = callback_data->TokenSym_lists[2*i];
+		TokenSym_p ts = tcc_tokensym_by_tok(tok_id, ts_list);
+		if (ts != NULL) {
+			if (is_identifier) {
+				/* Retrieve the pointer; add it to a linked list of items to
+				 * add after the compilation has finished. */
+				TCCState * other_state
+					= (TCCState*)callback_data->TokenSym_lists[2*i + 1];
+				char * name = tcc_tokensym_name(ts);
+				void * pointer = tcc_get_symbol(other_state, name);
+				add_identifier(callback_data, name, pointer);
+			}
+			return ts;
+		}
 	}
-	*/
+	
 	return 0;
 }
 
@@ -71,50 +119,206 @@ TokenSym* my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier)
  * order. In other words, croak is inappropriate here. */
 void my_tcc_error_func (void * message_sv, const char * msg ) {
 	/* set the message in the error_message key of the compiler context */
-	sv_catpvf((SV*)message_sv, "C::Blocks compiler-time error - %s", msg);
+	sv_catpvf((SV*)message_sv, "C::Blocks compile-time error - %s", msg);
+}
+
+enum { IS_CBLOCK = 1, IS_CLIB, IS_CLEX, IS_CSUB, IS_CUSE } keyword_type;
+
+/* Functions to quickly identify our keywords, assuming that the first letter has
+ * already been checked and found to be 'c' */
+int identify_keyword (char * keyword_ptr, STRLEN keyword_len) {
+	if (keyword_ptr[0] != 'c') return 0;
+	if (keyword_len == 4) {
+		if (	keyword_ptr[1] == 's'
+			&&	keyword_ptr[2] == 'u'
+			&&	keyword_ptr[3] == 'b') return IS_CSUB;
+		
+		if (	keyword_ptr[1] == 'l'
+			&&	keyword_ptr[2] == 'i'
+			&&	keyword_ptr[3] == 'b') return IS_CLIB;
+		
+		if (	keyword_ptr[1] == 'l'
+			&&	keyword_ptr[2] == 'e'
+			&&	keyword_ptr[3] == 'x') return IS_CLEX;
+		
+		if (	keyword_ptr[1] == 'u'
+			&&	keyword_ptr[2] == 's'
+			&&	keyword_ptr[3] == 'e') return IS_CUSE;
+		
+		return 0;
+	}
+	if (keyword_len == 6) {
+		if (	keyword_ptr[1] == 'b'
+			&&	keyword_ptr[2] == 'l'
+			&&	keyword_ptr[3] == 'o'
+			&&	keyword_ptr[4] == 'c'
+			&&	keyword_ptr[5] == 'k') return IS_CBLOCK;
+		
+		return 0;
+	}
+	return 0;
+}
+
+int _is_whitespace_char(char to_check) {
+	if (' ' == to_check || '\n' == to_check || '\r' == to_check || '\t' == to_check) {
+		return 1;
+	}
+	return 0;
 }
 
 #define PL_bufptr (PL_parser->bufptr)
 #define PL_bufend (PL_parser->bufend)
 
+#define ENSURE_LEX_BUFFER(croak_message)                        \
+	if (end == PL_bufend) {                                     \
+		int length_so_far = end - PL_bufptr;                    \
+		if (!lex_next_chunk(LEX_KEEP_PREVIOUS)) {               \
+			/* We only reach this point if we reached the end   \
+			 * of the file. Croak with the given message */     \
+			croak(croak_message);                               \
+		}                                                       \
+		/* revise our end pointer for the new buffer, which     \
+		 * may have moved when pulling the next chunk */        \
+		end = PL_bufptr + length_so_far;                        \
+	}
+
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
+	char * package_suffix = "__cblocks_tokensym_list";
 	
-	/* Move along if this is not my keyword */
-	if (keyword_len != 1 || keyword_ptr[0] != 'C') {
-		return next_keyword_plugin(aTHX_
-			keyword_ptr, keyword_len, op_ptr);
+	/* See if this is a keyword we know */
+	int keyword_type = identify_keyword(keyword_ptr, keyword_len);
+	if (!keyword_type)
+		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
+	
+	/* Clear out any leading whitespace, including comments */
+	lex_read_space(0);
+	char *end = PL_bufptr;
+	
+	/**********************/
+	/*   Initialization   */
+	/**********************/
+	
+	/* Get the hint hash for later retrieval */
+	HV* hint_hash = get_hv("^H", 0);
+	if (hint_hash == NULL) {
+		croak("C::Blocks unable to retrieve hints hash!");
 	}
+	SV ** tokensym_list_p = NULL;
 	
-	/* Add the code necessary for the function declaration */
-	#ifdef PERL_IMPLICIT_CONTEXT
-		lex_stuff_pv("void op_func(void * thread_context)", 0);
-	#else
-		lex_stuff_pv("void op_func()", 0);
-	#endif
+	int keep_curly_brackets = 1;
+	char * xsub_name = NULL;
+	if (keyword_type == IS_CBLOCK) {
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 0);
 
+		#ifdef PERL_IMPLICIT_CONTEXT
+			lex_stuff_pv("void op_func(void * thread_context)", 0);
+		#else
+			lex_stuff_pv("void op_func()", 0);
+		#endif
+	}
+	else if (keyword_type == IS_CSUB) {
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 0);
+		
+		/* extract the function name */
+		while (1) {
+			ENSURE_LEX_BUFFER(
+				end == PL_bufptr
+				? "C::Blocks encountered the end of the file before seeing the csub name"
+				: "C::Blocks encountered the end of the file before seeing the body of the csub"
+			);
+			if (end == PL_bufptr) {
+				if(!isIDFIRST(*end)) croak("C::Blocks expects a name after csub");
+			}
+			else if (_is_whitespace_char(*end) || *end == '{') {
+				break;
+			}
+			else if (!isIDCONT(*end)){
+				croak("C::Blocks csub name can contain only underscores, letters, and numbers");
+			}
+			
+			end++;
+		}
+		/* Having reached here, the xsub name ends one character before end.
+		 * Copy that name, then clobber the buffer up to (but not including)
+		 * the end. */
+		xsub_name = savepvn(PL_bufptr, end - PL_bufptr);
+		lex_unstuff(end);
+
+		/* re-add what we want in reverse order (LIFO) */
+		lex_stuff_pv(")", 0);
+		lex_stuff_pv(xsub_name, 0);
+		lex_stuff_pv("XS_INTERNAL(", 0);
+	}
+	else if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
+		keep_curly_brackets = 0;
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 1);
+	}
+	else if (keyword_type == IS_CUSE) {
+		/* Extract the stash name */
+		while (1) {
+			ENSURE_LEX_BUFFER("C::Blocks encountered the end of the file before seeing the cuse package name");
+			
+			if (end == PL_bufptr && !isIDFIRST(*end)) {
+				/* Invalid first character. */
+				croak("C::Blocks cuse name must be a valid Perl package name");
+			}
+			else if (_is_whitespace_char(*end) || *end == ';') {
+				break;
+			}
+			else if (!isIDCONT(*end) && *end != ':'){
+				croak("C::Blocks cuse name must be a valid Perl package name");
+			}
+			end++;
+		}
+		
+		/* Having reached here, we should have a valid package name. See if
+		 * the package global already exists, and use it if so. */
+		SV * import_package_name = newSVpv(PL_bufptr, PL_bufptr - end);
+		SV * tokensym_list_name = newSVsv(import_package_name);
+		sv_catpvf(tokensym_list_name, "::%s", package_suffix);
+		SV * serialized_TokenSyms_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
+		
+		/* Otherwise, try importing a module with the given name and check
+		 * again. */
+		if (serialized_TokenSyms_SV == NULL) {
+			load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL);
+			serialized_TokenSyms_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
+			if (serialized_TokenSyms_SV == NULL) {
+				croak("C::Blocks did not find any shared blocks in package %s",
+					SvPV_nolen(import_package_name));
+			}
+		}
+		
+		/* Copy these to the hints hash entry, creating said entry if necessary */
+		tokensym_list_p = hv_fetch(hint_hash, "C::Blocks/tokensym_list", 23, 1);
+		if (tokensym_list_p == 0) {
+			croak("C::Blocks deep error: cuse unable to obtain tokensym_list from hint hash!");
+		}
+		sv_catsv_mg(*tokensym_list_p, serialized_TokenSyms_SV);
+		
+		/* Mortalize the SVs so they get cleared eventually. */
+		sv_2mortal(import_package_name);
+		sv_2mortal(tokensym_list_name);
+		
+		/* Skip over all the rest until the end of the function. */
+		goto all_done;
+	}
+	if (tokensym_list_p == 0) {
+		croak("C::Blocks deep error: unable to obtain tokensym_list from hint hash!");
+	}
 	
 	/**********************/
 	/* Extract the C code */
 	/**********************/
 	
 	/* expand the buffer until we encounter the matching closing bracket */
-	char *end = PL_bufptr;
 	int nest_count = 0;
+	end = PL_bufptr;
 	while (1) {
-		/* do we need to prime the pump? */
-		if (end == PL_bufend) {
-			int length_so_far = end - PL_bufptr;
-			if (!lex_next_chunk(LEX_KEEP_PREVIOUS)) {
-				/* We only reach this point if we reached the end of the
-				 * file without finding the closing curly brace. */
-				croak("C::Blocks expected closing curly brace but did not find it");
-			}
-			/* revise our end pointer for the new buffer, which may have
-			 * moved when pulling the next chunk */
-			end = PL_bufptr + length_so_far;
-		}
+		ENSURE_LEX_BUFFER("C::Blocks expected closing curly brace but did not find it");
 		
 		if (*end == '{') nest_count++;
 		else if (*end == '}') {
@@ -126,91 +330,129 @@ int my_keyword_plugin(pTHX_
 	}
 	end++;
 	
-	/********************************************/
-	/* Get a (possibly cached) function pointer */
-	/********************************************/
+	/************/
+	/* Compile! */
+	/************/
 	
-	/* at this point I will compile the code */
 	int len = (int)(end - PL_bufptr);
-	/* Check hash if there is something already compiled for it */
-	HV * code_cache = get_hv("C::Blocks::__code_cache_hash", GV_ADD);
-	SV ** code_cache_SV_p = hv_fetch(code_cache, PL_bufptr, len, 1);
 	
-	/* Hope this doesn't happen, but better to issue an error */
-	if (code_cache_SV_p == 0) {
-		croak("C::Blocks: Unable to retrieve code cache entry!");
+	/* Build the compiler */
+	TCCState * state = tcc_new();
+	if (!state) {
+		croak("Unable to create C::TinyCompiler state!\n");
 	}
 	
-	/* If it's not already in the cache... */
-	if (!SvOK(*code_cache_SV_p)) {
-		/* Build the compiler */
-		/* create a new state */
-		TCCState * state = tcc_new();
-		if (!state) {
-			croak("Unable to create C::TinyCompiler state!\n");
-		}
-		
-		/* Setup error handling */
-		SV * error_msg_sv = newSV(0);
-		tcc_set_error_func(state, error_msg_sv, my_tcc_error_func);
-		tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
-		
-		/* Set the extended callback handling */
-		tcc_set_extended_symtab_callbacks(state,
-			&my_symtab_lookup_by_name, &my_symtab_lookup_by_number, 0
-		);
-		
-		/* compile the code, temporarily adding a null terminator */
+	/* Setup error handling */
+	SV * error_msg_sv = newSV(0);
+	tcc_set_error_func(state, error_msg_sv, my_tcc_error_func);
+	tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
+	
+	/* Set the extended callback handling */
+	ext_sym_callback_data callback_data = { state, NULL, 0, NULL, NULL };
+	/* Set the extended symbol table lists if they exist */
+	if (SvCUR(*tokensym_list_p)) {
+		callback_data.N_TokenSym_lists = SvCUR(*tokensym_list_p) / 2 / sizeof(void*);
+		callback_data.TokenSym_lists = (TokenSym_p**) SvPV_nolen(*tokensym_list_p);
+	}
+	extended_symtab_copy_callback copy_callback
+		= (keyword_type == IS_CLIB || keyword_type == IS_CLEX)
+		?	&my_copy_symtab
+		:	NULL;
+	tcc_set_extended_symtab_callbacks(state,
+		copy_callback,
+		&my_symtab_lookup_by_name, &my_symtab_lookup_by_number, 
+		&callback_data
+	);
+	
+	/* compile the code, temporarily adding a null terminator */
+	if (keep_curly_brackets) {
 		char backup = *end;
 		*end = 0;
 		tcc_compile_string(state, PL_bufptr);
 		*end = backup;
-		
-		/* Check for compile errors */
-		if (SvOK(error_msg_sv)) croak_sv(error_msg_sv);
-		
-		/* prepare for relocation */
-		AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", 1);
-		SV * machine_code_SV = newSV(tcc_relocate(state, 0));
-		tcc_relocate(state, SvPVX(machine_code_SV));
-		av_push(machine_code_cache, machine_code_SV);
-		
-		/* Store the function pointer in the code cache */
-		sv_setiv(*code_cache_SV_p, PTR2IV(tcc_get_symbol(state, "op_func")));
-		
-		/* cleanup */
-		tcc_delete(state);
-		sv_2mortal(error_msg_sv);
+	}
+	else {
+		*(end-1) = 0;
+		tcc_compile_string(state, PL_bufptr + 1);
+		*(end-1) = '}';
 	}
 	
-	/*********************/
-	/* Build the op tree */
-	/*********************/
+	/* Check for compile errors */
+	if (SvOK(error_msg_sv)) croak_sv(error_msg_sv);
 	
-	/* o = newUNOP(OP_RAND, 0, newSVOP(OP_CONST, 0, newSViv(42))); o->op_ppaddr = pp_mything; and get an SV holding the IV 42 using POPs or whatever in pp_mything */
-	/* or get PL_op in the function and retrieve the function pointer from some entry in the (customized) struct */
-	/* Params::Classify, Scope::Cleanup, Memoize::Once */
+	/******************************************/
+	/* Apply the list of symbols and relocate */
+	/******************************************/
 	
-	/* Finally, get the pointer IV and build the optree. */
-	IV pointer_IV = SvIV(*code_cache_SV_p);
-	OP * o = newUNOP(OP_RAND, 0, newSVOP(OP_CONST, 0, newSViv(pointer_IV)));
-	o->op_ppaddr = Perl_tcc_pp;
+	apply_and_clear_identifiers(&callback_data);
 	
-	/* Set the op to my newly built one */
-	*op_ptr = o;
+	/* prepare for relocation; store in a global so that we can free everything
+	 * at the end of the Perl program's execution. */
+	AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", 1);
+	SV * machine_code_SV = newSV(tcc_relocate(state, 0));
+	tcc_relocate(state, SvPVX(machine_code_SV));
+	av_push(machine_code_cache, machine_code_SV);
 	
-	/* All done, cleanup for the compiler to keep going */
+	/********************************************************/
+	/* Build the op tree or serialize the tokensym pointers */
+	/********************************************************/
+
+	if (keyword_type == IS_CBLOCK) {
+		/* build the optree. */
+		IV pointer_IV = PTR2IV(tcc_get_symbol(state, "op_func"));
+		
+		OP * o = newUNOP(OP_RAND, 0, newSVOP(OP_CONST, 0, newSViv(pointer_IV)));
+		o->op_ppaddr = Perl_tcc_pp;
 	
-/*	printf("Found %d characters in your C block\n", len);
-	printf("First three characters in your C block is [%c%c%c]\n", PL_bufptr[0], PL_bufptr[1], PL_bufptr[2]);
-	int hash;
-	char * string_ptr_to_hash = PL_bufptr;
-	PERL_HASH(hash, string_ptr_to_hash, len);
-	printf("hash for this string is %d\n", hash);
-*/	
+		/* Set the op to my newly built one */
+		*op_ptr = o;
+	}
+	else if (keyword_type == IS_CSUB) {
+		/* Extract the xsub */
+		XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, xsub_name);
+		
+		/* Add the xsub to the package's symbol table */
+		char * filename = CopFILE(PL_curcop);
+		char * full_func_name = form("%s::%s", SvPVbyte_nolen(PL_curstname), xsub_name);
+		newXS(full_func_name, xsub_fcn_ptr, filename);
+	}
+	else if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
+		/* cast the *address* of the pointer as a char* so it gets serialized */
+		char * symtab_to_serialize = (char*)&(callback_data.new_symtab);
+		char * state_to_serialize = (char*)state;
+		
+		/* add the serialized pointer address to the hints hash entry */
+		sv_catpvn_mg(*tokensym_list_p, symtab_to_serialize, sizeof(void*));
+		sv_catpvn_mg(*tokensym_list_p, state_to_serialize, sizeof(void*));
+		
+		if (keyword_type == IS_CLIB) {
+			/* add the serialized pointer address to the published pointer
+			 * addresses. */
+			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
+				package_suffix), GV_ADD);
+			sv_catpvn_mg(package_lists, symtab_to_serialize, sizeof(void*));
+			sv_catpvn_mg(package_lists, state_to_serialize, sizeof(void*));
+		}
+	}
+	
+	if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
+		/* hold on to the tcc state so we can retrieve function pointers later */
+		AV * state_cache = get_av("C::Blocks::__state_cache_array", 1);
+		av_push(state_cache, newSViv(PTR2IV(state)));
+	}
+	else {
+		tcc_delete(state);
+	}
+	
+	/* cleanup */
+	sv_2mortal(error_msg_sv);
+	Safefree(xsub_name);
+	
 	
 	/* insert a semicolon to make the parser happy */
 	*end = ';';
+
+all_done:
 	lex_unstuff(end);
 	
 	/* Return success */
@@ -232,6 +474,23 @@ CODE:
 	 * for now and see if switching to Devel::CallChecker and
 	 * Devel::CallParser fix it. */
 	PL_keyword_plugin = next_keyword_plugin;
+
+void
+_cleanup()
+CODE:
+	/* Remove all of the saved code blocks and compiler states */
+	AV * cache = get_av("C::Blocks::__state_cache_array", 1);
+	int i;
+	SV ** elem_p;
+	for (i = 0; i < av_len(cache); i++) {
+		elem_p = av_fetch(cache, i, 0);
+		if (elem_p != 0) {
+			tcc_delete(INT2PTR(TCCState*, SvIV(*elem_p)));
+		}
+		else {
+			warn("C::Blocks had trouble freeing TCCState");
+		}
+	}
 
 BOOT:
 	/* Set up the keyword plugin to a useful initial value. */

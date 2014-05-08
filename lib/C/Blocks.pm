@@ -12,14 +12,21 @@ our $VERSION = "0.000_001";
 XSLoader::load('C::Blocks', $VERSION);
 $VERSION = eval $VERSION;
 
-our (%__code_cache_hash, @__code_cache_array);
+our (@__code_cache_array);
 
 sub import {
 	my $class  = shift;
 	my $caller = caller;
 	no strict 'refs';
-	*{$caller.'::C'} = sub () {};
+	*{$caller.'::cblock'} = sub () {};
+	*{$caller.'::csub'} = sub () {};
+	*{$caller.'::clib'} = sub () {};
+	*{$caller.'::clex'} = sub () {};
 	_import();
+}
+
+END {
+	_cleanup();
 }
 
 1;
@@ -47,11 +54,9 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  print "After first block\n";
  
- cdecl {
-     /* This is a collection of declarations and definitions. This
-      * code is not run like a cblock code, but the declarations 
-      * and definitions are available to any cblock, cdecl, or csub
-      * declared later in this lexical scope. */
+ clex {
+     /* This function will only be visible to other c code blocks in this
+      * lexical scope. */
      
      void print_location(int block_numb) {
          printf("From block number %d\n", block_numb);
@@ -70,6 +75,24 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  }
  
  my_xsub('called from perl!');
+ 
+ package My::Fastlib;
+ clib {
+     /* This function can be imported into other lexical scopes. */
+     void say_hi() {
+         printf("Hello from My::Fastlib\n");
+     }
+ }
+ 
+ package main;
+ 
+ # Pull say_hi into this scope
+ cuse My::Fastlib;
+ 
+ cblock {
+     print_location(3);
+     say_hi();
+ }
  
  print "All done!\n"; 
 

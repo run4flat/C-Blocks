@@ -5,7 +5,7 @@ use C::Blocks;
 
 our $var = 0;
 
-C {
+cblock {
 	SV * var = get_sv("var");
 	sv_setiv(var, 1);
 }

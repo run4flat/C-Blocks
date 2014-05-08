@@ -14,23 +14,23 @@ BEGIN {
 }
 
 # First real print
-C {
+cblock {
 	printf("ok 2 - printf from C block\n");
 }
 
-C {
+cblock {
 	printf("ok 3 - multiple C blocks compile and run correctly\n");
 }
 
 eval q{
-	C {
+	cblock {
 		printf("ok 4 - string evals work\n");
 	}
 };
 
 for (5 .. 7) {
 	eval qq{
-		C {
+		cblock {
 			printf("ok $_ - string evals really work!\\n");
 		}
 	};

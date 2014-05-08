@@ -7,7 +7,7 @@ use Test::More;
 eval q{
 	# Should work
 	use C::Blocks;
-	C {
+	cblock {
 		int i = 0;
 	}
 };
@@ -16,13 +16,13 @@ is($@, '', 'Compilation works fine');
 eval q{
 	# Should work
 	use C::Blocks;
-	C {
+	cblock {
 		int i = 0;
 	}
 	
 	# Should fail to compile
 	no C::Blocks;
-	C {
+	cblock {
 		int i = 0;
 	}
 };
@@ -31,7 +31,7 @@ note("Message is $@");
 
 eval q{
 	use C::Blocks;
-	C {
+	cblock {
 		int i = 0;
 	}
 	
@@ -40,7 +40,7 @@ eval q{
 	my $foo = 1;
 	
 	use C::Blocks;
-	C {
+	cblock {
 		int i = 0;
 	}
 };
