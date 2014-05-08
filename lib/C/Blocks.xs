@@ -202,8 +202,9 @@ int my_keyword_plugin(pTHX_
 	/**********************/
 	
 	/* Get the hint hash for later retrieval */
-	SV * tokensym_list_SV = cop_hints_fetch_pvs(CopHINTHASH_get(PL_curcop),
-		"C::Blocks/tokensym_list", 0);
+	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
+	SV * tokensym_list_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/tokensym_list", 0);
+	if (tokensym_list_SV == &PL_sv_placeholder) tokensym_list_SV = newSVpvn("", 0);
 	
 	int keep_curly_brackets = 1;
 	char * xsub_name = NULL;
@@ -286,6 +287,7 @@ int my_keyword_plugin(pTHX_
 		
 		/* Copy these to the hints hash entry, creating said entry if necessary */
 		sv_catsv_mg(tokensym_list_SV, serialized_TokenSyms_SV);
+		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_list", tokensym_list_SV, 0);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
 		sv_2mortal(import_package_name);
@@ -392,7 +394,11 @@ int my_keyword_plugin(pTHX_
 		/* Set the op to my newly built one */
 		*op_ptr = o;
 	}
-	else if (keyword_type == IS_CSUB) {
+	else /*{
+		// build a null op
+		*op_ptr = newOP(OP_NULL, 0);
+	}
+*/	if (keyword_type == IS_CSUB) {
 		/* Extract the xsub */
 		XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, xsub_name);
 		
@@ -409,6 +415,7 @@ int my_keyword_plugin(pTHX_
 		/* add the serialized pointer address to the hints hash entry */
 		sv_catpvn_mg(tokensym_list_SV, symtab_to_serialize, sizeof(void*));
 		sv_catpvn_mg(tokensym_list_SV, state_to_serialize, sizeof(void*));
+		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_list", tokensym_list_SV, 0);
 		
 		if (keyword_type == IS_CLIB) {
 			/* add the serialized pointer address to the published pointer
