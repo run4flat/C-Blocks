@@ -12,7 +12,6 @@ eval q{
 		int i 5
 	}
 };
-diag($@);
 like($@, qr/C::Blocks compile-time error/, 'Compilation fails with informative message');
 
 my $file = quotemeta(__FILE__);
