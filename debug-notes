@@ -33,4 +33,10 @@ differentiate between a warning and an error. At some point I need to add more
 flexible configuration management. I also need to add a way to link to external
 libraries, such as libperl.
 
-
+The simplest mechanism to handle library linking is to provide a hints hash
+mechanism, along with an api to play with the hints hash mechanism. Note that
+this need not be through the keywords API. It could be through the use
+mechanism, i.e. "use C::Blocks -I => '/usr/inc/', -L => '...', -l => '...';"
+For now, I could allow these to accumulate, and I could later add a module for
+greater manipulation (i.e. removal of items from the list, for example) or
+automation when the time comes.
