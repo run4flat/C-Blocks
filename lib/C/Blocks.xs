@@ -390,6 +390,10 @@ int my_keyword_plugin(pTHX_
 		int lines = atoi(SvPVbyte_nolen(error_msg_sv));
 		sv_chop(error_msg_sv, message_string + 1);
 		
+		/* Set Perl's notion of the current line number so it is
+		 * correctly reported. */
+		CopLINE(PL_curcop) += lines - 1;
+		
 		croak("C::Blocks compile-time%s", SvPV_nolen(error_msg_sv));
 	}
 	

@@ -9,8 +9,7 @@ eval q{
 	# Should croak with the appropriate line
 	use C::Blocks;
 	cblock {
-		int i
-		int j
+		int i 5
 	}
 };
 diag($@);
@@ -21,6 +20,6 @@ like($@, qr/$file/, 'Error is reported in this file');
 
 unlike($@, qr/<string>/, 'Error does not report from "<string>"');
 
-like($@, qr/line 13/, 'Error is reported from the correct line');
+like($@, qr/line 12/, 'Error is reported from the correct line');
 
 done_testing;
