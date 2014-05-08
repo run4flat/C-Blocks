@@ -329,6 +329,9 @@ int my_keyword_plugin(pTHX_
 		croak("Unable to create C::TinyCompiler state!\n");
 	}
 	
+	/* Set the compiler options */
+	tcc_set_options(state, "-Wall");
+	
 	/* Setup error handling */
 	SV * error_msg_sv = newSV(0);
 	tcc_set_error_func(state, error_msg_sv, my_tcc_error_func);

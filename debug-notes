@@ -24,3 +24,13 @@ simply add a call to the (yet undeclared) print_ok function, and see if it
 breaks the original block. Apparently it does! This suggests that tcc is making
 some assumption about the function for me. Perhaps this can be solved by
 setting an appropriate flag.
+
+After digging around, I realized I could use tcc_set_options to set the various
+compiler options. The first string that I tried, "-Wall", solved the problem by
+warning upon encountering the undeclared printf function. Although it was only
+a warning, the error handling system caught the problem because it does not
+differentiate between a warning and an error. At some point I need to add more
+flexible configuration management. I also need to add a way to link to external
+libraries, such as libperl.
+
+
