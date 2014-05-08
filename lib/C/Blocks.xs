@@ -86,7 +86,7 @@ TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, int is_id
 		}
 	}
 	
-	return 0;
+	return NULL;
 }
 TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier) {
 	/* Unpack the callback data */
@@ -112,7 +112,7 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
 		}
 	}
 	
-	return 0;
+	return NULL;
 }
 
 /* Error handling should store the message and return to the normal execution
@@ -410,7 +410,7 @@ int my_keyword_plugin(pTHX_
 	else if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
 		/* cast the *address* of the pointer as a char* so it gets serialized */
 		char * symtab_to_serialize = (char*)&(callback_data.new_symtab);
-		char * state_to_serialize = (char*)state;
+		char * state_to_serialize = (char*)&state;
 		
 		/* add the serialized pointer address to the hints hash entry */
 		sv_catpvn_mg(tokensym_list_SV, symtab_to_serialize, sizeof(void*));
