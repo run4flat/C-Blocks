@@ -10,6 +10,12 @@ int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 
 typedef void (*my_void_func)(pTHX);
 
+typedef struct _extsym_table {
+	TokenSym_p* tokensym_list;
+	TCCState * state;
+	void * dll;
+} extsym_table;
+
 XOP tcc_xop;
 PP(tcc_pp) {
     dVAR;
@@ -20,6 +26,10 @@ PP(tcc_pp) {
 	RETURN;
 }
 
+/*********************/
+/**** linked list ****/
+/*********************/
+
 typedef struct _identifier_ll {
 	char * name;
 	void * pointer;
@@ -29,8 +39,8 @@ typedef struct _identifier_ll {
 /* ---- Extended symbol table handling ---- */
 typedef struct _ext_sym_callback_data {
 	TCCState * state;
-	TokenSym_p ** TokenSym_lists;
-	int N_TokenSym_lists;
+	extsym_table * extsym_tables;
+	int N_tables;
 	TokenSym_p* new_symtab;
 	identifier_ll* identifiers;
 } ext_sym_callback_data;
@@ -65,6 +75,58 @@ void apply_and_clear_identifiers (ext_sym_callback_data * callback_data) {
 	}
 }
 
+/******************************/
+/**** Dynaloader interface ****/
+/******************************/
+
+void * dynaloader_get_symbol(pTHX_ void * dll, char * name) {
+	dSP;
+	int count;
+	
+	ENTER;
+	SAVETMPS;
+	
+	PUSHMARK(SP);
+	XPUSHs(sv_2mortal(newSViv(PTR2IV(dll))));
+	XPUSHs(sv_2mortal(newSVpv(name, 0)));
+	PUTBACK;
+	
+	count = call_pv("Dynaloader::dl_find_symbol", G_SCALAR);
+	SPAGAIN;
+	if (count != 1) croak("C::Blocks expected one return value from dl_find_symbol but got %d\n", count);
+	PUTBACK;
+	FREETMPS;
+	LEAVE;
+	
+	return INT2PTR(void*, POPi);
+}
+
+void * dynaloader_get_lib(pTHX_ char * name) {
+	dSP;
+	int count;
+	
+	ENTER;
+	SAVETMPS;
+	
+	PUSHMARK(SP);
+	XPUSHs(sv_2mortal(newSVpv(name, 0)));
+	PUTBACK;
+	
+	count = call_pv("Dynaloader::dl_load_file", G_SCALAR);
+
+	SPAGAIN;
+	if (count != 1) croak("C::Blocks expected one return value from dl_load_file but got %d\n", count);
+	PUTBACK;
+	FREETMPS;
+	LEAVE;
+	
+	return INT2PTR(void*, POPi);
+}
+
+/*****************************************/
+/**** Extended symbol table callbacks ****/
+/*****************************************/
+
 void my_copy_symtab(TokenSym_p* copied_symtab, void * data) {
 	/* Unpack the callback data */
 	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
@@ -74,11 +136,11 @@ TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, int is_id
 	/* Unpack the callback data */
 	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
 	
-	/* Run through all of the available TokenSym lists and look for this
+	/* Run through all of the available external symbol lists and look for this
 	 * identifier. This could be sped up, eventually, with a hash lookup. */
 	int i, j;
-	for (i = 0; i < callback_data->N_TokenSym_lists; i++) {
-		TokenSym_p* ts_list = callback_data->TokenSym_lists[2*i];
+	for (i = 0; i < callback_data->N_tables; i++) {
+		TokenSym_p* ts_list = callback_data->extsym_tables[i].tokensym_list;
 		int list_length = tcc_tokensym_list_length(ts_list);
 		for (j = 0; j < list_length; j++) {
 			char * curr_name = tcc_tokensym_name(ts_list[j]);
@@ -95,17 +157,27 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
 	/* Run through all of the available TokenSym lists and look for this token.
 	 */
 	int i;
-	for (i = 0; i < callback_data->N_TokenSym_lists; i++) {
-		TokenSym_p* ts_list = callback_data->TokenSym_lists[2*i];
+	for (i = 0; i < callback_data->N_tables; i++) {
+		TokenSym_p* ts_list = callback_data->extsym_tables[i].tokensym_list;
 		TokenSym_p ts = tcc_tokensym_by_tok(tok_id, ts_list);
 		if (ts != NULL) {
 			if (is_identifier) {
 				/* Retrieve the pointer; add it to a linked list of items to
 				 * add after the compilation has finished. */
-				TCCState * other_state
-					= (TCCState*)callback_data->TokenSym_lists[2*i + 1];
 				char * name = tcc_tokensym_name(ts);
-				void * pointer = tcc_get_symbol(other_state, name);
+				void * pointer;
+				if (callback_data->extsym_tables[i].state) {
+					pointer
+						= tcc_get_symbol(callback_data->extsym_tables[i].state,
+							name);
+				}
+				else if (callback_data->extsym_tables[i].dll) {
+					pointer = dynaloader_get_symbol(aTHX_
+						callback_data->extsym_tables[i].dll, name);
+				}
+				else {
+					croak("C::Blocks internal error: extsym_table had neither state nor dll entry");
+				}
 				add_identifier(callback_data, name, pointer);
 			}
 			return ts;
@@ -115,12 +187,20 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
 	return NULL;
 }
 
+/************************/
+/**** Error handling ****/
+/************************/
+
 /* Error handling should store the message and return to the normal execution
  * order. In other words, croak is inappropriate here. */
 void my_tcc_error_func (void * message_sv, const char * msg ) {
 	/* set the message in the error_message key of the compiler context */
 	sv_catpvf((SV*)message_sv, "%s", msg);
 }
+
+/********************************/
+/**** Keyword Identification ****/
+/********************************/
 
 enum { IS_CBLOCK = 1, IS_CLIB, IS_CLEX, IS_CSUB, IS_CUSE } keyword_type;
 
@@ -166,6 +246,11 @@ int _is_whitespace_char(char to_check) {
 	return 0;
 }
 
+/************************/
+/**** Keyword plugin ****/
+/************************/
+
+
 #define PL_bufptr (PL_parser->bufptr)
 #define PL_bufend (PL_parser->bufend)
 
@@ -203,8 +288,8 @@ int my_keyword_plugin(pTHX_
 	
 	/* Get the hint hash for later retrieval */
 	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
-	SV * tokensym_list_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/tokensym_list", 0);
-	if (tokensym_list_SV == &PL_sv_placeholder) tokensym_list_SV = newSVpvn("", 0);
+	SV * extsym_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/tokensym_tables", 0);
+	if (extsym_tables_SV == &PL_sv_placeholder) extsym_tables_SV = newSVpvn("", 0);
 	
 	int keep_curly_brackets = 1;
 	char * xsub_name = NULL;
@@ -272,22 +357,22 @@ int my_keyword_plugin(pTHX_
 		SV * import_package_name = newSVpv(PL_bufptr, PL_bufptr - end);
 		SV * tokensym_list_name = newSVsv(import_package_name);
 		sv_catpvf(tokensym_list_name, "::%s", package_suffix);
-		SV * serialized_TokenSyms_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
+		SV * imported_tables_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
 		
 		/* Otherwise, try importing a module with the given name and check
 		 * again. */
-		if (serialized_TokenSyms_SV == NULL) {
+		if (imported_tables_SV == NULL) {
 			load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL);
-			serialized_TokenSyms_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
-			if (serialized_TokenSyms_SV == NULL) {
+			imported_tables_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
+			if (imported_tables_SV == NULL) {
 				croak("C::Blocks did not find any shared blocks in package %s",
 					SvPV_nolen(import_package_name));
 			}
 		}
 		
 		/* Copy these to the hints hash entry, creating said entry if necessary */
-		sv_catsv_mg(tokensym_list_SV, serialized_TokenSyms_SV);
-		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_list", tokensym_list_SV, 0);
+		sv_catsv_mg(extsym_tables_SV, imported_tables_SV);
+		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
 		sv_2mortal(import_package_name);
@@ -340,9 +425,9 @@ int my_keyword_plugin(pTHX_
 	/* Set the extended callback handling */
 	ext_sym_callback_data callback_data = { state, NULL, 0, NULL, NULL };
 	/* Set the extended symbol table lists if they exist */
-	if (SvCUR(tokensym_list_SV)) {
-		callback_data.N_TokenSym_lists = SvCUR(tokensym_list_SV) / 2 / sizeof(void*);
-		callback_data.TokenSym_lists = (TokenSym_p**) SvPV_nolen(tokensym_list_SV);
+	if (SvCUR(extsym_tables_SV)) {
+		callback_data.N_tables = SvCUR(extsym_tables_SV) / sizeof(extsym_table);
+		callback_data.extsym_tables = (extsym_table*) SvPV_nolen(extsym_tables_SV);
 	}
 	extended_symtab_copy_callback copy_callback
 		= (keyword_type == IS_CLIB || keyword_type == IS_CLEX)
@@ -441,27 +526,29 @@ int my_keyword_plugin(pTHX_
 		newXS(full_func_name, xsub_fcn_ptr, filename);
 	}
 	else if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
-		/* cast the *address* of the pointer as a char* so it gets serialized */
-		char * symtab_to_serialize = (char*)&(callback_data.new_symtab);
-		char * state_to_serialize = (char*)&state;
+		/* Build an extsym table to serialize */
+		extsym_table new_table;
+		new_table.tokensym_list = callback_data.new_symtab;
+		new_table.state = state;
+		new_table.dll = NULL;
 		
 		/* add the serialized pointer address to the hints hash entry */
-		sv_catpvn_mg(tokensym_list_SV, symtab_to_serialize, sizeof(void*));
-		sv_catpvn_mg(tokensym_list_SV, state_to_serialize, sizeof(void*));
-		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_list", tokensym_list_SV, 0);
+		sv_catpvn_mg(extsym_tables_SV, &new_table, sizeof(extsym_table));
+		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
 		
 		if (keyword_type == IS_CLIB) {
 			/* add the serialized pointer address to the published pointer
 			 * addresses. */
 			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
 				package_suffix), GV_ADD);
-			sv_catpvn_mg(package_lists, symtab_to_serialize, sizeof(void*));
-			sv_catpvn_mg(package_lists, state_to_serialize, sizeof(void*));
+			sv_catpvn_mg(package_lists, &new_table, sizeof(extsym_table));
 		}
 	}
 	
 	if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
-		/* hold on to the tcc state so we can retrieve function pointers later */
+		/* place the tcc state in "static" memory so we can retrieve function
+		 * pointers later without causing segfaults. We will clean these up
+		 * when the program is done. */
 		AV * state_cache = get_av("C::Blocks::__state_cache_array", 1);
 		av_push(state_cache, newSViv(PTR2IV(state)));
 	}
@@ -491,6 +578,14 @@ _import()
 CODE:
 	next_keyword_plugin = PL_keyword_plugin;
 	PL_keyword_plugin = my_keyword_plugin;
+	
+	/*
+	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
+	SV * extsym_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/tokensym_tables", 0);
+	if (extsym_tables_SV == &PL_sv_placeholder) extsym_tables_SV = newSVpvn("", 0);
+	hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
+	*/
+
 
 void
 unimport(...)
