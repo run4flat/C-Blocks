@@ -5,6 +5,12 @@ use warnings;
 use Alien::TinyCC;
 use XSLoader;
 
+# Find the location of the perl library and make it easily accessible.
+use Config;
+use File::Spec;
+our $perl_inc_location = File::Spec->catpath($Config{archlib}, 'CORE');
+our $perl_lib_location = File::Spec->catpath($perl_inc_location, $Config{libperl});
+
 # Use David Golden's version numbering suggestions. Note that we have to call
 # the XSLoader before evaling the version string because XS modules check the
 # version *string*, not the version *number*, at boot time.

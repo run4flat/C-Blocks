@@ -40,3 +40,31 @@ mechanism, i.e. "use C::Blocks -I => '/usr/inc/', -L => '...', -l => '...';"
 For now, I could allow these to accumulate, and I could later add a module for
 greater manipulation (i.e. removal of items from the list, for example) or
 automation when the time comes.
+
+May 9
+=====
+
+Today I will try to implement the pulling-in of libperl. I expect that this
+will involve compiling Perl's header files (eventually caching and loading that
+to speed things up) and adding the library to the TCCState. This will likely
+involve expanding the stream of pointers that gets copied among the hint hash
+entries.
+
+May 10
+======
+
+I thought quite a bit about how to implement the idea posed above. The problem
+is that TCC does not know how to link against libraries on Mac OS, so I need to
+use some alternative mechanism to pull in symbols. The simplest approach is to
+use Dynaloader to load the library and retrieve symbols as needed. The folder
+to include is under "$Config{archlib}/CORE", and libperl is called
+"$Config{archlib}/CORE/$Config{libperl}". Dynaloader may only provide a Perlish
+interface, but that is C accessible and does not intrinsically make it slow, by
+any means.
+
+So, I think I will write a C function that loads a library by calling
+Dynaloader, through Perl, and another C function that loads symbols from a
+library through Dynaloader, again through Perl. If there are ways to speed up
+this process, they can be worked out after the first hack has been achieved.
+This approach will work cross platform (even for systems that TCC knows how to
+link against) and is a nice starting point.
