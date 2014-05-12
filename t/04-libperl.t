@@ -10,7 +10,6 @@ use Test::More;
 
 # Load cblocks and libperl
 use C::Blocks;
-use C::Blocks::libperl;
 cuse C::Blocks::libperl;
 
 # Work with package globals for now

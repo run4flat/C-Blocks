@@ -388,11 +388,7 @@ int my_keyword_plugin(pTHX_
 		/* Otherwise, try importing a module with the given name and check
 		 * again. */
 		if (imported_tables_SV == NULL) {
-			/* This segfaults: */
-			/* load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL, NULL);*/
-			
-			/* This does not segfaul: */
-			require_pv(SvPVbyte_nolen(import_package_name));
+			load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL, NULL);
 			
 			imported_tables_SV = get_sv(SvPVbyte_nolen(tokensym_list_name), 0);
 			if (imported_tables_SV == NULL) {
@@ -408,6 +404,9 @@ int my_keyword_plugin(pTHX_
 		/* Mortalize the SVs so they get cleared eventually. */
 		sv_2mortal(import_package_name);
 		sv_2mortal(tokensym_list_name);
+		
+		/* Replace this keyword with a null op */
+		*op_ptr = newOP(OP_NULL, 0);
 		
 		/* Skip over all the rest until the end of the function. */
 		goto all_done;
