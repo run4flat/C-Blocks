@@ -434,8 +434,10 @@ int my_keyword_plugin(pTHX_
 		croak("Unable to create C::TinyCompiler state!\n");
 	}
 	
-	/* Set the compiler options */
-	tcc_set_options(state, "-Wall");
+	/* Get and reset the compiler options */
+	SV * compiler_options = get_sv("C::Blocks::compiler_options", 0);
+	tcc_set_options(state, SvPVbyte_nolen(compiler_options));
+	SvSetMagicSV(compiler_options, get_sv("C::Blocks::default_compiler_options", 0));
 	
 	/* Setup error handling */
 	SV * error_msg_sv = newSV(0);

@@ -19,6 +19,8 @@ XSLoader::load('C::Blocks', $VERSION);
 $VERSION = eval $VERSION;
 
 our (@__code_cache_array);
+our $default_compiler_options = '-Wall';
+our $compiler_options = $default_compiler_options;
 
 sub import {
 	my $class  = shift;
