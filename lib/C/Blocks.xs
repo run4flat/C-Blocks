@@ -202,7 +202,7 @@ void my_tcc_error_func (void * message_sv, const char * msg ) {
 /**** Keyword Identification ****/
 /********************************/
 
-enum { IS_CBLOCK = 1, IS_CLIB, IS_CLEX, IS_CSUB, IS_CUSE } keyword_type;
+enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB, IS_CUSE } keyword_type;
 
 /* Functions to quickly identify our keywords, assuming that the first letter has
  * already been checked and found to be 'c' */
@@ -212,10 +212,6 @@ int identify_keyword (char * keyword_ptr, STRLEN keyword_len) {
 		if (	keyword_ptr[1] == 's'
 			&&	keyword_ptr[2] == 'u'
 			&&	keyword_ptr[3] == 'b') return IS_CSUB;
-		
-		if (	keyword_ptr[1] == 'l'
-			&&	keyword_ptr[2] == 'i'
-			&&	keyword_ptr[3] == 'b') return IS_CLIB;
 		
 		if (	keyword_ptr[1] == 'l'
 			&&	keyword_ptr[2] == 'e'
@@ -233,6 +229,12 @@ int identify_keyword (char * keyword_ptr, STRLEN keyword_len) {
 			&&	keyword_ptr[3] == 'o'
 			&&	keyword_ptr[4] == 'c'
 			&&	keyword_ptr[5] == 'k') return IS_CBLOCK;
+		
+		if (	keyword_ptr[1] == 's'
+			&&	keyword_ptr[2] == 'h'
+			&&	keyword_ptr[3] == 'a'
+			&&	keyword_ptr[4] == 'r'
+			&&	keyword_ptr[5] == 'e') return IS_CSHARE;
 		
 		return 0;
 	}
@@ -331,7 +333,7 @@ int my_keyword_plugin(pTHX_
 		lex_stuff_pv(xsub_name, 0);
 		lex_stuff_pv("XS_INTERNAL(", 0);
 	}
-	else if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
+	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		keep_curly_brackets = 0;
 	}
 	else if (keyword_type == IS_CUSE) {
@@ -430,7 +432,7 @@ int my_keyword_plugin(pTHX_
 		callback_data.extsym_tables = (extsym_table*) SvPV_nolen(extsym_tables_SV);
 	}
 	extended_symtab_copy_callback copy_callback
-		= (keyword_type == IS_CLIB || keyword_type == IS_CLEX)
+		= (keyword_type == IS_CSHARE || keyword_type == IS_CLEX)
 		?	&my_copy_symtab
 		:	NULL;
 	tcc_set_extended_symtab_callbacks(state,
@@ -525,7 +527,7 @@ int my_keyword_plugin(pTHX_
 		char * full_func_name = form("%s::%s", SvPVbyte_nolen(PL_curstname), xsub_name);
 		newXS(full_func_name, xsub_fcn_ptr, filename);
 	}
-	else if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
+	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		/* Build an extsym table to serialize */
 		extsym_table new_table;
 		new_table.tokensym_list = callback_data.new_symtab;
@@ -536,7 +538,7 @@ int my_keyword_plugin(pTHX_
 		sv_catpvn_mg(extsym_tables_SV, &new_table, sizeof(extsym_table));
 		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
 		
-		if (keyword_type == IS_CLIB) {
+		if (keyword_type == IS_CSHARE) {
 			/* add the serialized pointer address to the published pointer
 			 * addresses. */
 			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
@@ -545,7 +547,7 @@ int my_keyword_plugin(pTHX_
 		}
 	}
 	
-	if (keyword_type == IS_CLIB || keyword_type == IS_CLEX) {
+	if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		/* place the tcc state in "static" memory so we can retrieve function
 		 * pointers later without causing segfaults. We will clean these up
 		 * when the program is done. */

@@ -26,7 +26,7 @@ sub import {
 	no strict 'refs';
 	*{$caller.'::cblock'} = sub () {};
 	*{$caller.'::csub'} = sub () {};
-	*{$caller.'::clib'} = sub () {};
+	*{$caller.'::cshare'} = sub () {};
 	*{$caller.'::clex'} = sub () {};
 	_import();
 }
@@ -83,7 +83,7 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  my_xsub('called from perl!');
  
  package My::Fastlib;
- clib {
+ cshare {
      /* This function can be imported into other lexical scopes. */
      void say_hi() {
          printf("Hello from My::Fastlib\n");
