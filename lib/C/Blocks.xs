@@ -94,7 +94,7 @@ void * dynaloader_get_symbol(pTHX_ void * dll, char * name) {
 	XPUSHs(sv_2mortal(newSVpv(name, 0)));
 	PUTBACK;
 	
-	count = call_pv("Dynaloader::dl_find_symbol", G_SCALAR);
+	count = call_pv("DynaLoader::dl_find_symbol", G_SCALAR);
 	SPAGAIN;
 	if (count != 1) croak("C::Blocks expected one return value from dl_find_symbol but got %d\n", count);
 	PUTBACK;
@@ -115,7 +115,7 @@ void * dynaloader_get_lib(pTHX_ char * name) {
 	XPUSHs(sv_2mortal(newSVpv(name, 0)));
 	PUTBACK;
 	
-	count = call_pv("Dynaloader::dl_load_file", G_SCALAR);
+	count = call_pv("DynaLoader::dl_load_file", G_SCALAR);
 
 	SPAGAIN;
 	if (count != 1) croak("C::Blocks expected one return value from dl_load_file but got %d\n", count);
