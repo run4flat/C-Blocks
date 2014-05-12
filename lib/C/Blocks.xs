@@ -374,19 +374,24 @@ int my_keyword_plugin(pTHX_
 		
 		/* Having reached here, we should have a valid package name. See if
 		 * the package global already exists, and use it if so. */
-		SV * import_package_name = newSVpv(PL_bufptr, PL_bufptr - end);
+		SV * import_package_name = newSVpv(PL_bufptr, end - PL_bufptr);
 		SV * tokensym_list_name = newSVsv(import_package_name);
 		sv_catpvf(tokensym_list_name, "::%s", package_suffix);
-		SV * imported_tables_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
+		SV * imported_tables_SV = get_sv(SvPVbyte_nolen(tokensym_list_name), 0);
 		
 		/* Otherwise, try importing a module with the given name and check
 		 * again. */
 		if (imported_tables_SV == NULL) {
-			load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL);
-			imported_tables_SV = get_sv(SvPV_nolen(tokensym_list_name), 0);
+			/* This segfaults: */
+			/* load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL, NULL);*/
+			
+			/* This does not segfaul: */
+			require_pv(SvPVbyte_nolen(import_package_name));
+			
+			imported_tables_SV = get_sv(SvPVbyte_nolen(tokensym_list_name), 0);
 			if (imported_tables_SV == NULL) {
 				croak("C::Blocks did not find any shared blocks in package %s",
-					SvPV_nolen(import_package_name));
+					SvPVbyte_nolen(import_package_name));
 			}
 		}
 		
