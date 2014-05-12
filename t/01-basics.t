@@ -29,13 +29,19 @@ eval q{
 		#include <stdio.h>
 		printf("ok 4 - string evals work\n");
 	}
+	1;
+} or do {
+	print "not ok 4 - string evals work\n";
 };
 
 for (5 .. 7) {
 	eval qq{
 		cblock {
 			#include <stdio.h>
-			printf("ok $_ - string evals really work!\\n");
+			printf("ok $_ - repeated string evals work!\\n");
 		}
-	};
+		1;
+	} or do {
+		printf("not ok $_ - repeated string evals work!\n");
+	}
 }
