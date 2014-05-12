@@ -278,6 +278,11 @@ int _is_whitespace_char(char to_check) {
 	}
 
 
+void keyword_cuse(pTHX_
+	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
+) {
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -288,6 +293,7 @@ int my_keyword_plugin(pTHX_
 	if (!keyword_type)
 		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
 	
+//printf("my_keyword_plugin line %d\n", __LINE__);
 	/* Clear out any leading whitespace, including comments */
 	lex_read_space(0);
 	char *end = PL_bufptr;
@@ -522,6 +528,17 @@ int my_keyword_plugin(pTHX_
 	
 	apply_and_clear_identifiers(&callback_data);
 	
+	/* Link to statically linked library, if appropriate */
+	SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
+	if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 2) {
+		STRLEN len;
+		char * lib_string = SvPVbyte(lib_to_link, len);
+		if (lib_string[len-1] == 'a' && lib_string[len-2] == '.') {
+			tcc_add_library(state, lib_string);
+			SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
+		}
+	}
+	
 	/* prepare for relocation; store in a global so that we can free everything
 	 * at the end of the Perl program's execution. */
 	AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", 1);
@@ -543,11 +560,11 @@ int my_keyword_plugin(pTHX_
 		/* Set the op to my newly built one */
 		*op_ptr = o;
 	}
-	else /*{
+	else {
 		// build a null op
 		*op_ptr = newOP(OP_NULL, 0);
 	}
-*/	if (keyword_type == IS_CSUB) {
+	if (keyword_type == IS_CSUB) {
 		/* Extract the xsub */
 		XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, xsub_name);
 		
@@ -560,11 +577,27 @@ int my_keyword_plugin(pTHX_
 		/* Build an extsym table to serialize */
 		extsym_table new_table;
 		new_table.tokensym_list = callback_data.new_symtab;
-		new_table.state = state;
-		new_table.dll = NULL;
+		if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 0) {
+			new_table.state = NULL;
+			new_table.dll = dynaloader_get_lib(aTHX_ SvPVbyte_nolen(lib_to_link));
+			if (new_table.dll == NULL) {
+				croak("C::Blocks/DynaLoader unable to load library [%s]",
+					SvPVbyte_nolen(lib_to_link));
+			}
+			SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
+		}
+		else {
+			new_table.state = state;
+			new_table.dll = NULL;
+		}
 		
 		/* add the serialized pointer address to the hints hash entry */
-		sv_catpvn_mg(extsym_tables_SV, (char*)&new_table, sizeof(extsym_table));
+		if (SvPOK(extsym_tables_SV)) {
+			sv_catpvn_mg(extsym_tables_SV, (char*)&new_table, sizeof(extsym_table));
+		}
+		else {
+			sv_setpvn_mg(extsym_tables_SV, (char*)&new_table, sizeof(extsym_table));
+		}
 		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
 		
 		if (keyword_type == IS_CSHARE) {
@@ -572,7 +605,13 @@ int my_keyword_plugin(pTHX_
 			 * addresses. */
 			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
 				package_suffix), GV_ADD);
-			sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(extsym_table));
+
+			if (SvPOK(package_lists) && SvCUR(package_lists) > 0) {
+				sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(extsym_table));
+			}
+			else {
+				sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(extsym_table));
+			}
 		}
 	}
 	
@@ -607,8 +646,9 @@ MODULE = C::Blocks       PACKAGE = C::Blocks
 void
 _import()
 CODE:
-	next_keyword_plugin = PL_keyword_plugin;
-	PL_keyword_plugin = my_keyword_plugin;
+	if (PL_keyword_plugin != my_keyword_plugin) {
+		PL_keyword_plugin = my_keyword_plugin;
+	}
 	
 	/*
 	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
