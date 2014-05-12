@@ -39,6 +39,9 @@ typedef struct _identifier_ll {
 /* ---- Extended symbol table handling ---- */
 typedef struct _ext_sym_callback_data {
 	TCCState * state;
+	#ifdef PERL_IMPLICIT_CONTEXT
+		pTHX;  /* name of field is my_perl, according to perl.h */
+	#endif
 	extsym_table * extsym_tables;
 	int N_tables;
 	TokenSym_p* new_symtab;
@@ -172,8 +175,13 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
 							name);
 				}
 				else if (callback_data->extsym_tables[i].dll) {
-					pointer = dynaloader_get_symbol(aTHX_
-						callback_data->extsym_tables[i].dll, name);
+					#ifdef PERL_IMPLICIT_CONTEXT
+						pointer = dynaloader_get_symbol(callback_data->my_perl,
+							callback_data->extsym_tables[i].dll, name);
+					#else
+						pointer = dynaloader_get_symbol(
+							callback_data->extsym_tables[i].dll, name);
+					#endif
 				}
 				else {
 					croak("C::Blocks internal error: extsym_table had neither state nor dll entry");
@@ -296,13 +304,23 @@ int my_keyword_plugin(pTHX_
 	int keep_curly_brackets = 1;
 	char * xsub_name = NULL;
 	if (keyword_type == IS_CBLOCK) {
-		#ifdef PERL_IMPLICIT_CONTEXT
-			lex_stuff_pv("void op_func(void * thread_context)", 0);
-		#else
-			lex_stuff_pv("void op_func()", 0);
-		#endif
+		/* check if libperl is loaded; if so, use pTHX */
+		if (0) {
+			lex_stuff_pv("void op_func(pTHX)", 0);
+		}
+		else {
+			#ifdef PERL_IMPLICIT_CONTEXT
+				lex_stuff_pv("void op_func(void * thread_context)", 0);
+			#else
+				lex_stuff_pv("void op_func()", 0);
+			#endif
+		}
 	}
 	else if (keyword_type == IS_CSUB) {
+		/* Load libperl if it's not already loaded */
+		if (0) {
+			/* load libperl, add to this context */
+		}
 		/* extract the function name */
 		while (1) {
 			ENSURE_LEX_BUFFER(
@@ -425,7 +443,11 @@ int my_keyword_plugin(pTHX_
 	tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
 	
 	/* Set the extended callback handling */
-	ext_sym_callback_data callback_data = { state, NULL, 0, NULL, NULL };
+	#ifdef PERL_IMPLICIT_CONTEXT
+		ext_sym_callback_data callback_data = { state, aTHX, NULL, 0, NULL, NULL };
+	#else
+		ext_sym_callback_data callback_data = { state, NULL, 0, NULL, NULL };
+	#endif
 	/* Set the extended symbol table lists if they exist */
 	if (SvCUR(extsym_tables_SV)) {
 		callback_data.N_tables = SvCUR(extsym_tables_SV) / sizeof(extsym_table);
@@ -535,7 +557,7 @@ int my_keyword_plugin(pTHX_
 		new_table.dll = NULL;
 		
 		/* add the serialized pointer address to the hints hash entry */
-		sv_catpvn_mg(extsym_tables_SV, &new_table, sizeof(extsym_table));
+		sv_catpvn_mg(extsym_tables_SV, (char*)&new_table, sizeof(extsym_table));
 		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
 		
 		if (keyword_type == IS_CSHARE) {
@@ -543,7 +565,7 @@ int my_keyword_plugin(pTHX_
 			 * addresses. */
 			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
 				package_suffix), GV_ADD);
-			sv_catpvn_mg(package_lists, &new_table, sizeof(extsym_table));
+			sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(extsym_table));
 		}
 	}
 	

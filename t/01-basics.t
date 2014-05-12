@@ -15,15 +15,18 @@ BEGIN {
 
 # First real print
 cblock {
+	#include <stdio.h>
 	printf("ok 2 - printf from C block\n");
 }
 
 cblock {
+	#include <stdio.h>
 	printf("ok 3 - multiple C blocks compile and run correctly\n");
 }
 
 eval q{
 	cblock {
+		#include <stdio.h>
 		printf("ok 4 - string evals work\n");
 	}
 };
@@ -31,6 +34,7 @@ eval q{
 for (5 .. 7) {
 	eval qq{
 		cblock {
+			#include <stdio.h>
 			printf("ok $_ - string evals really work!\\n");
 		}
 	};
