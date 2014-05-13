@@ -297,7 +297,6 @@ int my_keyword_plugin(pTHX_
 	if (!keyword_type)
 		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
 	
-//printf("my_keyword_plugin line %d\n", __LINE__);
 	/* Clear out any leading whitespace, including comments */
 	lex_read_space(0);
 	char *end = PL_bufptr;
@@ -404,6 +403,7 @@ int my_keyword_plugin(pTHX_
 		/* Copy these to the hints hash entry, creating said entry if necessary */
 		sv_catsv_mg(extsym_tables_SV, imported_tables_SV);
 		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
+		CopHINTHASH_set(PL_curcop, hints_hash);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
 		sv_2mortal(import_package_name);
@@ -602,6 +602,7 @@ int my_keyword_plugin(pTHX_
 			sv_setpvn_mg(extsym_tables_SV, (char*)&new_table, sizeof(extsym_table));
 		}
 		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
+		CopHINTHASH_set(PL_curcop, hints_hash);
 		
 		if (keyword_type == IS_CSHARE) {
 			/* add the serialized pointer address to the published pointer
