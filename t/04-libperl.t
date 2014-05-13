@@ -16,7 +16,7 @@ cuse C::Blocks::libperl;
 our $shuttle;
 
 cblock {
-	SV * shuttle = get_sv("com_variable");
+	SV * shuttle = get_sv("com_variable", 0);
 	sv_setiv(shuttle, 5);
 }
 
