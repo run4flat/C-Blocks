@@ -139,6 +139,10 @@ TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, int is_id
 	/* Unpack the callback data */
 	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
 	
+	char name_to_find[len + 1];
+	strncpy(name_to_find, name, len);
+	name_to_find[len] = '\0';
+	
 	/* Run through all of the available external symbol lists and look for this
 	 * identifier. This could be sped up, eventually, with a hash lookup. */
 	int i, j;
@@ -147,7 +151,7 @@ TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, int is_id
 		int list_length = tcc_tokensym_list_length(ts_list);
 		for (j = 0; j < list_length; j++) {
 			char * curr_name = tcc_tokensym_name(ts_list[j]);
-			if (strcmp(curr_name, name) == 0) return ts_list[j];
+			if (strcmp(curr_name, name_to_find) == 0) return ts_list[j];
 		}
 	}
 	
