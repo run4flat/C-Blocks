@@ -27,7 +27,7 @@ eval q{
 	}
 };
 isnt($@, '', 'saying no C::Blocks should remove the C keyword and cause a Perl compile error');
-note("Message is $@");
+# note("Message is $@");
 
 eval q{
 	use C::Blocks;
@@ -46,3 +46,5 @@ eval q{
 };
 
 is($@, '', 'use => no => use again lets us compile');
+
+done_testing;
