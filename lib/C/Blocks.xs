@@ -205,9 +205,15 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
 
 /* Error handling should store the message and return to the normal execution
  * order. In other words, croak is inappropriate here. */
-void my_tcc_error_func (void * message_sv, const char * msg ) {
+void my_tcc_error_func (void * message_ptr, const char * msg ) {
+	SV* message_sv = (SV*)message_ptr;
 	/* set the message in the error_message key of the compiler context */
-	sv_catpvf((SV*)message_sv, "%s", msg);
+	if (SvPOK(message_sv)) {
+		sv_catpvf(message_sv, "%s", msg);
+	}
+	else {
+		sv_setpvf(message_sv, "%s", msg);
+	}
 }
 
 /********************************/
@@ -465,7 +471,7 @@ int my_keyword_plugin(pTHX_
 		ext_sym_callback_data callback_data = { state, NULL, 0, NULL, NULL };
 	#endif
 	/* Set the extended symbol table lists if they exist */
-	if (SvCUR(extsym_tables_SV)) {
+	if (SvPOK(extsym_tables_SV) && SvCUR(extsym_tables_SV)) {
 		callback_data.N_tables = SvCUR(extsym_tables_SV) / sizeof(extsym_table);
 		callback_data.extsym_tables = (extsym_table*) SvPV_nolen(extsym_tables_SV);
 	}
@@ -495,7 +501,7 @@ int my_keyword_plugin(pTHX_
 	/*****************************/
 	/* Handle compilation errors */
 	/*****************************/
-	if (SvOK(error_msg_sv)) {
+	if (SvPOK(error_msg_sv)) {
 		/* Manipulate the contents of the error message and the current line
 		 * number before croaking. */
 		
@@ -633,7 +639,6 @@ int my_keyword_plugin(pTHX_
 	/* cleanup */
 	sv_2mortal(error_msg_sv);
 	Safefree(xsub_name);
-	
 	
 	/* insert a semicolon to make the parser happy */
 	*end = ';';
