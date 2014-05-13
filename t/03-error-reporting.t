@@ -38,6 +38,8 @@ eval q{
 		int i = 5;
 	}
 	
+	cblock {}
+	
 	cblock {
 		int i 5
 	}
@@ -45,6 +47,6 @@ eval q{
 like($@, qr/C::Blocks compile-time error/, 'Compilation fails with informative message');
 like($@, qr/$file/, 'Error is reported in this file');
 unlike($@, qr/<string>/, 'Error does not report from "<string>"');
-like($@, qr/line 16/, 'Error is reported from the correct line');
+like($@, qr/line 18/, 'Error is reported from the correct line');
 
 done_testing;

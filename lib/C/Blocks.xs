@@ -297,6 +297,7 @@ int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
 	char * package_suffix = "__cblocks_tokensym_list";
+	int N_newlines = 0;
 	
 	/* See if this is a keyword we know */
 	int keyword_type = identify_keyword(keyword_ptr, keyword_len);
@@ -436,6 +437,9 @@ int my_keyword_plugin(pTHX_
 		else if (*end == '}') {
 			nest_count--;
 			if (nest_count == 0) break;
+		}
+		else if (*end == '\n') {
+			N_newlines++;
 		}
 		
 		end++;
@@ -641,10 +645,13 @@ int my_keyword_plugin(pTHX_
 	Safefree(xsub_name);
 	
 	/* insert a semicolon to make the parser happy */
+	end--;
 	*end = ';';
 
 all_done:
 	lex_unstuff(end);
+	/* Make the parser count the number of lines correctly */
+	for (int i = 0; i < N_newlines; i++) lex_stuff_pv("\n", 0);
 	
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
