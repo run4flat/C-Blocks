@@ -326,7 +326,7 @@ int my_keyword_plugin(pTHX_
 		}
 		else {
 			#ifdef PERL_IMPLICIT_CONTEXT
-				lex_stuff_pv("void op_func(void * thread_context)", 0);
+				lex_stuff_pv("void op_func(void * my_perl)", 0);
 			#else
 				lex_stuff_pv("void op_func()", 0);
 			#endif
