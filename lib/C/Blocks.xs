@@ -489,18 +489,10 @@ int my_keyword_plugin(pTHX_
 		&callback_data
 	);
 	
-	/* compile the code, temporarily adding a null terminator */
-	if (keep_curly_brackets) {
-		char backup = *end;
-		*end = 0;
-		tcc_compile_string(state, PL_bufptr);
-		*end = backup;
-	}
-	else {
-		*(end-1) = 0;
-		tcc_compile_string(state, PL_bufptr + 1);
-		*(end-1) = '}';
-	}
+	/* compile the code */
+	tcc_compile_string_ex(state, PL_bufptr + 1 - keep_curly_brackets,
+		end - PL_bufptr - 2 + 2*keep_curly_brackets, CopFILE(PL_curcop),
+		CopLINE(PL_curcop));
 	
 	/*****************************/
 	/* Handle compilation errors */
@@ -530,7 +522,7 @@ int my_keyword_plugin(pTHX_
 		
 		/* Set Perl's notion of the current line number so it is
 		 * correctly reported. */
-		CopLINE(PL_curcop) += lines - 1;
+		CopLINE(PL_curcop) = lines;
 		
 		croak("C::Blocks compile-time%s", SvPV_nolen(error_msg_sv));
 	}
