@@ -16,10 +16,17 @@ cuse C::Blocks::libperl;
 our $shuttle;
 
 cblock {
-	SV * shuttle = get_sv("shuttle", 0);
-//	sv_setiv(shuttle, 5);
+	SV * shuttle = Perl_get_sv(my_perl, "shuttle", 0);
+	Perl_sv_setiv(my_perl, shuttle, 5);
 }
 
-is($shuttle, 5, 'Can set Perl data in a cblock');
+is($shuttle, 5, 'Can set Perl data in a cblock using direct function calls');
+
+#cblock {
+#	SV * shuttle = get_sv("shuttle", 0);
+#	sv_setiv(shuttle, -5);
+#}
+
+is($shuttle, -5, 'Can set Perl data using macros');
 
 done_testing;
