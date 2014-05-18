@@ -539,18 +539,33 @@ int my_keyword_plugin(pTHX_
 	
 	apply_and_clear_identifiers(&callback_data);
 	
-	/* Link to statically linked library, if appropriate */
+	/* Link to statically linked library, if appropriate and capable */
 	SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
-	if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 2) {
+	if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 3) {
 		STRLEN len;
 		char * lib_string = SvPVbyte(lib_to_link, len);
-		if (lib_string[len-1] == 'a' && lib_string[len-2] == '.') {
-			int return_value = tcc_add_library(state, lib_string);
-			if (return_value) {
-				croak("Unable to load library [%s]", lib_string);
+		#ifdef __APPLE__
+			if (lib_string[len-1] == 'a' && lib_string[len-2] == '.') {
+				croak("C::Blocks does not yet support static libraries on Mac");
 			}
-			SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
-		}
+			// consider converting using this formula:
+			// http://stackoverflow.com/questions/16082470/osx-how-do-i-convert-a-static-library-to-a-dynamic-one
+		#else
+			if
+			#ifdef __GNUC__
+				(lib_string[len-1] == 'a' && lib_string[len-2] == '.')
+			#else
+				( && lib_string[len-4] == '.' && lib_string[len-3] == 'l'
+				  && lib_string[len-2] == 'i' && lib_string[len-1] == 'b')
+			#endif
+				{
+					int return_value = tcc_add_library(state, lib_string);
+					if (return_value) {
+						croak("C::Blocks: Unable to load static library [%s]", lib_string);
+					}
+					SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
+				}
+		#endif
 	}
 	
 	/* prepare for relocation; store in a global so that we can free everything
