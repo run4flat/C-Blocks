@@ -97,11 +97,13 @@ void * dynaloader_get_symbol(pTHX_ void * dll, char * name) {
 	count = call_pv("DynaLoader::dl_find_symbol", G_SCALAR);
 	SPAGAIN;
 	if (count != 1) croak("C::Blocks expected one return value from dl_find_symbol but got %d\n", count);
+	void * to_return = INT2PTR(void*, POPi);
+	
 	PUTBACK;
 	FREETMPS;
 	LEAVE;
 	
-	return INT2PTR(void*, POPi);
+	return to_return;
 }
 
 void * dynaloader_get_lib(pTHX_ char * name) {
@@ -119,11 +121,13 @@ void * dynaloader_get_lib(pTHX_ char * name) {
 
 	SPAGAIN;
 	if (count != 1) croak("C::Blocks expected one return value from dl_load_file but got %d\n", count);
+	void * to_return = INT2PTR(void*, POPi);
+	
 	PUTBACK;
 	FREETMPS;
 	LEAVE;
 	
-	return INT2PTR(void*, POPi);
+	return to_return;
 }
 
 /*****************************************/
@@ -190,7 +194,9 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
 				else {
 					croak("C::Blocks internal error: extsym_table had neither state nor dll entry");
 				}
-				add_identifier(callback_data, name, pointer);
+				if (pointer != NULL) {
+					add_identifier(callback_data, name, pointer);
+				}
 			}
 			return ts;
 		}
@@ -539,7 +545,10 @@ int my_keyword_plugin(pTHX_
 		STRLEN len;
 		char * lib_string = SvPVbyte(lib_to_link, len);
 		if (lib_string[len-1] == 'a' && lib_string[len-2] == '.') {
-			tcc_add_library(state, lib_string);
+			int return_value = tcc_add_library(state, lib_string);
+			if (return_value) {
+				croak("Unable to load library [%s]", lib_string);
+			}
 			SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
 		}
 	}
