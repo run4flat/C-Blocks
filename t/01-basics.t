@@ -13,20 +13,23 @@ BEGIN {
 	print "ok 1 - loaded C::Blocks\n";
 }
 
+clex {
+	#include <stdio.h>
+}
+
 # First real print
 cblock {
-	#include <stdio.h>
 	printf("ok 2 - printf from C block\n");
 }
 
 cblock {
-	#include <stdio.h>
+//	#include <stdio.h>
 	printf("ok 3 - multiple C blocks compile and run correctly\n");
 }
 
 eval q{
 	cblock {
-		#include <stdio.h>
+//		#include <stdio.h>
 		printf("ok 4 - string evals work\n");
 	}
 	1;
@@ -37,7 +40,7 @@ eval q{
 for (5 .. 7) {
 	eval qq{
 		cblock {
-			#include <stdio.h>
+//			#include <stdio.h>
 			printf("ok $_ - repeated string evals work!\\n");
 		}
 		1;
