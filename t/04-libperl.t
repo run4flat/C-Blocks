@@ -29,4 +29,11 @@ cblock {
 
 is($shuttle, -5, 'Can set Perl data using macros');
 
+cblock {
+	SV * shuttle = get_sv("shuttle", 0);
+	sv_setiv(shuttle, 10);
+}
+
+is($shuttle, 10, 'Repeated cblocks work correctly');
+
 done_testing;
