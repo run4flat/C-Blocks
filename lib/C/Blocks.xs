@@ -419,7 +419,7 @@ int my_keyword_plugin(pTHX_
 		CopHINTHASH_set(PL_curcop, hints_hash);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
-		sv_2mortal(import_package_name);
+		//sv_2mortal(import_package_name);  // XXX why not mortalize this?
 		sv_2mortal(tokensym_list_name);
 		
 		/* Replace this keyword with a null op */
