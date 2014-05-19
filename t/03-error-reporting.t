@@ -18,7 +18,9 @@ eval q{
 };
 like($@, qr/C::Blocks compile-time error/, 'Compilation fails with informative message');
 
-my $file = quotemeta(__FILE__);
+my $file = __FILE__;
+$file =~ tr/\\/\/;  # windows backslash fix
+my $file = quotemeta($file);
 like($@, qr/$file/, 'Error is reported in this file');
 
 unlike($@, qr/<string>/, 'Error does not report from "<string>"');
