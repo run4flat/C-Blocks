@@ -10,20 +10,39 @@ BEGIN {
 use C::Blocks;
 use Config;
 use File::Spec;
+use Carp;
 
 # Provide functions and macros from libperl
 
 BEGIN {
+	# Find the header files
 	my $perl_inc_location = File::Spec->catfile($Config{archlib}, 'CORE');
+	croak("Your Perl header files are onstensibly located at [$perl_inc_location] but I could not find that directory!")
+		unless -d $perl_inc_location;
+	croak("Could not find perl.h where I expected to see it [$perl_inc_location]")
+		unless -f File::Spec->catfile($perl_inc_location, 'perl.h');
+	# Good to go with that, so add that directory as an include dir
 	$C::Blocks::compiler_options = "-Wall -I$perl_inc_location";
-	$C::Blocks::library_to_link = File::Spec->catfile($perl_inc_location, $Config{libperl});;
+	# Can we find the shared library?
+	my $shared_location = File::Spec->catfile($perl_inc_location, $Config{libperl});
+	if (not -f $shared_location) {
+		# Try a guess for linux
+		$shared_location = (glob('/usr/lib/libperl.so*'),
+			glob('/usr/lib/libperl.a*'))[0] if $^O eq 'linux';
+		
+		# check if our new guesses are correct
+		croak('Unable to find libperl') unless -f $shared_location;
+	}
+	
+	$C::Blocks::library_to_link = $shared_location;
 }
 
 cshare {
-	/* For Macs */
-	typedef unsigned short __uint16_t, uint16_t;
-	typedef unsigned int __uint32_t, uint32_t;
-	typedef unsigned long __uint64_t, uint64_t;
+	#ifdef __APPLE__
+		typedef unsigned short __uint16_t, uint16_t;
+		typedef unsigned int __uint32_t, uint32_t;
+		typedef unsigned long __uint64_t, uint64_t;
+	#endif
 	
 	#define PERL_NO_GET_CONTEXT
 	#include "EXTERN.h"
