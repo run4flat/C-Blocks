@@ -36,4 +36,28 @@ cblock {
 
 is($shuttle, 10, 'Repeated cblocks work correctly');
 
+eval q{
+	cblock {
+		SV * shuttle = get_sv("shuttle", 0);
+		sv_setiv(shuttle, 50);
+	}
+	is($shuttle, 50, 'Simple string eval');
+	1;
+} or do {
+	fail "Simple string eval\n";
+};
+
+for (1..3) {
+	eval qq{
+		cblock {
+			SV * shuttle = get_sv("shuttle", 0);
+			sv_setiv(shuttle, $_);
+		}
+		is(\$shuttle, $_, 'Repeated string eval number $_');
+		1;
+	} or do {
+		fail "Repeated string eval number $_\n";
+	};
+}
+
 done_testing;
