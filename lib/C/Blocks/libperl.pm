@@ -22,7 +22,8 @@ BEGIN {
 	croak("Could not find perl.h where I expected to see it [$perl_inc_location]")
 		unless -f File::Spec->catfile($perl_inc_location, 'perl.h');
 	# Good to go with that, so add that directory as an include dir
-	$C::Blocks::compiler_options = "-Wall -I$perl_inc_location";
+	$C::Blocks::compiler_options .= " -I$perl_inc_location ";
+	
 	# Can we find the shared library?
 	my $shared_location = File::Spec->catfile($perl_inc_location, $Config{libperl});
 	if (not -f $shared_location) {
@@ -38,7 +39,7 @@ BEGIN {
 }
 
 cshare {
-	#ifdef __APPLE__
+	#ifdef _C_BLOCKS_OS_darwin
 		typedef unsigned short __uint16_t, uint16_t;
 		typedef unsigned int __uint32_t, uint32_t;
 		typedef unsigned long __uint64_t, uint64_t;

@@ -13,7 +13,7 @@ XSLoader::load('C::Blocks', $VERSION);
 $VERSION = eval $VERSION;
 
 our (@__code_cache_array);
-our $default_compiler_options = '-Wall';
+our $default_compiler_options = "-Wall -D_C_BLOCKS_OS_$^O ";
 our $compiler_options = $default_compiler_options;
 our $library_to_link;
 
