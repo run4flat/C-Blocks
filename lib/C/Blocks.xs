@@ -667,7 +667,8 @@ int my_keyword_plugin(pTHX_
 all_done:
 	lex_unstuff(end);
 	/* Make the parser count the number of lines correctly */
-	for (int i = 0; i < N_newlines; i++) lex_stuff_pv("\n", 0);
+	int i;
+	for (i = 0; i < N_newlines; i++) lex_stuff_pv("\n", 0);
 	
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
