@@ -5,3 +5,5 @@ Build
 _build
 blib
 MYMETA*
+chain.h
+lib/C/Blocks/Chain.pm
