@@ -22,10 +22,10 @@ cblock {
 
 is($shuttle, 5, 'Can set Perl data in a cblock using direct function calls');
 
-#cblock {
-#	SV * shuttle = get_sv("shuttle", 0);
-#	sv_setiv(shuttle, -5);
-#}
+cblock {
+	SV * shuttle = get_sv("shuttle", 0);
+	sv_setiv(shuttle, -5);
+}
 
 is($shuttle, -5, 'Can set Perl data using macros');
 
