@@ -273,9 +273,9 @@ int _is_whitespace_char(char to_check) {
 }
 
 int _is_id_cont (char to_check) {
-	if('_' == to_check || '0' <= to_check && to_check <= '9'
-		|| 'A' <= to_check && to_check <= 'Z'
-		|| 'a' <= to_check && to_check <= 'z') return 1;
+	if('_' == to_check || ('0' <= to_check && to_check <= '9')
+		|| ('A' <= to_check && to_check <= 'Z')
+		|| ('a' <= to_check && to_check <= 'z')) return 1;
 	return 0;
 }
 
