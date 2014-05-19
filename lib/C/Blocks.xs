@@ -3,7 +3,7 @@
 #include "perl.h"
 #include "XSUB.h"
 
-/*#include "ppport.h"*/
+#include "ppport.h"
 #include "libtcc.h"
 
 int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
@@ -40,7 +40,7 @@ typedef struct _identifier_ll {
 typedef struct _ext_sym_callback_data {
 	TCCState * state;
 	#ifdef PERL_IMPLICIT_CONTEXT
-		pTHX;  /* name of field is my_perl, according to perl.h */
+		tTHX my_perl;  /* name of field is my_perl, according to perl.h */
 	#endif
 	extsym_table * extsym_tables;
 	int N_tables;
@@ -276,6 +276,11 @@ int _is_whitespace_char(char to_check) {
 /**** Keyword plugin ****/
 /************************/
 
+
+#ifdef PL_bufptr
+	#undef PL_bufptr
+	#undef PL_bufend
+#endif
 
 #define PL_bufptr (PL_parser->bufptr)
 #define PL_bufend (PL_parser->bufend)
