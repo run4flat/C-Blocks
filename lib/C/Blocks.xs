@@ -272,6 +272,13 @@ int _is_whitespace_char(char to_check) {
 	return 0;
 }
 
+int _is_id_cont (char to_check) {
+	if('_' == to_check || '0' <= to_check && to_check <= '9'
+		|| 'A' <= to_check && to_check <= 'Z'
+		|| 'a' <= to_check && to_check <= 'z') return 1;
+	return 0;
+}
+
 /************************/
 /**** Keyword plugin ****/
 /************************/
@@ -361,7 +368,7 @@ int my_keyword_plugin(pTHX_
 			else if (_is_whitespace_char(*end) || *end == '{') {
 				break;
 			}
-			else if (!isIDCONT(*end)){
+			else if (!_is_id_cont(*end)){
 				croak("C::Blocks csub name can contain only underscores, letters, and numbers");
 			}
 			
@@ -393,7 +400,7 @@ int my_keyword_plugin(pTHX_
 			else if (_is_whitespace_char(*end) || *end == ';') {
 				break;
 			}
-			else if (!isIDCONT(*end) && *end != ':'){
+			else if (!_is_id_cont(*end) && *end != ':'){
 				croak("C::Blocks cuse name must be a valid Perl package name");
 			}
 			end++;
