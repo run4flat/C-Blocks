@@ -215,10 +215,10 @@ void my_tcc_error_func (void * message_ptr, const char * msg ) {
 	SV* message_sv = (SV*)message_ptr;
 	/* set the message in the error_message key of the compiler context */
 	if (SvPOK(message_sv)) {
-		sv_catpvf(message_sv, "%s", msg);
+		sv_catpvf(message_sv, "%s\n", msg);
 	}
 	else {
-		sv_setpvf(message_sv, "%s", msg);
+		sv_setpvf(message_sv, "%s\n", msg);
 	}
 }
 
@@ -516,33 +516,12 @@ int my_keyword_plugin(pTHX_
 	/* Handle compilation errors */
 	/*****************************/
 	if (SvPOK(error_msg_sv)) {
-		/* Manipulate the contents of the error message and the current line
-		 * number before croaking. */
-		
-		/* First extract the number of lines down. The error message is of
-		 * the form "<string>:LINENUMBER: error", so look for the first
-		 * colon. */
-		char * message_string = SvPVbyte_nolen(error_msg_sv);
-		while(*message_string != ':') message_string++;
-		sv_chop(error_msg_sv, message_string + 1);
-		
-		/* Find the second colon */
-		message_string = SvPVbyte_nolen(error_msg_sv);
-		while(*message_string != ':') message_string++;
-		
-		/* Here we use a trick. We are going to set the location of the
-		 * colon temporarily to the null character, pass the SV's string
-		 * to atoi to extract the number, and finally chop off all of the
-		 * string up to and including the null character. */
-		*message_string = '\0';
-		int lines = atoi(SvPVbyte_nolen(error_msg_sv));
-		sv_chop(error_msg_sv, message_string + 1);
-		
-		/* Set Perl's notion of the current line number so it is
-		 * correctly reported. */
-		CopLINE(PL_curcop) = lines;
-		
-		croak("C::Blocks compile-time%s", SvPV_nolen(error_msg_sv));
+		if (strstr(SvPV_nolen(error_msg_sv), "error")) {
+			croak("C::Blocks error:\n%s", SvPV_nolen(error_msg_sv));
+		}
+		else {
+			warn("C::Blocks warning:\n%s", SvPV_nolen(error_msg_sv));
+		}
 	}
 	
 	/******************************************/

@@ -16,7 +16,7 @@ eval q{
 		int i 5
 	}
 };
-like($@, qr/C::Blocks compile-time error/, 'Compilation fails with informative message');
+like($@, qr/error/, 'Compilation fails with informative message');
 
 my $file = __FILE__;
 $file =~ tr/\\/\//;  # windows backslash fix
@@ -25,7 +25,7 @@ like($@, qr/$file/, 'Error is reported in this file');
 
 unlike($@, qr/<string>/, 'Error does not report from "<string>"');
 
-like($@, qr/line 12/, 'Error is reported from the correct line');
+like($@, qr/:12:/, 'Error is reported from the correct line');
 
 
 ####################
@@ -46,9 +46,9 @@ eval q{
 		int i 5
 	}
 };
-like($@, qr/C::Blocks compile-time error/, 'Compilation fails with informative message');
+like($@, qr/error/, 'Compilation fails with informative message');
 like($@, qr/$file/, 'Error is reported in this file');
 unlike($@, qr/<string>/, 'Error does not report from "<string>"');
-like($@, qr/line 18/, 'Error is reported from the correct line');
+like($@, qr/:18:/, 'Error is reported from the correct line');
 
 done_testing;
