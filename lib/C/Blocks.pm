@@ -16,6 +16,7 @@ our (@__code_cache_array);
 our $default_compiler_options = "-Wall -D_C_BLOCKS_OS_$^O ";
 our $compiler_options = $default_compiler_options;
 our $library_to_link;
+our ($_add_msg_functions, $_msg);
 
 sub import {
 	my $class  = shift;

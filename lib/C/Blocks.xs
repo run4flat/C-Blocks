@@ -132,6 +132,22 @@ void * dynaloader_get_lib(pTHX_ char * name) {
 	return to_return;
 }
 
+/***************************/
+/**** Testing Functions ****/
+/***************************/
+
+char _c_blocks_msg_buffer[1024];
+char * _c_blocks_get_msg() {
+	dTHX;
+	SV * msg_SV = get_sv("C::Blocks::_msg", 0);
+	return SvPVbyte_nolen(msg_SV);
+}
+void _c_blocks_send_msg(char * msg) {
+	dTHX;
+	SV * msg_SV = get_sv("C::Blocks::_msg", 0);
+	sv_setpv(msg_SV, msg);
+}
+
 /*****************************************/
 /**** Extended symbol table callbacks ****/
 /*****************************************/
@@ -443,6 +459,20 @@ int my_keyword_plugin(pTHX_
 		goto all_done;
 	}
 	
+	/* Add testing functions if requested */
+	SV * add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
+	if (SvOK(add_test_SV)) {
+		/* The stuff position depends on whether we are going to get rid of the
+		 * first curly bracket or not. */
+		if (keep_curly_brackets) {
+			lex_stuff_pv("void c_blocks_send_msg(char * msg); char * c_blocks_get_msg(); ", 0);
+		}
+		else {
+			lex_unstuff(PL_bufptr + 1);
+			lex_stuff_pv("{void c_blocks_send_msg(char * msg); char * c_blocks_get_msg(); ", 0);
+		}
+	}
+	
 	/**********************/
 	/* Extract the C code */
 	/**********************/
@@ -529,6 +559,12 @@ int my_keyword_plugin(pTHX_
 	/******************************************/
 	/* Apply the list of symbols and relocate */
 	/******************************************/
+	
+	/* test symbols */
+	if (SvOK(add_test_SV)) {
+		tcc_add_symbol(state, "c_blocks_send_msg", _c_blocks_send_msg);
+		tcc_add_symbol(state, "c_blocks_get_msg", _c_blocks_get_msg);
+	}
 	
 	apply_and_clear_identifiers(&callback_data);
 	
