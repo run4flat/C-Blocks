@@ -73,6 +73,10 @@ message
 		exit(1);
 	};
 	
+	if (grep /--local-alien/, @ARGV) {
+		@ARGV = grep { $_ ne '--local-alien' } @ARGV;
+		install_local_alien;
+	}
 	# Make sure we have Alien::TinyCC
 	eval q{
 		use Alien::TinyCC;
