@@ -36,6 +36,13 @@ BEGIN { pass 'second cblock after lexical block compiles without trouble' }
 pass 'second cblock is called and run without trouble';
 is($C::Blocks::_msg, 'Second', 'Function call in second cblock has desired side-effect');
 
+cblock {
+	send_hello();
+}
+BEGIN { pass 'third cblock after lexical block compiles without trouble' }
+pass 'third cblock is called and run without trouble';
+is($C::Blocks::_msg, 'Hello!', 'Function call in third cblock has desired side-effect');
+
 #$C::Blocks::_msg = '';
 #eval q{
 #	cblock {
