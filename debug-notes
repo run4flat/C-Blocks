@@ -68,3 +68,53 @@ library through Dynaloader, again through Perl. If there are ways to speed up
 this process, they can be worked out after the first hack has been achieved.
 This approach will work cross platform (even for systems that TCC knows how to
 link against) and is a nice starting point.
+
+May 20
+======
+
+It's been quite some time since that entry. During that time I have managed to
+get the extended symbol table handling to work on Linux and Mac. Presumably, it
+also works on Windows, but I have encountered problems including perl.h in a
+Strawberry environment. The problems are due to the use of mingw header files
+that have special cased behavior for different compilers. Sometimes, that
+special cased behavior does not have an acceptable default, and the code issues
+an #error. tcc dutifully throws them. I just realized that one possible way
+around this is to try to compile Perl on Windows to see if Perl's configuration
+script can figure out the correct parameters. If so, I could use those for the
+compiler context.
+
+Things that need to happen include:
+
+  1)  Get perl.h to compile on mingw/Strawberry.
+  2)  Refactor the C code so it is easier to follow.
+  3)  Implement a hash table for token-by-name lookup.
+  4)  Write the lookup table caching, especially important for libperl
+  5)  Improve the behavior and interface of cuse.
+
+I managed to tackle the first item on that list. The very first Test::More
+statement of the libperl test passes on Strawberry, but then it immediately
+segfaults.
+
+May 21
+======
+
+I have revised how libperl is detected; it is now more robust.
+
+I then decided to revise how the test suite is written and have opted to
+provide a rudimentary pair of functions to communicate between C and Perl
+without needing to load libperl. This lets me disentangle cblocks trouble from
+libperl trouble.
+
+The result is that the initial test now runs and passes on Mac using perlbrew
+v5.18, Windows XS using Strawberry v5.18, and Debian using the system Perl
+v5.14 together with local::lib. The libperl tests fail on Windows.
+
+I then revised the clex tests and uncovered something quite interesting. These
+tests pass on Windows but fail on Mac. On Mac, I occasionally get "Internal
+error: unable to locate extended symbol" but frequently I just get a
+segmentation fault.
+
+I decided to write a bit of bootstrapping code into Build.PL so that new
+developers can simply type "perl Build.PL" and be guided through the
+installation of whatever is needed. It is now time to recruit.
+
