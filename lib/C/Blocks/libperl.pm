@@ -8,50 +8,44 @@ BEGIN {
 }
 
 use C::Blocks;
-use Config;
+use ExtUtils::Embed;
 use File::Spec;
+use Config;
 use Carp;
 
 # Provide functions and macros from libperl
 
 BEGIN {
-	# Find the header files
-	my $perl_inc_location = File::Spec->catfile($Config{archlib}, 'CORE');
-	croak("Your Perl header files are onstensibly located at [$perl_inc_location] but I could not find that directory!")
-		unless -d $perl_inc_location;
-	croak("Could not find perl.h where I expected to see it [$perl_inc_location]")
-		unless -f File::Spec->catfile($perl_inc_location, 'perl.h');
-	# Good to go with that, so add that directory as an include dir
-	$C::Blocks::compiler_options .= " -I$perl_inc_location ";
-	if ($^O eq 'MSWin32') {
-		$C::Blocks::compiler_options .= join(' ', qw(
-			-DWIN32
-			-D__C89_NAMELESS=__extension__
-			-D__MINGW_EXTENSION=__extension__
-			-Duid_t=long
-			-Dgid_t=long
-		), '');
+	# Utilize ExtUtils::Embed to get some build info
+	$C::Blocks::compiler_options = ccopts;
+
+	# I will not use the linker options, except to extract the library folders
+	my $shared_location;
+	my @linker_options = grep $_, split (/\s+/, ldopts);
+	# Extract the "-L" flags and see if any of those folders contain libperl
+	my @linker_dirs = map { /^-L(.*)/ } @linker_options;
+	for my $dir (@linker_dirs) {
+		if (-f File::Spec->catfile($dir, $Config{libperl})) {
+			$shared_location = File::Spec->catfile($dir, $Config{libperl});
+			last;
+		}
 	}
-	
-	# Can we find the shared library?
-	my $shared_location = File::Spec->catfile($perl_inc_location, $Config{libperl});
-	if (not -f $shared_location) {
-		# Try a guess for linux
-		$shared_location = (glob('/usr/lib/libperl.so*'),
-			glob('/usr/lib/libperl.a*'))[0] if $^O eq 'linux';
-		
-		# check if our new guesses are correct
-		croak('Unable to find libperl') unless -f $shared_location;
-	}
+	# make sure we found something
+	croak('Unable to find libperl') unless $shared_location and -f $shared_location;
 	
 	$C::Blocks::library_to_link = $shared_location;
 }
 
 cshare {
-	#ifdef _C_BLOCKS_OS_darwin
+	#ifdef PERL_DARWIN
 		typedef unsigned short __uint16_t, uint16_t;
 		typedef unsigned int __uint32_t, uint32_t;
 		typedef unsigned long __uint64_t, uint64_t;
+	#elif defined WIN32
+		#define __C89_NAMELESS=__extension__
+		#define __MINGW_EXTENSION=__extension__
+		typedef long uid_t;
+		typedef long gid_t;
 	#endif
 	
 	#define PERL_NO_GET_CONTEXT
