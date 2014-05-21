@@ -7,72 +7,143 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  use strict;
  use warnings;
  use C::Blocks;
+ cuse C::Blocks::libperl;
  
- print "Before block\n";
+ our $global_var = "Before first cblock";
+ print "Before the first cblock, \$global_var conains [$global_var]\n";
  
- C {
-     /* This is bare C code! */
-     printf("From C block\n");
-     int foo = 1;
-     printf("foo = %d, which is %s\n", foo, (foo % 2 == 1 ? "odd" : "even"));
+ cblock {
+     /* This is raw C code! */
+     SV * global = get_sv("global_var", 0);
+     sv_setpv(global, "After first cblock");
  }
  
- print "After first block\n";
- 
- C {
-     printf("From second block\n");
- }
- 
- print "All done!\n"; 
+ print "After the first cblock, \$global_var conains [$global_var]\n";
 
 =head1 ALPHA
 
-This project is currently in alpha. I say this not because I expect the
-API to I<change> much (if at all), but because I expect the API to
-I<grow> substantially. Presently you cannot use the Perl C API in your C
-blocks, which makes it nearly useless for most purposes. Another
-substantial limitation is that the compiler uses lots of global
-variables, so if you try to use this in a multi-threaded context and you
-try to compile C code simultaneously in multiple threads, it'll likely
-blow up.
+This project is currently in alpha. Using this software is likely to
+cause segmentation faults and the API is likely to change over time.
+Basically, if you're not actively developing this code, you should
+probably steer clear of it for now.
 
 =head1 DESCRIPTION
 
-This module uses Perl's pluggable keyword API to add a new keyword, C<C>.
-The C<C> keyword precedes a block of C code that gets compiled and
-inserted into the Perl op tree at the precise location of the block.
+This module uses Perl's pluggable keyword API to add a number of new
+keywords including C<cblock>, C<cshare>, C<clex>, and C<cuse>.
+For all but C<cuse>, the block of code that follows the keyword gets
+compiled. Code in a C<cblock> gets inserted into Perl's op-tree and
+executed whenever execution of the code arrives at that op. Code in
+C<clex> and C<cshare> is compiled and the declarations and definitions
+are made available to later C<cblock>, C<clex>, and C<cshare> blocks.
 
-=head1 GOALS
+The major contribution that this package has over a similar package
+such as 
 
-My three major goals for this project are:
+=head1 DEVELOPMENT BOOTSTRAP
+
+To get started developing on this library, clone the github repository:
+
+ git clone https://github.com/run4flat/C-Blocks.git
+ cd C-Blocks
+ perl Buil.PL
+
+Presently, F<Build.PL> has a specially written bootstrap that detects
+any missing dependencies and offers to install them for you. Once
+everything have been installed, hop on to the MagNET's #tinycc channel
+and join in the discussion!
+
+=head1 CURRENT STATUS
+
+As of May 21, 2014, the pass/fail matrix is this:
+
+ System \ Test        | 01 | 02 | 03 | 04 | 10 |
+ -----------------------------------------------
+ XP Strawberry 5.18   |  y |  y |  y | #1 | #2 |
+ Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 |
+ Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 |
+ Wheezy sys 5.14      |  y |  y |  y |  y | #3 |
+
+Any failures are enumerated in the table and described below. If
+things change, or if you have a new result, please add it to the
+table and update the failure descriptions below.
 
 =over
 
-=item Perl C API
+=item 1
 
-None of the Perl C API is available. It's hard to do much without being
-able to interact with Perl data.
+On Windows XP running Strawberry Perl 5.18, the very first subtest
+of test 04 prints its status:
 
-=item Make C<$var> in C blocks do something useful
+ ok 1 - Can set Perl data in a cblock using direct function calls
 
-I would like to be able to say something like this, and have it Do What
-I Mean:
+Then Perl crashes.
 
- my $var = 'hello';
- print "Var is initially $var\n";
- C {
-     sv_setiv($var, 5);
- }
- print "Now var is $var\n";
+=item 2
 
-In addition to needing Perl's C API, I would need to modify the C parser
-to identify Perl-like variables and insert the correct code.
+On Windows XP running Strawberry Perl 5.18, all cblocks compile fine.
+However, the test script crashes when trying to call the third cblock.
 
-=item Extension API
+=item 3
 
-I would like to allow for lexically scoped extensions to add functions
-and struct definitions. This will require a bit of hacking on TCC's
-symbol table machinery, so will likely take a bit of time and effort.
+On Mac and Linux, test 10 displays no output except for the error
+
+ Internal error: unable to locate extended symbol
+
+=item 4
+
+On any default-compiled Perlbrew, the generated F<libperl> is a static
+library. There is a slim chance that TCC can link against a static
+library on Windows and Linux. There is no chance that it can link
+against a static library on Mac. Any tests against L<C::Blocks::libperl>
+will fail in this situation.
+
+=back
+
+=head1 GOALS
+
+I have a number of goals I would like to accomplish before I push his
+out to CPAN. These include
+
+=over
+
+=item Squash all segfaults
+
+I am still encountering a lot of segfaults. I need to figure out what
+gives rise to those and plug them.
+
+=item Extended Symbol Table Caching
+
+The current symbol table copying implemented in Alien::TinyCC's copy
+of tcc involves an N**2 lookup procedure. For large code bases such
+as libperl's, the copy procedure takes on the order of seconds. I
+would like to hack on tcc to provide extended symbol table dump and
+load functionality to minimize the startup time when using
+L<C::Blocks::libperl>.
+
+=item Hash table for extended symbol table lookups
+
+The lookup-by-name is currently implemented by iterating through each
+TokenSym and checking if that TokenSym's name matches the bareword of
+interest. This could be substantially sped up if I had a hash table
+mapping names to TokenSym array offsets.
+
+=item Refactor Blocks.xs
+
+The keyword parser in Blocks.xs is enormous. This needs to be split
+into several smaller functions.
+
+=item Switch to call_checker and call_parser
+
+The keyword API is so yesterday. I used it for prototyping, but I
+need to switch to the new method. That doesn't need to happen before
+it hits CPAN, but I would like for it to happen soon.
+
+=item Scrap cuse
+
+I need to come up with a better way of importing code into the
+current lexical scope. C<cuse> is doin the job for the moment, but
+it kinda sucks and needs to be rethought.
 
 =item Threadsafe
 

@@ -85,7 +85,7 @@ compiler context.
 
 Things that need to happen include:
 
-  1)  Get perl.h to compile on mingw/Strawberry.
+  1)  Get perl.h to compile on mingw/Strawberry. [done]
   2)  Refactor the C code so it is easier to follow.
   3)  Implement a hash table for token-by-name lookup.
   4)  Write the lookup table caching, especially important for libperl
