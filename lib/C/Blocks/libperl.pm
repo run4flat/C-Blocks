@@ -23,6 +23,15 @@ BEGIN {
 		unless -f File::Spec->catfile($perl_inc_location, 'perl.h');
 	# Good to go with that, so add that directory as an include dir
 	$C::Blocks::compiler_options .= " -I$perl_inc_location ";
+	if ($^O eq 'MSWin32') {
+		$C::Blocks::compiler_options .= join(' ', qw(
+			-DWIN32
+			-D__C89_NAMELESS=__extension__
+			-D__MINGW_EXTENSION=__extension__
+			-Duid_t=long
+			-Dgid_t=long
+		), '');
+	}
 	
 	# Can we find the shared library?
 	my $shared_location = File::Spec->catfile($perl_inc_location, $Config{libperl});
