@@ -1,48 +1,38 @@
 use strict;
 use warnings;
-
-# I will construct my tap by hand in order to get the right results
-BEGIN {
-	$| = 1;
-	print "1..7\n";
-}
-
+use Test::More;
 use C::Blocks;
+cuse C::Blocks::libperl;
 
-# First real print
-cblock {
-	printf("ok 2 - printf from first C block\n");
-}
-
-# Build a function
+# Build a function that sets a global for me.
+our $shuttle;
 clex {
-	void print_ok(int count, char * message) {
-		printf("ok %d - %s", count, message);
+	int Perl_get_shuttle_i(pTHX) {
+		#define get_shuttle_i() Perl_get_shuttle(aTHX)
+		SV * shuttle = get_sv("shuttle", 0);
+		return SvIV(shuttle);
+	}
+	void Perl_set_shuttle_i(pTHX_ int new_value) {
+		#define set_shuttle_i(new_value) Perl_set_shuttle_i(aTHX_ new_value)
+		SV * shuttle = get_sv("shuttle", 0);
+		sv_setiv(shuttle, 5);
 	}
 }
 
-print "ok 3 - clex bareword did not croak\n";
+pass('At runtime, lexical block gets skipped without trouble');
 
-# Call the function
+# Generate a random integer between zero and 20
+$shuttle = rand(20) % 20;
+my $double = $shuttle * 2;
+# Double it
 cblock {
-	printf("ok 4 - printf from second C block\n");
-	print_ok(5, "Calling previously defined C function works");
+	int old = get_shuttle_i();
+	set_shuttle_i(old * 2);
 }
-
-eval q{
-	cblock {
-		printf("ok 6 - string evals work\n");
-	}
-};
-
-for (7 .. 7) {
-	eval qq{
-		cblock {
-			printf("ok $_ - string evals really work!\\n");
-		}
-	};
-}
+is($shuttle, $double, 'C functions from previously compiled scope work');
 
 BEGIN {
-	print "ok 1 - everything compiled\n";
+	pass('Block compilation is fine');
 }
+
+done_testing;
