@@ -1,5 +1,53 @@
 use strict;
 use warnings;
+
+# |||| Bootstrap |||| #
+# \/\/           \/\/ #
+
+BEGIN {
+	# Bootstrap things to help new developers. Remove this before publishing to
+	# CPAN.
+	eval q{
+		use File::ShareDir;
+		1;
+	} or do {
+		print "You need File::ShareDir in order to install and use Alien::TinyCC. Shall I install it using cpanm? ";
+		my $answer = <>;
+		if ($answer =~ /^y/i) {
+			system('cpanm File::ShareDir');
+			exec("$^X Build.PL");  # Start over
+		}
+		exit(1);
+	};
+	
+	# Make sure we have Alien::TinyCC
+	eval q{
+		use Alien::TinyCC;
+		1;
+	} or do {
+		print "Looks like you don't have Alien::TinyCC. Would you like me to install it for you using cpanm? ";
+		my $answer = <>;
+		if ($answer =~ /^y/i) {
+			system('cpanm https://github.com/run4flat/Alien-TinyCC.git');
+			exec("$^X Build.PL");  # Start over
+		}
+		exit(1);
+	};
+	if ($Alien::TinyCC::VERSION < 0.05_01) {
+		print "Your version of Alien::TinyCC is too old. Shall I update it using cpanm? ";
+		my $answer = <>;
+		if ($answer =~ /^y/i) {
+			system('cpanm https://github.com/run4flat/Alien-TinyCC.git');
+			exec("$^X Build.PL");  # Start over
+		}
+		exit(1);
+	}
+}
+
+# /\/\           /\/\ #
+# |||| Bootstrap |||| #
+
+
 use Module::Build;
 use Alien::TinyCC;
 
