@@ -24,7 +24,7 @@ BEGIN {
 	my @linker_options = grep $_, split (/\s+/, ldopts);
 	# Extract the "-L" flags and see if any of those folders contain libperl
 	my @linker_dirs = map { /^-L(.*)/ } @linker_options;
-	for my $dir (@linker_dirs) {
+	for my $dir (@linker_dirs, '/usr/lib') {
 		if (-f File::Spec->catfile($dir, $Config{libperl})) {
 			$shared_location = File::Spec->catfile($dir, $Config{libperl});
 			last;
