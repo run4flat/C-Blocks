@@ -133,6 +133,21 @@ mapping names to TokenSym array offsets.
 The keyword parser in Blocks.xs is enormous. This needs to be split
 into several smaller functions.
 
+=item "Interpolate" sigils
+
+I would like C<$variable> to look up and return the C<SV*>
+associated with that variable, either the lexically or the globally
+scoped SV. The compiler can be asked at that poin in the parse if
+it has seen a lexical variable by that name, so it should be
+posible to figure out the correct interpretation (pull from pad
+vs pull from symbol table) at C<cblock> compile time.
+
+Furthermore, it shouldn't be too hard to implement. TCC knows how to
+detect the C<$> character because it is used in assembly code. I
+would like to hack on TCC to treat this like a runtime preprocessor
+macro, such that I could write the token stream *during* the C parse
+stage. I know enough about token streams to accomplish this.
+
 =item Switch to call_checker and call_parser
 
 The keyword API is so yesterday. I used it for prototyping, but I
