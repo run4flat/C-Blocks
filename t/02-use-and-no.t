@@ -26,8 +26,8 @@ eval q{
 		int i = 0;
 	}
 };
-isnt($@, '', 'saying no C::Blocks should remove the C keyword and cause a Perl compile error');
-# note("Message is $@");
+isnt($@, '', 'saying no C::Blocks then using "cblock" issues exception');
+like($@, qr/syntax error .* near "cblock/, 'the exception is due to bad "cblock" keyword');
 
 eval q{
 	use C::Blocks;
