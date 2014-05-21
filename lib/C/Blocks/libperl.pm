@@ -62,8 +62,8 @@ cshare {
 		typedef unsigned int __uint32_t, uint32_t;
 		typedef unsigned long __uint64_t, uint64_t;
 	#elif defined WIN32
-		#define __C89_NAMELESS=__extension__
-		#define __MINGW_EXTENSION=__extension__
+		#define __C89_NAMELESS __extension__
+		#define __MINGW_EXTENSION __extension__
 		typedef long uid_t;
 		typedef long gid_t;
 	#endif
