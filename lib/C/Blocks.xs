@@ -97,7 +97,9 @@ void * dynaloader_get_symbol(pTHX_ void * dll, char * name) {
 	count = call_pv("DynaLoader::dl_find_symbol", G_SCALAR);
 	SPAGAIN;
 	if (count != 1) croak("C::Blocks expected one return value from dl_find_symbol but got %d\n", count);
-	void * to_return = INT2PTR(void*, POPi);
+	SV * returned = POPs;
+	void * to_return = NULL;
+	if (SvOK(returned)) to_return = INT2PTR(void*, SvIV(returned));
 	
 	PUTBACK;
 	FREETMPS;
