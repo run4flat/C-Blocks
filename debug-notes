@@ -177,3 +177,12 @@ received string and the pointer address. For compile-time constants, such as
 the string "Hello!", the message and the address of the message should be the
 same.
 
+The test results indicate that the actual address sent into _c_blocks_send_msg
+is incorrect. For one run, the reported address of the string "Hello!" was
+0x98a4840; later when the same function using the same constant was invoked by
+a different cblock, the reported address was 0xbf86f378.
+
+Thus, on Linux and Mac at least, I can be fairly confident that something is
+getting messed up with the baked-in addresses of constants when the compiler
+context gets shared.
+
