@@ -81,14 +81,21 @@ Then Perl crashes.
 
 =item 2
 
-On Windows XP running Strawberry Perl 5.18, all cblocks compile fine.
-However, the test script crashes when trying to call the third cblock.
+On Windows XP running Strawberry Perl 5.18, for test 10, all cblocks
+compile fine, and everything runs fine until I try to execute a
+cblock that calls a function that was already called by a previous
+cblock. This happens to be the code just after test #14, "sending foo
+works". Thereafter, the process crashes.
 
 =item 3
 
-On Mac and Linux, test 10 displays no output except for the error
+On Mac and Linux, test 10 sometimes displays the following error:
 
  Internal error: unable to locate extended symbol
+
+Other times, it runs the full test suite, passing all but the last
+test. for that test, it always reports some odd mish-mashed string,
+certainly not the string that I sent it the first time.
 
 =item 4
 
