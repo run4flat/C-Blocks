@@ -139,3 +139,35 @@ associate the index of the TokenSym, which uses fewer bytes. :-) Having loaded
 the hashtable and associated Syms from disk, we would add the TokenSym to a
 second hashtable that points to our loaded data. This would be a fast cache for
 frequently used tokens.
+
+May 22
+======
+
+I have worked quite a bit on the lexical block tests, both in C::Blocks' test
+suite and in tcc's extended symbol table test suite. tcc's extended symbol
+table test suite seems to have no trouble with the tests on Linux and Mac, but
+it gives trouble with most of the 40s series tests on Windows. When I turn
+attention to the C::Blocks tests, I get passing behavior on all platforms for
+tests 1, 2, and 3. Test #4 covers libperl and it works on Linux and Mac but
+does not get very far on Windows. Every platform fails to pass test 10, the
+first test that uses clex (but the second test that uses cshare).
+
+Those led me to write a number of new tests for exsymtab handling in tcc,
+those in the higher 40s, and to write a script to invoke those tests on
+Windows. Until now, running those tests has been tricky.
+
+I can now say that Windows encounters trouble with the exsymtab tests in the
+upper 40s. I do not yet know why. In contrast, Linux and Mac both seem to be
+fine with those tests.
+
+The test that fails for Mac and Linux is #10, the one that uses the lexical
+block. I decided to expand this test and figure out precisely what was going
+on. In the new expanded test, I see that
+
+  1) repeated invocations of a lexically-defined function might fail
+  2) it seems to fail if the function uses a string constant
+  3) it succeeds if the function uses a caller-provided variable
+
+This suggests that the data section of the machine code that stores the string
+constant might be getting corrupted after or because of the function
+invocation.
