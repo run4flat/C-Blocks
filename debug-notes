@@ -171,3 +171,9 @@ on. In the new expanded test, I see that
 This suggests that the data section of the machine code that stores the string
 constant might be getting corrupted after or because of the function
 invocation.
+
+To test this hypothesis, I modified _c_blocks_send_msg to print out the
+received string and the pointer address. For compile-time constants, such as
+the string "Hello!", the message and the address of the message should be the
+same.
+
