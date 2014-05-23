@@ -136,7 +136,6 @@ void * dynaloader_get_lib(pTHX_ char * name) {
 /**** Testing Functions ****/
 /***************************/
 
-char _c_blocks_msg_buffer[1024];
 char * _c_blocks_get_msg() {
 	dTHX;
 	SV * msg_SV = get_sv("C::Blocks::_msg", 0);
@@ -147,6 +146,11 @@ void _c_blocks_send_msg(char * msg) {
 	SV * msg_SV = get_sv("C::Blocks::_msg", 0);
 	printf("# c_blocks_send_msg received message [%s] at address [%p]\n", msg, msg);
 	sv_setpv(msg_SV, msg);
+}
+void _c_blocks_send_bytes(char * msg, int bytes) {
+	dTHX;
+	SV * msg_SV = get_sv("C::Blocks::_msg", 0);
+	sv_setpvn(msg_SV, msg, bytes);
 }
 
 /*****************************************/
@@ -466,7 +470,10 @@ int my_keyword_plugin(pTHX_
 		/* The stuff position depends on whether we are going to get rid of the
 		 * first curly bracket or not. */
 		if (keep_curly_brackets) {
-			lex_stuff_pv("void c_blocks_send_msg(char * msg); char * c_blocks_get_msg(); ", 0);
+			lex_stuff_pv("void c_blocks_send_msg(char * msg);"
+				"void c_blocks_send_bytes(void * msg, int bytes);"
+				"char * c_blocks_get_msg();"
+				, 0);
 		}
 		else {
 			lex_unstuff(PL_bufptr + 1);
@@ -564,6 +571,7 @@ int my_keyword_plugin(pTHX_
 	/* test symbols */
 	if (SvOK(add_test_SV)) {
 		tcc_add_symbol(state, "c_blocks_send_msg", _c_blocks_send_msg);
+		tcc_add_symbol(state, "c_blocks_send_bytes", _c_blocks_send_bytes);
 		tcc_add_symbol(state, "c_blocks_get_msg", _c_blocks_get_msg);
 	}
 	
