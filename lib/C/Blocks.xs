@@ -160,7 +160,6 @@ char * _c_blocks_get_msg() {
 void _c_blocks_send_msg(char * msg) {
 	dTHX;
 	SV * msg_SV = get_sv("C::Blocks::_msg", 0);
-	printf("# c_blocks_send_msg received message [%s] at address [%p]\n", msg, msg);
 	sv_setpv(msg_SV, msg);
 }
 void _c_blocks_send_bytes(char * msg, int bytes) {
