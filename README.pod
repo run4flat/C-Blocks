@@ -133,7 +133,7 @@ table and update the failure descriptions below.
 
 =item 3
 
-On Mac (and possibly Linux), test 10 sometimes displays the following
+On Mac OSX 10.7 (Lion), running test 10 with C<prove> results in the following
 error:
 
  Internal error: unable to locate extended symbol

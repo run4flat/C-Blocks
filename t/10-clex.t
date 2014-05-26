@@ -75,19 +75,19 @@ BEGIN { pass 'Nth cblock after lexical block compiles without trouble' }
 pass 'Nth cblock is called and run without trouble';
 is($C::Blocks::_msg, 'Hello!', 'Function call in third cblock has desired side-effect');
 
-#$C::Blocks::_msg = '';
-#eval q{
-#	cblock {
-#		// call hello again
-#		send_hello();
-#	}
-#	BEGIN { pass "string-eval'd code with lexical block compiles without trouble" }
-#	pass "string-eval'd code with lexical block runs without trouble";
-#	is($C::Blocks::_msg, 'Hello', "string-eval'd code has desired side-effect");
-#	1;
-#} or do {
-#	fail "string-eval'd code has access to lexically scoped functions";
-#	diag $@;
-#};
+$C::Blocks::_msg = '';
+eval q{
+	cblock {
+		// call hello again
+		send_hello();
+	}
+	BEGIN { pass "string-eval'd code with lexical block compiles without trouble" }
+	pass "string-eval'd code with lexical block runs without trouble";
+	is($C::Blocks::_msg, 'Hello!', "string-eval'd code has desired side-effect");
+	1;
+} or do {
+	fail "string-eval'd code has access to lexically scoped functions";
+	diag $@;
+};
 
 done_testing;
