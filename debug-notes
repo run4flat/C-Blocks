@@ -200,3 +200,29 @@ they fail when they try to actually execute the code in the second cblock that
 would modify the struct based on the ttruct layout. They crash with a segfault.
 Unfortunately, debugging stabs are not available for jit-compiled code, so I
 can't pick it apart after the fact using gdb.
+
+May 23
+======
+
+Last night I realized that I could examine the symbol table structures and make
+a direct comparison between how a function definition and a function
+declaration are stored in the symbol table. I will set this up as a test in the
+tcc extended symtab tests and see what I get.
+
+I added tests, but didn't uncover anything.
+
+May 25
+======
+
+Although it seemed like a long shot, I decided that I should run an additional
+test on tcc to see if dependent compilers states actually modified the elements
+of extended symbol tables. Lo! they do! In particular, functions that are in
+extended symbol tables are modified to have their c fields set!
+
+May 26
+======
+
+In light of yesterday's findings, I extended the behavior of add_identifier()
+and apply_and_clear_identifiers() so that they store and restore the value of
+the c field for any identifier that needs to be added to a dependent
+compilation unit.

@@ -33,6 +33,8 @@ PP(tcc_pp) {
 typedef struct _identifier_ll {
 	char * name;
 	void * pointer;
+	TokenSym_p tsym;
+	long c_backup;
 	struct _identifier_ll * next;
 } identifier_ll;
 
@@ -48,22 +50,32 @@ typedef struct _ext_sym_callback_data {
 	identifier_ll* identifiers;
 } ext_sym_callback_data;
 
-void add_identifier (ext_sym_callback_data * callback_data, char * name, void * pointer) {
-	/* Build the identifier */
+void add_identifier (ext_sym_callback_data * callback_data, char * name,
+	void * pointer, TokenSym_p tsym
+) {
+	identifier_ll* id = callback_data->identifiers;
+	if (id != NULL) {
+		while(id->next != NULL){
+			if(strcmp(name, id->name) == 0) return;
+			id = id->next;
+		}
+		/* Handle the last case, id->next is null, but id is not */
+		if (strcmp(name, id->name) == 0) return;
+	}
+	
+	/* Now we're at the end of the linked list, and this name has not yet been
+	 * added. Build a new id and add it. */
 	identifier_ll* new_id;
 	Newx(new_id, 1, identifier_ll);
 	new_id->name = name;
 	new_id->pointer = pointer;
 	new_id->next = NULL;
+	new_id->c_backup = tcc_tokensym_get_id_c(tsym);
+	new_id->tsym = tsym;
 	
-	/* Find where to put it */
-	if (callback_data->identifiers == NULL) {
-		callback_data->identifiers = new_id;
-		return;
-	}
-	identifier_ll* id = callback_data->identifiers;
-	while(id->next != NULL) id = id->next;
-	id->next = new_id;
+	/* Start a new list, or add it to the end of the list */
+	if (id == NULL) callback_data->identifiers = new_id;
+	else id->next = new_id;
 }
 
 void apply_and_clear_identifiers (ext_sym_callback_data * callback_data) {
@@ -72,7 +84,11 @@ void apply_and_clear_identifiers (ext_sym_callback_data * callback_data) {
 	identifier_ll * next;
 	while(curr) {
 		next = curr->next;
+		/* Add the symbol to the current compiler */
 		tcc_add_symbol(callback_data->state, curr->name, curr->pointer);
+		/* Restore the state of the symbol before this compilation */
+		tcc_tokensym_set_id_c(curr->tsym, curr->c_backup);
+		/* All done with this link, so free it */
 		Safefree(curr);
 		curr = next;
 	}
@@ -218,7 +234,7 @@ TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier
 					croak("C::Blocks internal error: extsym_table had neither state nor dll entry");
 				}
 				if (pointer != NULL) {
-					add_identifier(callback_data, name, pointer);
+					add_identifier(callback_data, name, pointer, ts);
 				}
 			}
 			return ts;
