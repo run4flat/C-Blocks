@@ -36,6 +36,12 @@ cblock {
 
 is($shuttle, 10, 'Repeated cblocks work correctly');
 
+cblock {
+	sv_setiv(get_sv("shuttle", 0), 15);
+}
+
+is ($shuttle, 15, 'nested function calls do not cause segfaults');
+
 eval q{
 	cblock {
 		SV * shuttle = get_sv("shuttle", 0);
