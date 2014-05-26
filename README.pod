@@ -31,42 +31,132 @@ probably steer clear of it for now.
 
 This module uses Perl's pluggable keyword API to add a number of new
 keywords including C<cblock>, C<cshare>, C<clex>, and C<cuse>.
-For all but C<cuse>, the block of code that follows the keyword gets
-compiled. Code in a C<cblock> gets inserted into Perl's op-tree and
-executed whenever execution of the code arrives at that op. Code in
-C<clex> and C<cshare> is compiled and the declarations and definitions
-are made available to later C<cblock>, C<clex>, and C<cshare> blocks.
 
-The major contribution that this package has over a similar package
-such as 
+=over
+
+=item cblock
+
+The C<cblock> keyword is immediately followed by a curly-bracket
+delimited block of C code. That code is wrapped into a specially formed
+function and compiled at Perl parse time. An OP is then inserted into
+the generated OP tree that knows how to call that function whenever
+the Perl interpreter reaches this execution point.
+
+=item clex, cshare
+
+The C<clex> and C<cshare> keywords are immediately followed by a
+curly-bracket delimited block of C code. That code is compiled at Perl
+parse time and the symbol table is made accessible to later C<clex>s,
+C<cshare>s, and C<cblock>s in the current lexical scope. In other words,
+you can write struct layouts and functions in C<clex> and C<cshare>
+blocks that you can later use in C<cblocks>. Furthermore, any code in
+C<cshare> blocks is added to the current package's list of shared code
+blocks, and the struct definitions, typedefs, macros, function
+declarations, and function definitions can be imported into a caller's
+lexical scope using C<cuse> (which is likely to be replaced soon, see
+below).
+
+=item cuse
+
+The C<cuse> keyword (which is likely to be replaced soon, btw) takes a
+package name and pulls in the functionality of any C<cshare> blocks of
+code defined in that package. This functionality can then be used in
+C<cshare>, C<clex>, and C<cblock> blocks in the current lexical scope.
+
+=back
 
 =head1 DEVELOPMENT BOOTSTRAP
 
-To get started developing on this library, clone the github repository:
+C<C::Blocks> has a somewhat complicated dependency on a version of
+L<Alien::TinyCC> that is not yet on CPAN. Since I would like to make it
+as easy as possible for others to hack on it and contribute to the
+development of the software, I have written functionality into the
+F<Build.PL> file that will set up a local copy of the development
+version of L<Alien::TinyCC> and build against that. This means that to
+get started developing on this library, you simply need to clone the
+github repository and run F<Build.PL>:
 
  git clone https://github.com/run4flat/C-Blocks.git
  cd C-Blocks
  perl Buil.PL
 
-Presently, F<Build.PL> has a specially written bootstrap that detects
-any missing dependencies and offers to install them for you. Once
-everything have been installed, hop on to the MagNET's #tinycc channel
-and join in the discussion!
+The bootstrap code in F<Build.PL> detects any missing dependencies for
+L<Alien::TinyCC> and offers to install them for you. It then builds
+L<Alien::TinyCC> in a subfolder of your current directory or installs
+the current development copy to your machine if you wish.
+
+=over
+
+Note: the bootstrap restarts itself by calling C<exec>. Strangely, this
+seems to cause the very end of the build process to hang on Windows. If
+it looks like everything is done on Windows, simply hit C<CTRL-C> to
+break out of the deadlock and proceed.
+
+=back
+
+
+Once everything has been installed, you should be able to proceed with
+the normal L<Module::Build> incantation:
+
+ # Linux, Mac        Windows
+ ./Build             Build
+
+You should then be able to run tests with code such as
+
+ perl -Mblib t/01-basics.t    # Linux, Mac
+ perl -Mblib t\01-basics.t    # Windows
+
+or with C<prove>:
+
+ prove -vb t/01-basics.t    # Linux, Mac
+ prove -vb t\01-basics.t    # Windows
+
+You can then hop on to the MagNET's #tinycc channel and join in the
+discussion!
 
 =head1 CURRENT STATUS
 
-As of May 21, 2014, the pass/fail matrix is this:
+As of May 26, 2014, the pass/fail matrix is this:
 
  System \ Test        | 01 | 02 | 03 | 04 | 10 | 12 |
  ----------------------------------------------------
- XP Strawberry 5.18   |  y |  y |  y | #1 | #2 | #5 |
- Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 | #5 |
- Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 | #5 |
- Wheezy sys 5.14      |  y |  y |  y |  y | #3 | #5 |
+ XP Strawberry 5.18   |  y |  y |  y |  y |  y | #5 |
+ Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 |  y |
+ Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 |  y |
+ Wheezy sys 5.14      |  y |  y |  y |  y |  y |  y |
 
 Any failures are enumerated in the table and described below. If
 things change, or if you have a new result, please add it to the
 table and update the failure descriptions below.
+
+=over
+
+=item 3
+
+On Mac (and possibly Linux), test 10 sometimes displays the following
+error:
+
+ Internal error: unable to locate extended symbol
+
+=item 4
+
+On any default-compiled Perlbrew, the generated F<libperl> is a static
+library. There is a slim chance that TCC can link against a static
+library on Windows and Linux. There is no chance that it can link
+against a static library on Mac. Any tests against L<C::Blocks::libperl>
+will fail in this situation.
+
+=item 5
+
+On Windows XP running Strawberry Perl v5.18, test #12 segfaults after
+the 11th subtest. That subtest is the *second* subtest in which I would
+actually manipulate data in an already allocated struct. It appears that
+the second time through when actually manipulating things, we get weird
+segfaults.
+
+=back
+
+=head2 Old error reports for tests that that now pass
 
 =over
 
@@ -87,7 +177,7 @@ cblock that calls a function that was already called by a previous
 cblock. This happens to be the code just after test #14, "sending foo
 works". Thereafter, the process crashes.
 
-=item 3
+=item Old 3
 
 On Mac and Linux, test 10 sometimes displays the following error:
 
@@ -97,15 +187,7 @@ Other times, it runs the full test suite, passing all but the last
 test. for that test, it always reports some odd mish-mashed string,
 certainly not the string that I sent it the first time.
 
-=item 4
-
-On any default-compiled Perlbrew, the generated F<libperl> is a static
-library. There is a slim chance that TCC can link against a static
-library on Windows and Linux. There is no chance that it can link
-against a static library on Mac. Any tests against L<C::Blocks::libperl>
-will fail in this situation.
-
-=item 5
+=item Old 5
 
 All operating systems appear to segfault with test 12 after the 11th
 subtest. That subtest is the *second* subtest in which I would actually
@@ -113,18 +195,25 @@ manipulate data in an already allocated struct. It appears that the
 second time through when actually manipulating things, we get weird
 segfaults.
 
+
 =back
 
 =head1 GOALS
 
-I have a number of goals I would like to accomplish before I push his
-out to CPAN. These include
+I have a number of goals I would like to accomplish for this project.
 
 =over
 
+=item Expanded test suite
+
+I have managed to squash many segfaults, and now most tests pass on
+most operating systems. I need to push the system with more tests,
+including things like typedefs, crazy preprocessor macros, and complex
+nested structs.
+
 =item Squash all segfaults
 
-I am still encountering a lot of segfaults. I need to figure out what
+I am still encountering a few of segfaults. I need to figure out what
 gives rise to those and plug them.
 
 =item Extended Symbol Table Caching
