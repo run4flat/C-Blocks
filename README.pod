@@ -121,8 +121,8 @@ As of May 26, 2014, the pass/fail matrix is this:
  System \ Test        | 01 | 02 | 03 | 04 | 10 | 12 |
  ----------------------------------------------------
  XP Strawberry 5.18   |  y |  y |  y |  y |  y | #5 |
- Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 | #5 |
- Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 | #5 |
+ Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 |  y |
+ Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 |  y |
  Wheezy sys 5.14      |  y |  y |  y |  y |  y |  y |
 
 Any failures are enumerated in the table and described below. If
@@ -148,8 +148,7 @@ will fail in this situation.
 
 =item 5
 
-On Mac OSX Lion running perlbrew 5.18, and on Windows XP running
-Strawberry Perl v5.18, test #12 segfaults after
+On Windows XP running Strawberry Perl v5.18, test #12 segfaults after
 the 11th subtest. That subtest is the *second* subtest in which I would
 actually manipulate data in an already allocated struct. It appears that
 the second time through when actually manipulating things, we get weird
