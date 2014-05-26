@@ -186,3 +186,17 @@ Thus, on Linux and Mac at least, I can be fairly confident that something is
 getting messed up with the baked-in addresses of constants when the compiler
 context gets shared.
 
+The frustrating aspect of the whole problem is that I cannot seem to produce a
+basic test of tcc that reproduces this error.
+
+However, I seem to be getting closer. As I walked home this evening I realized
+that I have focused on sharing function declarations and definitions. I have
+not done much with structs. To shed some light on the behavior of structs, I
+decided to define a struct layout in a lexical block and then use it in two
+succeeding cblocks. The resulting code is given in test 12.
+
+Tests on both Mac and Windows croak after the 11th subtest of test 12. That is,
+they fail when they try to actually execute the code in the second cblock that
+would modify the struct based on the ttruct layout. They crash with a segfault.
+Unfortunately, debugging stabs are not available for jit-compiled code, so I
+can't pick it apart after the fact using gdb.

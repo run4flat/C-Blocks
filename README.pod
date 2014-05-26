@@ -57,12 +57,12 @@ and join in the discussion!
 
 As of May 21, 2014, the pass/fail matrix is this:
 
- System \ Test        | 01 | 02 | 03 | 04 | 10 |
- -----------------------------------------------
- XP Strawberry 5.18   |  y |  y |  y | #1 | #2 |
- Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 |
- Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 |
- Wheezy sys 5.14      |  y |  y |  y |  y | #3 |
+ System \ Test        | 01 | 02 | 03 | 04 | 10 | 12 |
+ ----------------------------------------------------
+ XP Strawberry 5.18   |  y |  y |  y | #1 | #2 | #5 |
+ Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 | #5 |
+ Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 | #5 |
+ Wheezy sys 5.14      |  y |  y |  y |  y | #3 | #5 |
 
 Any failures are enumerated in the table and described below. If
 things change, or if you have a new result, please add it to the
@@ -104,6 +104,14 @@ library. There is a slim chance that TCC can link against a static
 library on Windows and Linux. There is no chance that it can link
 against a static library on Mac. Any tests against L<C::Blocks::libperl>
 will fail in this situation.
+
+=item 5
+
+All operating systems appear to segfault with test 12 after the 11th
+subtest. That subtest is the *second* subtest in which I would actually
+manipulate data in an already allocated struct. It appears that the
+second time through when actually manipulating things, we get weird
+segfaults.
 
 =back
 
