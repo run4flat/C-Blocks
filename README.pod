@@ -118,25 +118,31 @@ discussion!
 
 As of May 26, 2014, the pass/fail matrix is this:
 
- System \ Test        | 01 | 02 | 03 | 04 | 10 | 12 |
- ----------------------------------------------------
- XP Strawberry 5.18   |  y |  y |  y |  y |  y | #5 |
- Mac perlbrew 5.18 sh |  y |  y |  y |  y | #3 |  y |
- Mac perlbrew 5.18 st |  y |  y |  y | #4 | #3 |  y |
- Wheezy sys 5.14      |  y |  y |  y |  y |  y |  y |
+ System \ Test          | 01 | 02 | 03 | 04 | 10 | 12 |
+ ------------------------------------------------------
+ XP Strawberry 5.18     |  y |  y |  y |  y |  y |  y |
+ Mac perlbrew 5.18 sh   |  y |  y |  y |  y | #3 |  y |
+ Mac perlbrew 5.18 st   |  y |  y |  y | #4 | #3 |  y |
+ Wheezy sys 5.14        |  y |  y |  y |  y |  y |  y |
+ BeagleBone Wheezy 5.14 |  y |  y |  y |  y | #3 |  y |
 
 Any failures are enumerated in the table and described below. If
 things change, or if you have a new result, please add it to the
 table and update the failure descriptions below.
 
+Note that the next numeric note should be #6.
+
 =over
 
 =item 3
 
-On Mac OSX 10.7 (Lion), running test 10 with C<prove> results in the following
-error:
+On Mac OSX 10.7 (Lion) and on Debian Wheezy running on BeagleBone Black (and
+possibly on Deiban Wheezy on i386 hardware as well), running test 10 with
+C<prove> results in the following error:
 
  Internal error: unable to locate extended symbol
+
+On the BBB, this error occured both with C<prove> and with C<perl -Mblib>.
 
 =item 4
 
@@ -146,15 +152,12 @@ library on Windows and Linux. There is no chance that it can link
 against a static library on Mac. Any tests against L<C::Blocks::libperl>
 will fail in this situation.
 
-=item 5
-
-On Windows XP running Strawberry Perl v5.18, test #12 segfaults after
-the 11th subtest. That subtest is the *second* subtest in which I would
-actually manipulate data in an already allocated struct. It appears that
-the second time through when actually manipulating things, we get weird
-segfaults.
-
 =back
+
+As of late May 26, I modifed test #12 so that it actually generates a new
+struct of data and sends it back to Perl using C<c_blocks_send_bytes>. This new
+test is more techniclly correct and avoids the segfaults that had been giving
+trouble on Windows.
 
 =head2 Old error reports for tests that that now pass
 
@@ -194,7 +197,6 @@ subtest. That subtest is the *second* subtest in which I would actually
 manipulate data in an already allocated struct. It appears that the
 second time through when actually manipulating things, we get weird
 segfaults.
-
 
 =back
 

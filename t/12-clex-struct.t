@@ -77,9 +77,10 @@ $C::Blocks::_msg = pack('dd', 0.3, 0.1);
 
 #### Modify with another cblock
 cblock {
-	struct my_data * data = (void*) c_blocks_get_msg();
-	data->x = -10;
-	data->y = -5;
+	struct my_data new_data;
+	new_data.x = -10;
+	new_data.y = -5;
+	c_blocks_send_bytes(&new_data, sizeof(struct my_data));
 }
 BEGIN { pass 'second cblock after lexical block compiles without trouble' }
 pass 'second cblock is called and run without incident';
