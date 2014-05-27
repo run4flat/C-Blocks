@@ -376,6 +376,12 @@ int my_keyword_plugin(pTHX_
 	int keep_curly_brackets = 1;
 	char * xsub_name = NULL;
 	if (keyword_type == IS_CBLOCK) {
+		/* Add a preprocessor macro that we can define with variable
+		 * predeclarations *after* having extracted the code to compile. */
+		lex_unstuff(PL_bufptr + 1);
+		lex_stuff_pv("{C_BLOCK_PREDECLARATIONS ", 0);
+		
+		/* Add the function declaration */
 		/* check if libperl is loaded; if so, use pTHX */
 		if (0) {
 			lex_stuff_pv("void op_func(pTHX)", 0);
@@ -500,13 +506,51 @@ int my_keyword_plugin(pTHX_
 	/* Extract the C code */
 	/**********************/
 	
-	/* expand the buffer until we encounter the matching closing bracket */
+	/* expand the buffer until we encounter the matching closing bracket. Track
+	 * and clean sigiled variables as well. */
+	SV * predeclarations = newSVpv(" ", 1);
+	char * perl_varname_start = NULL;
 	int nest_count = 0;
 	end = PL_bufptr;
 	while (1) {
 		ENSURE_LEX_BUFFER("C::Blocks expected closing curly brace but did not find it");
 		
-		if (*end == '{') nest_count++;
+		if (perl_varname_start && !_is_id_cont(*end)) {
+			/* Check for stupid things, like a dolar sign followed by a
+			 * non-identifier, in which case the start and end are the same. */
+			if (end - 1 == perl_varname_start) {
+				/* Report correct line number in croak */
+				CopLINE(PL_curcop) += N_newlines;
+				croak("C::Blocks found a dollar sign followed by non-identifier");
+			}
+			/* We just identified the character that is one past the end of
+			 * our Perl variable name. Ensure it is available. */
+			char backup = *end;
+			*end = '\0';
+			char * to_find = form("SV * %s ", perl_varname_start + 1);
+			if (strstr(SvPVbyte_nolen(predeclarations), to_find) == NULL) {
+				/* Add a new declaration for it */
+				int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
+				/* Ensure that the variable exists in the pad */
+				if (var_offset == NOT_IN_PAD) {
+					CopLINE(PL_curcop) += N_newlines;
+					croak("Global symbol \"%s\" requires explicit package name",
+						perl_varname_start);
+				}
+				sv_catpvf(predeclarations, "SV * %s = PAD_SV(%d); ",
+					perl_varname_start + 1, var_offset);
+
+			}
+			/* Replace the dollar-sign with white space */
+			*perl_varname_start = ' ';
+			/* Reset the varname detection logic and buffer contents */
+			perl_varname_start = NULL;
+			*end = backup;
+		}
+		if ((keyword_type == IS_CBLOCK) && (*end == '$')) {
+			perl_varname_start = end;
+		}
+		else if (*end == '{') nest_count++;
 		else if (*end == '}') {
 			nest_count--;
 			if (nest_count == 0) break;
@@ -561,6 +605,10 @@ int my_keyword_plugin(pTHX_
 		&my_symtab_lookup_by_name, &my_symtab_lookup_by_number, 
 		&callback_data
 	);
+	
+	/* set the predeclarations */
+	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
+		SvPVbyte_nolen(predeclarations));
 	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - keep_curly_brackets,

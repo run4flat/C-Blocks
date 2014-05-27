@@ -66,4 +66,12 @@ for (1..3) {
 	};
 }
 
+my $lexical = 5;
+
+cblock {
+	sv_setiv($lexical, 15);
+}
+
+is($lexical, 15, 'Sigil substitution');
+
 done_testing;
