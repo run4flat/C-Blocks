@@ -116,33 +116,32 @@ discussion!
 
 =head1 CURRENT STATUS
 
-As of May 26, 2014, the pass/fail matrix is this:
+As of May 29, 2014, the pass/fail matrix is this:
 
  System \ Test          | 01 | 02 | 03 | 04 | 10 | 12 |
  ------------------------------------------------------
  XP Strawberry 5.18     |  y |  y |  y |  y |  y |  y |
  Mac perlbrew 5.18 sh   |  y |  y |  y |  y | #3 |  y |
  Mac perlbrew 5.18 st   |  y |  y |  y | #4 | #3 |  y |
- Wheezy sys 5.14        |  y |  y |  y |  y |  y |  y |
+ Wheezy sys 5.14        |  y |  y |  y |  y | #3 |  y |
  BeagleBone Wheezy 5.14 |  y |  y |  y |  y | #3 |  y |
 
 Any failures are enumerated in the table and described below. If
 things change, or if you have a new result, please add it to the
 table and update the failure descriptions below.
 
-Note that the next numeric note should be #6.
-
 =over
 
 =item 3
 
-On Mac OSX 10.7 (Lion) and on Debian Wheezy running on BeagleBone Black (and
-possibly on Deiban Wheezy on i386 hardware as well), running test 10 with
-C<prove> results in the following error:
+Test #10 sometimes gives the following error when run on Linux and Mac
+systems:
 
  Internal error: unable to locate extended symbol
 
-On the BBB, this error occured both with C<prove> and with C<perl -Mblib>.
+On Mac systems, this error cropped up more often when running with C<prove>,
+but prove is not required to reproduce the problem. On BBB, this error occurs
+consistently.
 
 =item 4
 
@@ -151,6 +150,10 @@ library. There is a slim chance that TCC can link against a static
 library on Windows and Linux. There is no chance that it can link
 against a static library on Mac. Any tests against L<C::Blocks::libperl>
 will fail in this situation.
+
+=item 7
+
+This is the next item.
 
 =back
 
@@ -198,6 +201,32 @@ manipulate data in an already allocated struct. It appears that the
 second time through when actually manipulating things, we get weird
 segfaults.
 
+=item 6
+
+With the introduction of lexical interpolation, test 04 fails completely on
+Windows XP running Strawberry Perl 5.18 and Debian Wheezy running perlbrew
+with v5.18.2. The failure message is:
+
+ C::Blocks error:
+ t/04-libperl.t:60: error: struct or union expected
+
+I believe that the trouble arises in the auto-generated code inserted via the
+C<C_BLOCK_PREDECLARATIONS> macro, which is supposed to pre-declare the SV *
+variables at the top of the block function. This almost certainly is due to
+some type being undeclared in MinGW and Linux headers.
+
+If the final C<cblock> (which uses the interpolation) is commented out, the
+issue is not a problem. The test runs, and the last check fails, obviously,
+since the last  C<cblock> can't do its magic.
+
+=over
+
+This was fixed by explicitly casting C<my_perl> to type C<PerlInterpreter*>.
+Better handling for C<my_perl>'s type is in order, but my first attempts
+failed, so I am putting that off until later.
+
+=back
+
 =back
 
 =head1 GOALS
@@ -238,21 +267,6 @@ mapping names to TokenSym array offsets.
 
 The keyword parser in Blocks.xs is enormous. This needs to be split
 into several smaller functions.
-
-=item "Interpolate" sigils
-
-I would like C<$variable> to look up and return the C<SV*>
-associated with that variable, either the lexically or the globally
-scoped SV. The compiler can be asked at that poin in the parse if
-it has seen a lexical variable by that name, so it should be
-posible to figure out the correct interpretation (pull from pad
-vs pull from symbol table) at C<cblock> compile time.
-
-Furthermore, it shouldn't be too hard to implement. TCC knows how to
-detect the C<$> character because it is used in assembly code. I
-would like to hack on TCC to treat this like a runtime preprocessor
-macro, such that I could write the token stream *during* the C parse
-stage. I know enough about token streams to accomplish this.
 
 =item Switch to call_checker and call_parser
 
