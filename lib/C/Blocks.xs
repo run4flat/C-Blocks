@@ -373,6 +373,12 @@ int my_keyword_plugin(pTHX_
 	SV * extsym_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/tokensym_tables", 0);
 	if (extsym_tables_SV == &PL_sv_placeholder) extsym_tables_SV = newSVpvn("", 0);
 	
+	/* The type for the pointer passed to op_func will depend on whether
+	 * libperl has been loaded. A preprocessor macro will eventually be set to
+	 * whatever is in this string. The default assumes no libperl, in which case
+	 * we should use a void pointer. */
+	char * my_perl_type = "void";
+	
 	int keep_curly_brackets = 1;
 	char * xsub_name = NULL;
 	if (keyword_type == IS_CBLOCK) {
@@ -381,18 +387,14 @@ int my_keyword_plugin(pTHX_
 		lex_unstuff(PL_bufptr + 1);
 		lex_stuff_pv("{C_BLOCK_PREDECLARATIONS ", 0);
 		
-		/* Add the function declaration */
-		/* check if libperl is loaded; if so, use pTHX */
-		if (0) {
-			lex_stuff_pv("void op_func(pTHX)", 0);
-		}
-		else {
-			#ifdef PERL_IMPLICIT_CONTEXT
-				lex_stuff_pv("void op_func(void * my_perl)", 0);
-			#else
-				lex_stuff_pv("void op_func()", 0);
-			#endif
-		}
+		/* Add the function declaration. The type is a macro that will default
+		 * to "void", but may be changed to PerlInterpreter later during the
+		 * compilation. */
+		#ifdef PERL_IMPLICIT_CONTEXT
+			lex_stuff_pv("void op_func(MY_PERL_TYPE * my_perl)", 0);
+		#else
+			lex_stuff_pv("void op_func()", 0);
+		#endif
 	}
 	else if (keyword_type == IS_CSUB) {
 		/* Load libperl if it's not already loaded */
@@ -516,36 +518,50 @@ int my_keyword_plugin(pTHX_
 		ENSURE_LEX_BUFFER("C::Blocks expected closing curly brace but did not find it");
 		
 		if (perl_varname_start && !_is_id_cont(*end)) {
-			/* Check for stupid things, like a dolar sign followed by a
-			 * non-identifier, in which case the start and end are the same. */
-			if (end - 1 == perl_varname_start) {
-				/* Report correct line number in croak */
-				CopLINE(PL_curcop) += N_newlines;
-				croak("C::Blocks found a dollar sign followed by non-identifier");
+			if (end == perl_varname_start + 1) {
+				/* Skip dolar signs followed by non-id characters */
+				perl_varname_start = 0;
 			}
-			/* We just identified the character that is one past the end of
-			 * our Perl variable name. Ensure it is available. */
-			char backup = *end;
-			*end = '\0';
-			char * to_find = form("SV * %s ", perl_varname_start + 1);
-			if (strstr(SvPVbyte_nolen(predeclarations), to_find) == NULL) {
-				/* Add a new declaration for it */
-				int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
-				/* Ensure that the variable exists in the pad */
-				if (var_offset == NOT_IN_PAD) {
+			else {
+				#if PERL_VERSION < 18
 					CopLINE(PL_curcop) += N_newlines;
-					croak("Global symbol \"%s\" requires explicit package name",
-						perl_varname_start);
-				}
-				sv_catpvf(predeclarations, "SV * %s = PAD_SV(%d); ",
-					perl_varname_start + 1, var_offset);
+					croak("You must use Perl 5.18 or newer for variable interpolation");
+				#endif
+				
+				/* We just identified the character that is one past the end of
+				 * our Perl variable name. Ensure it is available. */
+				char backup = *end;
+				*end = '\0';
+				char * to_find = form("SV * %s ", perl_varname_start + 1);
+				if (strstr(SvPVbyte_nolen(predeclarations), to_find) == NULL) {
+					/* Add a new declaration for it */
+					int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
+					/* Ensure that the variable exists in the pad */
+					if (var_offset == NOT_IN_PAD) {
+						CopLINE(PL_curcop) += N_newlines;
+						croak("Global symbol \"%s\" requires explicit package name",
+							perl_varname_start);
+					}
+					
+					/* XXX fix this so that I don't need the ifdef/else */
+//					/* Make sure my_perl has the correct type. */
+//					my_perl_type = "PerlInterpreter";
 
+					#ifdef PERL_IMPLICIT_CONTEXT
+						sv_catpvf(predeclarations, "SV * %s = "
+							"(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
+							perl_varname_start + 1, var_offset);
+					#else
+						sv_catpvf(predeclarations, "SV * %s = PAD_SV(%d); ",
+							perl_varname_start + 1, var_offset);
+					#endif
+				}
+				/* Replace the dollar-sign with white space */
+				*perl_varname_start = ' ';
+				/* Reset the varname detection logic and buffer contents */
+				perl_varname_start = NULL;
+				*end = backup;
 			}
-			/* Replace the dollar-sign with white space */
-			*perl_varname_start = ' ';
-			/* Reset the varname detection logic and buffer contents */
-			perl_varname_start = NULL;
-			*end = backup;
 		}
 		if ((keyword_type == IS_CBLOCK) && (*end == '$')) {
 			perl_varname_start = end;
@@ -609,6 +625,7 @@ int my_keyword_plugin(pTHX_
 	/* set the predeclarations */
 	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
 		SvPVbyte_nolen(predeclarations));
+	tcc_define_symbol(state, "MY_PERL_TYPE", my_perl_type);
 	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - keep_curly_brackets,
