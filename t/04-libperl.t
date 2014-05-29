@@ -19,27 +19,27 @@ cblock {
 	SV * shuttle = Perl_get_sv(my_perl, "shuttle", 0);
 	Perl_sv_setiv(my_perl, shuttle, 5);
 }
-
+BEGIN { pass 'cblock using basic Perl functions compiles fine' }
 is($shuttle, 5, 'Can set Perl data in a cblock using direct function calls');
 
 cblock {
 	SV * shuttle = get_sv("shuttle", 0);
 	sv_setiv(shuttle, -5);
 }
-
+BEGIN { pass 'cblock using Perl function macros compiles fine' }
 is($shuttle, -5, 'Can set Perl data using macros');
 
 cblock {
 	SV * shuttle = get_sv("shuttle", 0);
 	sv_setiv(shuttle, 10);
 }
-
+BEGIN { pass 'cblock using Perl function macros again compiles fine' }
 is($shuttle, 10, 'Repeated cblocks work correctly');
 
 cblock {
 	sv_setiv(get_sv("shuttle", 0), 15);
 }
-
+BEGIN { pass 'cblock using nested Perl function macros compiles fine' }
 is ($shuttle, 15, 'nested function calls do not cause segfaults');
 
 eval q{
@@ -66,12 +66,38 @@ for (1..3) {
 	};
 }
 
-my $lexical = 5;
+eval q{
+	my $lexical = 5;
 
-cblock {
-	sv_setiv($lexical, 15);
-}
+	cblock {
+			sv_setiv($lexical, 15);
+	}
+	is($lexical, 15, 'Sigil substitution');
+} or do {
+	if ($^V lt v5.18.0) {
+		# We expected a croak. Make sure the message is correct
+		like ($@, qr/You must use Perl 5\.18 or newer for variable interpolation/,
+			'Sigil substitution croaks for perls before 5.18');
+	}
+	else {
+		fail('Unexpected croak during sigil substitution');
+		diag($@);
+	}
+};
 
-is($lexical, 15, 'Sigil substitution');
+# Dollar-signs can be carefully wrapped
+eval q{
+	$shuttle = undef;
+	cblock {
+		sv_setpv(get_sv("shuttle", 0), "$""money");
+	}
+	BEGIN{ pass 'Can carefully wrap dollar signs in C code' }
+	is($shuttle, '$money', 'Successfully set string with dollar sign in it');
+	1;
+} or do {
+	fail 'Can carefully wrap dollar signs in C code';
+	diag($@);
+};
+
 
 done_testing;
