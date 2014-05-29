@@ -137,11 +137,12 @@ table and update the failure descriptions below.
 Test #10 sometimes gives the following error when run on Linux and Mac
 systems:
 
- Internal error: unable to locate extended symbol
+ t/10-clex.t:23: error: exsymtab copy unable to locate extended symbol for token 65502020
 
-On Mac systems, this error cropped up more often when running with C<prove>,
-but prove is not required to reproduce the problem. On BBB, this error occurs
-consistently.
+The token number changes, but the error message is the same. There is no other
+output. On Mac systems, this error cropped up more often when running with
+C<prove>, but prove is not required to reproduce the problem. On BBB, this
+error occurs consistently.
 
 =item 4
 
