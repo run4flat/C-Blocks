@@ -10,11 +10,10 @@ int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 
 typedef void (*my_void_func)(pTHX);
 
-typedef struct _extsym_table {
-	TokenSym_p* tokensym_list;
-	TCCState * state;
+typedef struct _available_extended_symtab {
+	extended_symtab_p exsymtab;
 	void * dll;
-} extsym_table;
+} available_extended_symtab;
 
 XOP tcc_xop;
 PP(tcc_pp) {
@@ -26,73 +25,15 @@ PP(tcc_pp) {
 	RETURN;
 }
 
-/*********************/
-/**** linked list ****/
-/*********************/
-
-typedef struct _identifier_ll {
-	char * name;
-	void * pointer;
-	TokenSym_p tsym;
-	long c_backup;
-	struct _identifier_ll * next;
-} identifier_ll;
-
 /* ---- Extended symbol table handling ---- */
-typedef struct _ext_sym_callback_data {
+typedef struct _extended_symtab_callback_data {
 	TCCState * state;
 	#ifdef PERL_IMPLICIT_CONTEXT
 		tTHX my_perl;  /* name of field is my_perl, according to perl.h */
 	#endif
-	extsym_table * extsym_tables;
+	available_extended_symtab * available_extended_symtabs;
 	int N_tables;
-	TokenSym_p* new_symtab;
-	identifier_ll* identifiers;
-} ext_sym_callback_data;
-
-void add_identifier (ext_sym_callback_data * callback_data, char * name,
-	void * pointer, TokenSym_p tsym
-) {
-	identifier_ll* id = callback_data->identifiers;
-	if (id != NULL) {
-		while(id->next != NULL){
-			if(strcmp(name, id->name) == 0) return;
-			id = id->next;
-		}
-		/* Handle the last case, id->next is null, but id is not */
-		if (strcmp(name, id->name) == 0) return;
-	}
-	
-	/* Now we're at the end of the linked list, and this name has not yet been
-	 * added. Build a new id and add it. */
-	identifier_ll* new_id;
-	Newx(new_id, 1, identifier_ll);
-	new_id->name = name;
-	new_id->pointer = pointer;
-	new_id->next = NULL;
-	new_id->c_backup = tcc_tokensym_get_id_c(tsym);
-	new_id->tsym = tsym;
-	
-	/* Start a new list, or add it to the end of the list */
-	if (id == NULL) callback_data->identifiers = new_id;
-	else id->next = new_id;
-}
-
-void apply_and_clear_identifiers (ext_sym_callback_data * callback_data) {
-	if (callback_data->identifiers == NULL) return;
-	identifier_ll * curr = callback_data->identifiers;
-	identifier_ll * next;
-	while(curr) {
-		next = curr->next;
-		/* Add the symbol to the current compiler */
-		tcc_add_symbol(callback_data->state, curr->name, curr->pointer);
-		/* Restore the state of the symbol before this compilation */
-		tcc_tokensym_set_id_c(curr->tsym, curr->c_backup);
-		/* All done with this link, so free it */
-		Safefree(curr);
-		curr = next;
-	}
-}
+} extended_symtab_callback_data;
 
 /******************************/
 /**** Dynaloader interface ****/
@@ -172,75 +113,72 @@ void _c_blocks_send_bytes(char * msg, int bytes) {
 /**** Extended symbol table callbacks ****/
 /*****************************************/
 
-void my_copy_symtab(TokenSym_p* copied_symtab, void * data) {
+TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, extended_symtab_p* containing_symtab) {
 	/* Unpack the callback data */
-	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
-	callback_data->new_symtab = copied_symtab;
-}
-TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, int is_identifier) {
-	/* Unpack the callback data */
-	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
+	extended_symtab_callback_data * callback_data = (extended_symtab_callback_data*)data;
 	
+	/* In all likelihood, name will *NOT* be null terminated */
 	char name_to_find[len + 1];
 	strncpy(name_to_find, name, len);
 	name_to_find[len] = '\0';
 	
-	/* Run through all of the available external symbol lists and look for this
-	 * identifier. This could be sped up, eventually, with a hash lookup. */
-	int i, j;
-	for (i = 0; i < callback_data->N_tables; i++) {
-		TokenSym_p* ts_list = callback_data->extsym_tables[i].tokensym_list;
-		int list_length = tcc_tokensym_list_length(ts_list);
-		for (j = 0; j < list_length; j++) {
-			char * curr_name = tcc_tokensym_name(ts_list[j]);
-			if (strcmp(curr_name, name_to_find) == 0) return ts_list[j];
-		}
-	}
-	
-	return NULL;
-}
-TokenSym_p my_symtab_lookup_by_number(int tok_id, void * data, int is_identifier) {
-	/* Unpack the callback data */
-	ext_sym_callback_data * callback_data = (ext_sym_callback_data*)data;
-	
-	/* Run through all of the available TokenSym lists and look for this token.
-	 */
+	/* Run through all of the available extended symbol tables and look for this
+	 * identifier. */
 	int i;
 	for (i = 0; i < callback_data->N_tables; i++) {
-		TokenSym_p* ts_list = callback_data->extsym_tables[i].tokensym_list;
-		TokenSym_p ts = tcc_tokensym_by_tok(tok_id, ts_list);
+		extended_symtab_p my_symtab = callback_data->exsymtabls[i]->exsymtab;
+		Tokensym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
 		if (ts != NULL) {
-			if (is_identifier) {
-				/* Retrieve the pointer; add it to a linked list of items to
-				 * add after the compilation has finished. */
-				char * name = tcc_tokensym_name(ts);
-				void * pointer;
-				if (callback_data->extsym_tables[i].state) {
-					pointer
-						= tcc_get_symbol(callback_data->extsym_tables[i].state,
-							name);
-				}
-				else if (callback_data->extsym_tables[i].dll) {
-					#ifdef PERL_IMPLICIT_CONTEXT
-						pointer = dynaloader_get_symbol(callback_data->my_perl,
-							callback_data->extsym_tables[i].dll, name);
-					#else
-						pointer = dynaloader_get_symbol(
-							callback_data->extsym_tables[i].dll, name);
-					#endif
-				}
-				else {
-					croak("C::Blocks internal error: extsym_table had neither state nor dll entry");
-				}
-				if (pointer != NULL) {
-					add_identifier(callback_data, name, pointer, ts);
-				}
-			}
+			*containing_symtab = my_symtab;
 			return ts;
 		}
 	}
 	
 	return NULL;
+}
+
+void my_symtab_sym_used(char * name, int len, void * data) {
+	/* Unpack the callback data */
+	extended_symtab_callback_data * callback_data = (extended_symtab_callback_data*)data;
+	
+	/* Name *IS* null terminated */
+	
+	/* Run through all of the available extended symbol tables and look for this
+	 * identifier. If found, add the symbol to the state. */
+	int i;
+	void * pointer = NULL;
+	for (i = 0; i < callback_data->N_tables; i++) {
+		available_extended_symtab lookup_data = callback_data->exsym_tables[i];
+		if (lookup_data->dll != NULL) {
+
+//			/* Check if it is in this symbol table */
+//			Tokensym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
+//			if (ts != NULL) {
+				/* If we have a dll, then look for the name in there */
+				#ifdef PERL_IMPLICIT_CONTEXT
+					pointer = dynaloader_get_symbol(callback_data->my_perl,
+						callback_data->available_extended_symtabs[i].dll, name);
+				#else
+					pointer = dynaloader_get_symbol(
+						callback_data->available_extended_symtabs[i].dll, name);
+				#endif
+//			}
+		}
+		
+		else {
+			/* Otherwise, it was JIT-compiled, look for it in the exsymtab */
+			pointer = tcc_get_extended_symbol(lookup_data->exsymtab, name);
+		}
+		
+		/* found it? Then we're done */
+		if (pointer != NULL) {
+			tcc_add_symbol(callback_data->state, name, pointer);
+			return;
+		}
+	}
+	
+	/* Out here only means one thing: couldn't find it! */
+	// working here: warn("Could not find symbol '%s' to mark as used");
 }
 
 /************************/
@@ -352,7 +290,7 @@ void keyword_cuse(pTHX_
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
-	char * package_suffix = "__cblocks_tokensym_list";
+	char * package_suffix = "__cblocks_extended_symtab_list";
 	int N_newlines = 0;
 	
 	/* See if this is a keyword we know */
@@ -370,8 +308,8 @@ int my_keyword_plugin(pTHX_
 	
 	/* Get the hint hash for later retrieval */
 	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
-	SV * extsym_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/tokensym_tables", 0);
-	if (extsym_tables_SV == &PL_sv_placeholder) extsym_tables_SV = newSVpvn("", 0);
+	SV * extended_symtab_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/extended_symtab_tables", 0);
+	if (extended_symtab_tables_SV == &PL_sv_placeholder) extended_symtab_tables_SV = newSVpvn("", 0);
 	
 	/* The type for the pointer passed to op_func will depend on whether
 	 * libperl has been loaded. A preprocessor macro will eventually be set to
@@ -455,16 +393,16 @@ int my_keyword_plugin(pTHX_
 		/* Having reached here, we should have a valid package name. See if
 		 * the package global already exists, and use it if so. */
 		SV * import_package_name = newSVpv(PL_bufptr, end - PL_bufptr);
-		SV * tokensym_list_name = newSVsv(import_package_name);
-		sv_catpvf(tokensym_list_name, "::%s", package_suffix);
-		SV * imported_tables_SV = get_sv(SvPVbyte_nolen(tokensym_list_name), 0);
+		SV * symtab_list_name = newSVsv(import_package_name);
+		sv_catpvf(symtab_list_name, "::%s", package_suffix);
+		SV * imported_tables_SV = get_sv(SvPVbyte_nolen(symtab_list_name), 0);
 		
 		/* Otherwise, try importing a module with the given name and check
 		 * again. */
 		if (imported_tables_SV == NULL) {
 			load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL, NULL);
 			
-			imported_tables_SV = get_sv(SvPVbyte_nolen(tokensym_list_name), 0);
+			imported_tables_SV = get_sv(SvPVbyte_nolen(symtab_list_name), 0);
 			if (imported_tables_SV == NULL) {
 				croak("C::Blocks did not find any shared blocks in package %s",
 					SvPVbyte_nolen(import_package_name));
@@ -472,13 +410,13 @@ int my_keyword_plugin(pTHX_
 		}
 		
 		/* Copy these to the hints hash entry, creating said entry if necessary */
-		sv_catsv_mg(extsym_tables_SV, imported_tables_SV);
-		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
+		sv_catsv_mg(extended_symtab_tables_SV, imported_tables_SV);
+		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
 		CopHINTHASH_set(PL_curcop, hints_hash);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
 		//sv_2mortal(import_package_name);  // XXX why not mortalize this?
-		sv_2mortal(tokensym_list_name);
+		sv_2mortal(symtab_list_name);
 		
 		/* Replace this keyword with a null op */
 		*op_ptr = newOP(OP_NULL, 0);
@@ -601,26 +539,24 @@ int my_keyword_plugin(pTHX_
 	tcc_set_error_func(state, error_msg_sv, my_tcc_error_func);
 	tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
 	
+	/* Ask to save state if it's a cshare or clex block*/
+	if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
+		tcc_save_extended_symtab(state);
+	}
+	
 	/* Set the extended callback handling */
 	#ifdef PERL_IMPLICIT_CONTEXT
-		ext_sym_callback_data callback_data = { state, aTHX, NULL, 0, NULL, NULL };
+		extended_symtab_callback_data callback_data = { state, aTHX, NULL, 0 };
 	#else
-		ext_sym_callback_data callback_data = { state, NULL, 0, NULL, NULL };
+		extended_symtab_callback_data callback_data = { state, NULL, 0 };
 	#endif
 	/* Set the extended symbol table lists if they exist */
-	if (SvPOK(extsym_tables_SV) && SvCUR(extsym_tables_SV)) {
-		callback_data.N_tables = SvCUR(extsym_tables_SV) / sizeof(extsym_table);
-		callback_data.extsym_tables = (extsym_table*) SvPV_nolen(extsym_tables_SV);
+	if (SvPOK(extended_symtab_tables_SV) && SvCUR(extended_symtab_tables_SV)) {
+		callback_data.N_tables = SvCUR(extended_symtab_tables_SV) / sizeof(available_extended_symtab);
+		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(extended_symtab_tables_SV);
 	}
-	extended_symtab_copy_callback copy_callback
-		= (keyword_type == IS_CSHARE || keyword_type == IS_CLEX)
-		?	&my_copy_symtab
-		:	NULL;
-	tcc_set_extended_symtab_callbacks(state,
-		copy_callback,
-		&my_symtab_lookup_by_name, &my_symtab_lookup_by_number, 
-		&callback_data
-	);
+	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
+		&my_symtab_sym_used, &callback_data);
 	
 	/* set the predeclarations */
 	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
@@ -654,8 +590,6 @@ int my_keyword_plugin(pTHX_
 		tcc_add_symbol(state, "c_blocks_send_bytes", _c_blocks_send_bytes);
 		tcc_add_symbol(state, "c_blocks_get_msg", _c_blocks_get_msg);
 	}
-	
-	apply_and_clear_identifiers(&callback_data);
 	
 	/* Link to statically linked library, if appropriate and capable */
 	SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
@@ -693,9 +627,9 @@ int my_keyword_plugin(pTHX_
 	tcc_relocate(state, SvPVX(machine_code_SV));
 	av_push(machine_code_cache, machine_code_SV);
 	
-	/********************************************************/
-	/* Build the op tree or serialize the tokensym pointers */
-	/********************************************************/
+	/************************************************************/
+	/* Build the op tree or serialize the symbol table pointers */
+	/************************************************************/
 
 	if (keyword_type == IS_CBLOCK) {
 		/* build the optree. */
@@ -724,11 +658,18 @@ int my_keyword_plugin(pTHX_
 		newXS(full_func_name, xsub_fcn_ptr, filename);
 	}
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
-		/* Build an extsym table to serialize */
-		extsym_table new_table;
-		new_table.tokensym_list = callback_data.new_symtab;
+		/* Build an extended symbol table to serialize */
+		available_extended_symtab new_table;
+		new_table.exsymtab = tcc_get_extended_symbol_table(state);
+		
+		/* Store the pointers to the extended symtabs so that we can clean up
+		 * when everything is over. */
+		AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", 1);
+		av_push(extended_symtab_cache, newSViv(PTR2IV(new_table.exsymtab)));
+		
+		/* Get the dll pointer if this is linked against a dll */
+		new_table.dll = NULL;
 		if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 0) {
-			new_table.state = NULL;
 			new_table.dll = dynaloader_get_lib(aTHX_ SvPVbyte_nolen(lib_to_link));
 			if (new_table.dll == NULL) {
 				croak("C::Blocks/DynaLoader unable to load library [%s]",
@@ -736,19 +677,15 @@ int my_keyword_plugin(pTHX_
 			}
 			SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
 		}
-		else {
-			new_table.state = state;
-			new_table.dll = NULL;
-		}
 		
 		/* add the serialized pointer address to the hints hash entry */
-		if (SvPOK(extsym_tables_SV)) {
-			sv_catpvn_mg(extsym_tables_SV, (char*)&new_table, sizeof(extsym_table));
+		if (SvPOK(extended_symtab_tables_SV)) {
+			sv_catpvn_mg(extended_symtab_tables_SV, (char*)&new_table, sizeof(available_extended_symtab));
 		}
 		else {
-			sv_setpvn_mg(extsym_tables_SV, (char*)&new_table, sizeof(extsym_table));
+			sv_setpvn_mg(extended_symtab_tables_SV, (char*)&new_table, sizeof(available_extended_symtab));
 		}
-		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
+		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
 		CopHINTHASH_set(PL_curcop, hints_hash);
 		
 		if (keyword_type == IS_CSHARE) {
@@ -758,26 +695,16 @@ int my_keyword_plugin(pTHX_
 				package_suffix), GV_ADD);
 
 			if (SvPOK(package_lists) && SvCUR(package_lists) > 0) {
-				sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(extsym_table));
+				sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
 			}
 			else {
-				sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(extsym_table));
+				sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
 			}
 		}
 	}
 	
-	if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
-		/* place the tcc state in "static" memory so we can retrieve function
-		 * pointers later without causing segfaults. We will clean these up
-		 * when the program is done. */
-		AV * state_cache = get_av("C::Blocks::__state_cache_array", 1);
-		av_push(state_cache, newSViv(PTR2IV(state)));
-	}
-	else {
-		tcc_delete(state);
-	}
-	
 	/* cleanup */
+	tcc_delete(state);
 	sv_2mortal(error_msg_sv);
 	Safefree(xsub_name);
 	
@@ -806,9 +733,9 @@ CODE:
 	
 	/*
 	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
-	SV * extsym_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/tokensym_tables", 0);
-	if (extsym_tables_SV == &PL_sv_placeholder) extsym_tables_SV = newSVpvn("", 0);
-	hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/tokensym_tables", extsym_tables_SV, 0);
+	SV * extended_symtab_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/extended_symtab_tables", 0);
+	if (extended_symtab_tables_SV == &PL_sv_placeholder) extended_symtab_tables_SV = newSVpvn("", 0);
+	hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
 	*/
 
 
@@ -823,17 +750,19 @@ CODE:
 void
 _cleanup()
 CODE:
-	/* Remove all of the saved code blocks and compiler states */
-	AV * cache = get_av("C::Blocks::__state_cache_array", 1);
+	/* Remove all of the extended symol tables. Note that the code pages
+	 * were stored directly into Perl SV's, which were pushed into an
+	 * array, so they are cleaned up for us automatically. */
+	AV * cache = get_av("C::Blocks::__symtab_cache_array", 1);
 	int i;
 	SV ** elem_p;
 	for (i = 0; i < av_len(cache); i++) {
 		elem_p = av_fetch(cache, i, 0);
 		if (elem_p != 0) {
-			tcc_delete(INT2PTR(TCCState*, SvIV(*elem_p)));
+			tcc_delete_extended_symbol_table(INT2PTR(extended_symtab_p, SvIV(*elem_p)));
 		}
 		else {
-			warn("C::Blocks had trouble freeing TCCState");
+			warn("C::Blocks had trouble freeing extended symbol table, index %d", i);
 		}
 	}
 
