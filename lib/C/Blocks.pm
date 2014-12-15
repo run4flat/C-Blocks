@@ -2,7 +2,24 @@ package C::Blocks;
 
 use strict;
 use warnings;
-use Alien::TinyCC;
+
+# Development tool. If *this* *module* is in a blib, then I'm developing.
+# In that case, I would like to use a development tcc if available.
+BEGIN {
+	my $mod_path = $INC{'C/Blocks.pm'};
+	if ($mod_path =~ /blib/) {
+		eval {
+			require inc::Alien::TinyCC;
+			1;
+		} or do {
+			require Alien::TinyCC;
+			1;
+		} or do {
+			die "Unable to load Alien::TinyCC\n";
+		};
+	}
+}
+
 use XSLoader;
 
 # Use David Golden's version numbering suggestions. Note that we have to call
