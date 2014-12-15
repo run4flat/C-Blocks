@@ -6,3 +6,4 @@ blib
 MYMETA*
 chain.h
 lib/C/Blocks/Chain.pm
+inc/Alien/TinyCC.pm
