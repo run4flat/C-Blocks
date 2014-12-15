@@ -6,10 +6,21 @@ use warnings;
 # EDIT THIS LINE with your prefix:
 my $dist_dir = ...;
 
+# Make sure that later require and use statements don't choke
+$INC{'Alien/TinyCC.pm'} = $INC{'inc/Alien/TinyCC.pm'};
+
+# Make sure we have LD_LIBRARY_PATH available. It seems that setting it
+# below doesn't actually work! :-(
+if(!$ENV{LD_LIBRARY_PATH} or index($ENV{LD_LIBRARY_PATH}, libtcc_library_path()) == -1) {
+	die '***  Be sure to execute your programs like so:
+***  LD_LIBRARY_PATH="' . $dist_dir . "\" perl -Mblib -Mlib=inc $0 @ARGV\n";
+}
+
 ############################
 # Path retrieval functions #
 ############################
 
+use Env qw( @PATH );
 # Find the path to the tcc executable
 sub path_to_tcc {
 	return $dist_dir if $^O =~ /MSWin/;

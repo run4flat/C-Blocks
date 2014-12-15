@@ -8,15 +8,9 @@ use warnings;
 BEGIN {
 	my $mod_path = $INC{'C/Blocks.pm'};
 	if ($mod_path =~ /blib/) {
-		eval {
-			require inc::Alien::TinyCC;
-			1;
-		} or do {
-			require Alien::TinyCC;
-			1;
-		} or do {
-			die "Unable to load Alien::TinyCC\n";
-		};
+		eval { require inc::Alien::TinyCC };
+		die $@ if $@ =~ /LD_LIBRARY_PATH/;
+		require Alien::TinyCC;
 	}
 }
 

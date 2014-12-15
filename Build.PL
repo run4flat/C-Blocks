@@ -4,6 +4,10 @@ use warnings;
 # |||| Bootstrap |||| #
 # \/\/           \/\/ #
 
+# Options:
+# perl Build.PL --devel-tcc    <- use tcc configured in inc::Alien::TinyCC
+# perl Build.PL --local-alien  <- install Alien::TinyCC in CWD and use it
+
 sub install_local_alien {
 	print <<message;
 C::Blocks requires the latest git release of Alien::TinyCC.
@@ -60,30 +64,42 @@ message
 
 	# Bootstrap things to help new developers. Remove this before publishing to
 	# CPAN.
-	eval q{
-		use File::ShareDir;
-		1;
-	} or do {
-		print "You need File::ShareDir in order to install and use Alien::TinyCC. Shall I install it using cpanm? ";
-		my $answer = <>;
-		if ($answer =~ /^y/i) {
-			system('cpanm File::ShareDir');
-			exec("$^X Build.PL");  # Start over
-		}
-		exit(1);
-	};
 	
-	if (grep /--local-alien/, @ARGV) {
-		@ARGV = grep { $_ ne '--local-alien' } @ARGV;
-		install_local_alien;
+	# If I want to use local tcc development, I build with --dev-tcc.
+	if (grep /--devel-tcc/, @ARGV) {
+		print "Using inc::Alien::TinyCC\n";
+		require lib;
+		lib::import('inc');
+		require inc::Alien::TinyCC;
 	}
-	# Make sure we have Alien::TinyCC
-	eval q{
-		use Alien::TinyCC;
-		1;
-	} or install_local_alien;
-	# Make sure Alien::TinyCC is new enough
-	install_local_alien if $Alien::TinyCC::VERSION < 0.05_01;
+	else {
+		# Otherwise I need to make sure that other modules are available
+		eval {
+			require File::ShareDir;
+		} or do {
+			print "You need File::ShareDir in order to install and use Alien::TinyCC. Shall I install it using cpanm? ";
+			my $answer = <>;
+			if ($answer =~ /^y/i) {
+				system('cpanm File::ShareDir');
+				exec("$^X Build.PL");  # Start over
+			}
+			exit(1);
+		};
+		
+		if (grep /--local-alien/, @ARGV) {
+			@ARGV = grep { $_ ne '--local-alien' } @ARGV;
+			install_local_alien;
+		}
+		# Make sure we have Alien::TinyCC
+		eval {
+			require Alien::TinyCC;
+			1;
+		} or do {
+			install_local_alien;
+		};
+		# Make sure Alien::TinyCC is new enough
+		install_local_alien if $Alien::TinyCC::VERSION < 0.05_01;
+	}
 }
 
 # /\/\           /\/\ #
