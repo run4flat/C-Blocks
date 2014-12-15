@@ -226,3 +226,20 @@ In light of yesterday's findings, I extended the behavior of add_identifier()
 and apply_and_clear_identifiers() so that they store and restore the value of
 the c field for any identifier that needs to be added to a dependent
 compilation unit.
+
+December 15, 2014
+=================
+
+I have spent prodigious amounts of work rewriting how tcc handles its extended
+symbol tables, to avoid some of the problems highlighted in the tests of this
+distribution. I now have something that seems to be working on the tcc-side, so
+I finally resume testing on the C::Blocks side.
+
+As of this time of writing, the following tests pass: 01, 02, 03, 10, 12, 99.
+Test 04-libperl.t fails, claiming it is unable to load static library libperl.a.
+Test 13-clex-struct.t fails with a segfault. Tests 15 and 80 both use libperl,
+so I can't speak to them.
+
+All of this is possible because I added new developer functionality that lets me
+specify the install location for tcc. This is useful for fast testing iterations
+on tcc itself, without having to use an Alien::TinyCC install cycle.

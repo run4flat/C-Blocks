@@ -126,8 +126,9 @@ TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, extended_
 	 * identifier. */
 	int i;
 	for (i = 0; i < callback_data->N_tables; i++) {
-		extended_symtab_p my_symtab = callback_data->exsymtabls[i]->exsymtab;
-		Tokensym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
+		extended_symtab_p my_symtab
+			= callback_data->available_extended_symtabs[i].exsymtab;
+		TokenSym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
 		if (ts != NULL) {
 			*containing_symtab = my_symtab;
 			return ts;
@@ -148,11 +149,12 @@ void my_symtab_sym_used(char * name, int len, void * data) {
 	int i;
 	void * pointer = NULL;
 	for (i = 0; i < callback_data->N_tables; i++) {
-		available_extended_symtab lookup_data = callback_data->exsym_tables[i];
-		if (lookup_data->dll != NULL) {
+		available_extended_symtab lookup_data
+			= callback_data->available_extended_symtabs[i];
+		if (lookup_data.dll != NULL) {
 
 //			/* Check if it is in this symbol table */
-//			Tokensym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
+//			TokenSym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
 //			if (ts != NULL) {
 				/* If we have a dll, then look for the name in there */
 				#ifdef PERL_IMPLICIT_CONTEXT
@@ -167,7 +169,7 @@ void my_symtab_sym_used(char * name, int len, void * data) {
 		
 		else {
 			/* Otherwise, it was JIT-compiled, look for it in the exsymtab */
-			pointer = tcc_get_extended_symbol(lookup_data->exsymtab, name);
+			pointer = tcc_get_extended_symbol(lookup_data.exsymtab, name);
 		}
 		
 		/* found it? Then we're done */
