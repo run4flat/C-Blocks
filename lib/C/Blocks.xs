@@ -313,6 +313,7 @@ typedef struct c_blocks_data {
 	COPHH* hints_hash;
 	SV * exsymtabs;
 	SV * add_test_SV;
+	SV * predeclarations;
 	int N_newlines;
 	int keep_curly_brackets;
 } c_blocks_data;
@@ -327,6 +328,7 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
+	data->predeclarations = newSVpv(" ", 1);
 	
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
@@ -489,7 +491,6 @@ int my_keyword_plugin(pTHX_
 	
 	/* expand the buffer until we encounter the matching closing bracket. Track
 	 * and clean sigiled variables as well. */
-	SV * predeclarations = newSVpv(" ", 1);
 	char * perl_varname_start = NULL;
 	int nest_count = 0;
 	data.end = PL_bufptr;
@@ -512,7 +513,7 @@ int my_keyword_plugin(pTHX_
 				char backup = *data.end;
 				*data.end = '\0';
 				char * to_find = form("SV * %s ", perl_varname_start + 1);
-				if (strstr(SvPVbyte_nolen(predeclarations), to_find) == NULL) {
+				if (strstr(SvPVbyte_nolen(data.predeclarations), to_find) == NULL) {
 					/* Add a new declaration for it */
 					int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
 					/* Ensure that the variable exists in the pad */
@@ -527,11 +528,11 @@ int my_keyword_plugin(pTHX_
 //					data.my_perl_type = "PerlInterpreter";
 
 					#ifdef PERL_IMPLICIT_CONTEXT
-						sv_catpvf(predeclarations, "SV * %s = "
+						sv_catpvf(data.predeclarations, "SV * %s = "
 							"(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
 							perl_varname_start + 1, var_offset);
 					#else
-						sv_catpvf(predeclarations, "SV * %s = PAD_SV(%d); ",
+						sv_catpvf(data.predeclarations, "SV * %s = PAD_SV(%d); ",
 							perl_varname_start + 1, var_offset);
 					#endif
 				}
@@ -601,7 +602,7 @@ int my_keyword_plugin(pTHX_
 	
 	/* set the predeclarations */
 	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
-		SvPVbyte_nolen(predeclarations));
+		SvPVbyte_nolen(data.predeclarations));
 	tcc_define_symbol(state, "MY_PERL_TYPE", data.my_perl_type);
 	
 	/* compile the code */
