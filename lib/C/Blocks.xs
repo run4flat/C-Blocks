@@ -270,7 +270,7 @@ int _is_id_cont (char to_check) {
 #define PL_bufptr (PL_parser->bufptr)
 #define PL_bufend (PL_parser->bufend)
 
-#define ENSURE_LEX_BUFFER(croak_message)                        \
+#define ENSURE_LEX_BUFFER(end, croak_message)                   \
 	if (end == PL_bufend) {                                     \
 		int length_so_far = end - PL_bufptr;                    \
 		if (!lex_next_chunk(LEX_KEEP_PREVIOUS)) {               \
@@ -305,32 +305,37 @@ void add_predeclaration_macros_to_block(pTHX) {
 	#endif
 }
 
-char * find_end_of_xsub_name(pTHX_) {
-	char * end = PL_bufptr;
+typedef struct c_blocks_data {
+	char * package_suffix;
+	char * end;
+	int N_newlines;
+} c_blocks_data;
+
+void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
+	data->end = PL_bufptr;
 	/* Load libperl if it's not already loaded */
 	if (0) {
 		/* load libperl, add to this context */
 	}
 	/* extract the function name */
 	while (1) {
-		ENSURE_LEX_BUFFER(
-			end == PL_bufptr
+		ENSURE_LEX_BUFFER(data->end,
+			data->end == PL_bufptr
 			? "C::Blocks encountered the end of the file before seeing the csub name"
 			: "C::Blocks encountered the end of the file before seeing the body of the csub"
 		);
-		if (end == PL_bufptr) {
-			if(!isIDFIRST(*end)) croak("C::Blocks expects a name after csub");
+		if (data->end == PL_bufptr) {
+			if(!isIDFIRST(*data->end)) croak("C::Blocks expects a name after csub");
 		}
-		else if (_is_whitespace_char(*end) || *end == '{') {
+		else if (_is_whitespace_char(*data->end) || *data->end == '{') {
 			break;
 		}
-		else if (!_is_id_cont(*end)){
+		else if (!_is_id_cont(*data->end)){
 			croak("C::Blocks csub name can contain only underscores, letters, and numbers");
 		}
 		
-		end++;
+		data->end++;
 	}
-	return end;
 }
 
 void fixup_xsub_name(pTHX_ char * end, char * name) {
@@ -342,15 +347,12 @@ void fixup_xsub_name(pTHX_ char * end, char * name) {
 	lex_stuff_pv("XS_INTERNAL(", 0);
 }
 
-typedef struct c_blocks_data {
-	char * package_suffix;
-	int N_newlines;
-	
-} c_blocks_data;
-
-void initialize_c_blocks_data(c_blocks_data* data) {
+void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->package_suffix = "__cblocks_extended_symtab_list";
 	data->N_newlines = 0;
+	
+	/* This is called after we have cleared out whitespace, so just assign */
+	data->end = PL_bufptr;
 }
 
 int my_keyword_plugin(pTHX_
@@ -361,13 +363,12 @@ int my_keyword_plugin(pTHX_
 	if (!keyword_type)
 		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
 	
-	/* Create the compilation data struct */
-	c_blocks_data data;
-	initialize_c_blocks_data(&data);
-	
 	/* Clear out any leading whitespace, including comments */
 	lex_read_space(0);
-	char *end = PL_bufptr;
+	
+	/* Create the compilation data struct */
+	c_blocks_data data;
+	initialize_c_blocks_data(aTHX_ &data);
 	
 	/**********************/
 	/*   Initialization   */
@@ -390,9 +391,9 @@ int my_keyword_plugin(pTHX_
 	else if (keyword_type == IS_CSUB) {
 		/* Find where the name ends, copy it, and replace it with the correct
 		 * declaration */
-		end = find_end_of_xsub_name(aTHX);
-		xsub_name = savepvn(PL_bufptr, end - PL_bufptr);
-		fixup_xsub_name(aTHX, end, name);
+		find_end_of_xsub_name(aTHX_ &data);
+		xsub_name = savepvn(PL_bufptr, data.end - PL_bufptr);
+		fixup_xsub_name(aTHX, data.end, xsub_name);
 	}
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		keep_curly_brackets = 0;
@@ -400,26 +401,26 @@ int my_keyword_plugin(pTHX_
 	else if (keyword_type == IS_CUSE) {
 		/* Extract the stash name */
 		while (1) {
-			ENSURE_LEX_BUFFER("C::Blocks encountered the end of the file before seeing the cuse package name");
+			ENSURE_LEX_BUFFER(data.end, "C::Blocks encountered the end of the file before seeing the cuse package name");
 			
-			if (end == PL_bufptr && !isIDFIRST(*end)) {
+			if (data.end == PL_bufptr && !isIDFIRST(*data.end)) {
 				/* Invalid first character. */
 				croak("C::Blocks cuse name must be a valid Perl package name");
 			}
-			else if (_is_whitespace_char(*end) || *end == ';') {
+			else if (_is_whitespace_char(*data.end) || *data.end == ';') {
 				break;
 			}
-			else if (!_is_id_cont(*end) && *end != ':'){
+			else if (!_is_id_cont(*data.end) && *data.end != ':'){
 				croak("C::Blocks cuse name must be a valid Perl package name");
 			}
-			end++;
+			data.end++;
 		}
 		
 		/* Having reached here, we should have a valid package name. See if
 		 * the package global already exists, and use it if so. */
-		SV * import_package_name = newSVpv(PL_bufptr, end - PL_bufptr);
+		SV * import_package_name = newSVpv(PL_bufptr, data.end - PL_bufptr);
 		SV * symtab_list_name = newSVsv(import_package_name);
-		sv_catpvf(symtab_list_name, "::%s", data->package_suffix);
+		sv_catpvf(symtab_list_name, "::%s", data.package_suffix);
 		SV * imported_tables_SV = get_sv(SvPVbyte_nolen(symtab_list_name), 0);
 		
 		/* Otherwise, try importing a module with the given name and check
@@ -476,32 +477,32 @@ int my_keyword_plugin(pTHX_
 	SV * predeclarations = newSVpv(" ", 1);
 	char * perl_varname_start = NULL;
 	int nest_count = 0;
-	end = PL_bufptr;
+	data.end = PL_bufptr;
 	while (1) {
-		ENSURE_LEX_BUFFER("C::Blocks expected closing curly brace but did not find it");
+		ENSURE_LEX_BUFFER(data.end, "C::Blocks expected closing curly brace but did not find it");
 		
-		if (perl_varname_start && !_is_id_cont(*end)) {
-			if (end == perl_varname_start + 1) {
+		if (perl_varname_start && !_is_id_cont(*data.end)) {
+			if (data.end == perl_varname_start + 1) {
 				/* Skip dolar signs followed by non-id characters */
 				perl_varname_start = 0;
 			}
 			else {
 				#if PERL_VERSION < 18
-					CopLINE(PL_curcop) += data->N_newlines;
+					CopLINE(PL_curcop) += data.N_newlines;
 					croak("You must use Perl 5.18 or newer for variable interpolation");
 				#endif
 				
 				/* We just identified the character that is one past the end of
 				 * our Perl variable name. Ensure it is available. */
-				char backup = *end;
-				*end = '\0';
+				char backup = *data.end;
+				*data.end = '\0';
 				char * to_find = form("SV * %s ", perl_varname_start + 1);
 				if (strstr(SvPVbyte_nolen(predeclarations), to_find) == NULL) {
 					/* Add a new declaration for it */
 					int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
 					/* Ensure that the variable exists in the pad */
 					if (var_offset == NOT_IN_PAD) {
-						CopLINE(PL_curcop) += data->N_newlines;
+						CopLINE(PL_curcop) += data.N_newlines;
 						croak("Global symbol \"%s\" requires explicit package name",
 							perl_varname_start);
 					}
@@ -523,30 +524,30 @@ int my_keyword_plugin(pTHX_
 				*perl_varname_start = ' ';
 				/* Reset the varname detection logic and buffer contents */
 				perl_varname_start = NULL;
-				*end = backup;
+				*data.end = backup;
 			}
 		}
-		if ((keyword_type == IS_CBLOCK) && (*end == '$')) {
-			perl_varname_start = end;
+		if ((keyword_type == IS_CBLOCK) && (*data.end == '$')) {
+			perl_varname_start = data.end;
 		}
-		else if (*end == '{') nest_count++;
-		else if (*end == '}') {
+		else if (*data.end == '{') nest_count++;
+		else if (*data.end == '}') {
 			nest_count--;
 			if (nest_count == 0) break;
 		}
-		else if (*end == '\n') {
-			data->N_newlines++;
+		else if (*data.end == '\n') {
+			data.N_newlines++;
 		}
 		
-		end++;
+		data.end++;
 	}
-	end++;
+	data.end++;
 	
 	/************/
 	/* Compile! */
 	/************/
 	
-	int len = (int)(end - PL_bufptr);
+	int len = (int)(data.end - PL_bufptr);
 	
 	/* Build the compiler */
 	TCCState * state = tcc_new();
@@ -590,7 +591,7 @@ int my_keyword_plugin(pTHX_
 	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - keep_curly_brackets,
-		end - PL_bufptr - 2 + 2*keep_curly_brackets, CopFILE(PL_curcop),
+		data.end - PL_bufptr - 2 + 2*keep_curly_brackets, CopFILE(PL_curcop),
 		CopLINE(PL_curcop));
 	
 	/*****************************/
@@ -717,7 +718,7 @@ int my_keyword_plugin(pTHX_
 			/* add the serialized pointer address to the published pointer
 			 * addresses. */
 			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
-				data->package_suffix), GV_ADD);
+				data.package_suffix), GV_ADD);
 
 			if (SvPOK(package_lists) && SvCUR(package_lists) > 0) {
 				sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
@@ -734,14 +735,14 @@ int my_keyword_plugin(pTHX_
 	Safefree(xsub_name);
 	
 	/* insert a semicolon to make the parser happy */
-	end--;
-	*end = ';';
+	data.end--;
+	*data.end = ';';
 
 all_done:
-	lex_unstuff(end);
+	lex_unstuff(data.end);
 	/* Make the parser count the number of lines correctly */
 	int i;
-	for (i = 0; i < data->N_newlines; i++) lex_stuff_pv("\n", 0);
+	for (i = 0; i < data.N_newlines; i++) lex_stuff_pv("\n", 0);
 	
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
