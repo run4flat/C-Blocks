@@ -477,9 +477,9 @@ int my_keyword_plugin(pTHX_
 		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", data.exsymtabs, 0);
 		CopHINTHASH_set(PL_curcop, data.hints_hash);
 		
-		/* Mortalize the SVs so they get cleared eventually. */
-		//sv_2mortal(import_package_name);  // XXX why not mortalize this?
-		sv_2mortal(symtab_list_name);
+		/* Clean up the SVs. */
+		SvREFCNT_dec(import_package_name);
+		SvREFCNT_dec(symtab_list_name);
 		
 		/* Replace this keyword with a null op */
 		*op_ptr = newOP(OP_NULL, 0);
