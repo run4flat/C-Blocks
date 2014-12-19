@@ -310,6 +310,7 @@ typedef struct c_blocks_data {
 	char * end;
 	char * xsub_name;
 	COPHH* hints_hash;
+	SV * exsymtabs;
 	int N_newlines;
 } c_blocks_data;
 
@@ -317,10 +318,16 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->package_suffix = "__cblocks_extended_symtab_list";
 	data->N_newlines = 0;
 	data->xsub_name = 0;
+	data->exsymtabs = 0;
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
+}
+
+void setup_exsymtabs (pTHX_ c_blocks_data* data) {
+	data->exsymtabs = cophh_fetch_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", 0);
+	if (data->exsymtabs == &PL_sv_placeholder) data->exsymtabs = newSVpvn("", 0);
 }
 
 void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
@@ -378,16 +385,14 @@ int my_keyword_plugin(pTHX_
 	/* Clear out any leading whitespace, including comments */
 	lex_read_space(0);
 	
-	/* Create the compilation data struct */
-	c_blocks_data data;
-	initialize_c_blocks_data(aTHX_ &data);
-	
 	/**********************/
 	/*   Initialization   */
 	/**********************/
 	
-	SV * extended_symtab_tables_SV = cophh_fetch_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", 0);
-	if (extended_symtab_tables_SV == &PL_sv_placeholder) extended_symtab_tables_SV = newSVpvn("", 0);
+	/* Create the compilation data struct */
+	c_blocks_data data;
+	initialize_c_blocks_data(aTHX_ &data);
+	setup_exsymtabs(aTHX_ &data);
 	
 	/* The type for the pointer passed to op_func will depend on whether
 	 * libperl has been loaded. A preprocessor macro will eventually be set to
@@ -439,8 +444,8 @@ int my_keyword_plugin(pTHX_
 		}
 		
 		/* Copy these to the hints hash entry, creating said entry if necessary */
-		sv_catsv_mg(extended_symtab_tables_SV, imported_tables_SV);
-		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
+		sv_catsv_mg(data.exsymtabs, imported_tables_SV);
+		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", data.exsymtabs, 0);
 		CopHINTHASH_set(PL_curcop, data.hints_hash);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
@@ -580,9 +585,9 @@ int my_keyword_plugin(pTHX_
 		extended_symtab_callback_data callback_data = { state, NULL, 0 };
 	#endif
 	/* Set the extended symbol table lists if they exist */
-	if (SvPOK(extended_symtab_tables_SV) && SvCUR(extended_symtab_tables_SV)) {
-		callback_data.N_tables = SvCUR(extended_symtab_tables_SV) / sizeof(available_extended_symtab);
-		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(extended_symtab_tables_SV);
+	if (SvPOK(data.exsymtabs) && SvCUR(data.exsymtabs)) {
+		callback_data.N_tables = SvCUR(data.exsymtabs) / sizeof(available_extended_symtab);
+		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(data.exsymtabs);
 	}
 	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
 		&my_symtab_sym_used, &callback_data);
@@ -708,13 +713,13 @@ int my_keyword_plugin(pTHX_
 		}
 		
 		/* add the serialized pointer address to the hints hash entry */
-		if (SvPOK(extended_symtab_tables_SV)) {
-			sv_catpvn_mg(extended_symtab_tables_SV, (char*)&new_table, sizeof(available_extended_symtab));
+		if (SvPOK(data.exsymtabs)) {
+			sv_catpvn_mg(data.exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
 		}
 		else {
-			sv_setpvn_mg(extended_symtab_tables_SV, (char*)&new_table, sizeof(available_extended_symtab));
+			sv_setpvn_mg(data.exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
 		}
-		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
+		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", data.exsymtabs, 0);
 		CopHINTHASH_set(PL_curcop, data.hints_hash);
 		
 		if (keyword_type == IS_CSHARE) {
