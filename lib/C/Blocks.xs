@@ -306,6 +306,7 @@ void add_predeclaration_macros_to_block(pTHX) {
 }
 
 typedef struct c_blocks_data {
+	char * my_perl_type;
 	char * package_suffix;
 	char * end;
 	char * xsub_name;
@@ -323,6 +324,12 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
+	
+	/* The type for the pointer passed to op_func will depend on whether
+	 * libperl has been loaded. A preprocessor macro will eventually be set to
+	 * whatever is in this string. The default assumes no libperl, in which case
+	 * we should use a void pointer. */
+	data->my_perl_type = "void";
 }
 
 void setup_exsymtabs (pTHX_ c_blocks_data* data) {
@@ -393,12 +400,6 @@ int my_keyword_plugin(pTHX_
 	c_blocks_data data;
 	initialize_c_blocks_data(aTHX_ &data);
 	setup_exsymtabs(aTHX_ &data);
-	
-	/* The type for the pointer passed to op_func will depend on whether
-	 * libperl has been loaded. A preprocessor macro will eventually be set to
-	 * whatever is in this string. The default assumes no libperl, in which case
-	 * we should use a void pointer. */
-	char * my_perl_type = "void";
 	
 	int keep_curly_brackets = 1;
 	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX);
@@ -517,7 +518,7 @@ int my_keyword_plugin(pTHX_
 					
 					/* XXX fix this so that I don't need the ifdef/else */
 //					/* Make sure my_perl has the correct type. */
-//					my_perl_type = "PerlInterpreter";
+//					data.my_perl_type = "PerlInterpreter";
 
 					#ifdef PERL_IMPLICIT_CONTEXT
 						sv_catpvf(predeclarations, "SV * %s = "
@@ -595,7 +596,7 @@ int my_keyword_plugin(pTHX_
 	/* set the predeclarations */
 	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
 		SvPVbyte_nolen(predeclarations));
-	tcc_define_symbol(state, "MY_PERL_TYPE", my_perl_type);
+	tcc_define_symbol(state, "MY_PERL_TYPE", data.my_perl_type);
 	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - keep_curly_brackets,
