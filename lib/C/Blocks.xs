@@ -340,6 +340,11 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->my_perl_type = "void";
 }
 
+void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
+	SvREFCNT_dec(data->predeclarations);
+	Safefree(data->xsub_name);
+}
+
 void setup_exsymtabs (pTHX_ c_blocks_data* data) {
 	data->exsymtabs = cophh_fetch_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", 0);
 	if (data->exsymtabs == &PL_sv_placeholder) data->exsymtabs = newSVpvn("", 0);
@@ -746,9 +751,9 @@ int my_keyword_plugin(pTHX_
 	}
 	
 	/* cleanup */
+	cleanup_c_blocks_data(aTHX_ &data);
 	tcc_delete(state);
 	sv_2mortal(error_msg_sv);
-	Safefree(data.xsub_name);
 	
 	/* insert a semicolon to make the parser happy */
 	data.end--;
