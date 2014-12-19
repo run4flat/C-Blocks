@@ -308,8 +308,18 @@ void add_predeclaration_macros_to_block(pTHX) {
 typedef struct c_blocks_data {
 	char * package_suffix;
 	char * end;
+	char * xsub_name;
 	int N_newlines;
 } c_blocks_data;
+
+void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
+	data->package_suffix = "__cblocks_extended_symtab_list";
+	data->N_newlines = 0;
+	data->xsub_name = 0;
+	
+	/* This is called after we have cleared out whitespace, so just assign */
+	data->end = PL_bufptr;
+}
 
 void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
 	data->end = PL_bufptr;
@@ -338,21 +348,21 @@ void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
 	}
 }
 
-void fixup_xsub_name(pTHX_ char * end, char * name) {
-	/* remove the name */
-	lex_unstuff(end);
+void fixup_xsub_name(pTHX_ c_blocks_data * data) {
+	/* Find where the name ends, copy it, and replace it with the correct
+	 * declaration */
+	
+	/* Find and copy */
+	find_end_of_xsub_name(aTHX_ data);
+	data->xsub_name = savepvn(PL_bufptr, data->end - PL_bufptr);
+	
+	/* remove the name from the buffer */
+	lex_unstuff(data->end);
+	
 	/* re-add what we want in reverse order (LIFO) */
 	lex_stuff_pv(")", 0);
-	lex_stuff_pv(name, 0);
+	lex_stuff_pv(data->xsub_name, 0);
 	lex_stuff_pv("XS_INTERNAL(", 0);
-}
-
-void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
-	data->package_suffix = "__cblocks_extended_symtab_list";
-	data->N_newlines = 0;
-	
-	/* This is called after we have cleared out whitespace, so just assign */
-	data->end = PL_bufptr;
 }
 
 int my_keyword_plugin(pTHX_
@@ -386,15 +396,8 @@ int my_keyword_plugin(pTHX_
 	char * my_perl_type = "void";
 	
 	int keep_curly_brackets = 1;
-	char * xsub_name = NULL;
 	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX);
-	else if (keyword_type == IS_CSUB) {
-		/* Find where the name ends, copy it, and replace it with the correct
-		 * declaration */
-		find_end_of_xsub_name(aTHX_ &data);
-		xsub_name = savepvn(PL_bufptr, data.end - PL_bufptr);
-		fixup_xsub_name(aTHX, data.end, xsub_name);
-	}
+	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ &data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		keep_curly_brackets = 0;
 	}
@@ -676,11 +679,11 @@ int my_keyword_plugin(pTHX_
 	}
 	if (keyword_type == IS_CSUB) {
 		/* Extract the xsub */
-		XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, xsub_name);
+		XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data.xsub_name);
 		
 		/* Add the xsub to the package's symbol table */
 		char * filename = CopFILE(PL_curcop);
-		char * full_func_name = form("%s::%s", SvPVbyte_nolen(PL_curstname), xsub_name);
+		char * full_func_name = form("%s::%s", SvPVbyte_nolen(PL_curstname), data.xsub_name);
 		newXS(full_func_name, xsub_fcn_ptr, filename);
 	}
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
@@ -732,7 +735,7 @@ int my_keyword_plugin(pTHX_
 	/* cleanup */
 	tcc_delete(state);
 	sv_2mortal(error_msg_sv);
-	Safefree(xsub_name);
+	Safefree(data.xsub_name);
 	
 	/* insert a semicolon to make the parser happy */
 	data.end--;
