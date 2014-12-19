@@ -289,6 +289,22 @@ void keyword_cuse(pTHX_
 ) {
 }
 
+void add_predeclaration_macros_to_block(pTHX) {
+	/* Add a preprocessor macro that we can define with variable
+	 * predeclarations *after* having extracted the code to compile. */
+	lex_unstuff(PL_bufptr + 1);
+	lex_stuff_pv("{C_BLOCK_PREDECLARATIONS ", 0);
+	
+	/* Add the function declaration. The type is a macro that will default
+	 * to "void", but may be changed to PerlInterpreter later during the
+	 * compilation. */
+	#ifdef PERL_IMPLICIT_CONTEXT
+		lex_stuff_pv("void op_func(MY_PERL_TYPE * my_perl)", 0);
+	#else
+		lex_stuff_pv("void op_func()", 0);
+	#endif
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -321,21 +337,7 @@ int my_keyword_plugin(pTHX_
 	
 	int keep_curly_brackets = 1;
 	char * xsub_name = NULL;
-	if (keyword_type == IS_CBLOCK) {
-		/* Add a preprocessor macro that we can define with variable
-		 * predeclarations *after* having extracted the code to compile. */
-		lex_unstuff(PL_bufptr + 1);
-		lex_stuff_pv("{C_BLOCK_PREDECLARATIONS ", 0);
-		
-		/* Add the function declaration. The type is a macro that will default
-		 * to "void", but may be changed to PerlInterpreter later during the
-		 * compilation. */
-		#ifdef PERL_IMPLICIT_CONTEXT
-			lex_stuff_pv("void op_func(MY_PERL_TYPE * my_perl)", 0);
-		#else
-			lex_stuff_pv("void op_func()", 0);
-		#endif
-	}
+	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX);
 	else if (keyword_type == IS_CSUB) {
 		/* Load libperl if it's not already loaded */
 		if (0) {

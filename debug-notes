@@ -243,3 +243,12 @@ so I can't speak to them.
 All of this is possible because I added new developer functionality that lets me
 specify the install location for tcc. This is useful for fast testing iterations
 on tcc itself, without having to use an Alien::TinyCC install cycle.
+
+December 19, 2014
+=================
+
+Having dug around the libperl module a bit, I had decided it is time to refactor
+the enormous my_keyword_plugin() in Blocks.xs.
+
+To begin, I wrote add_predeclaration_macros_to_block. Passes tests 1, 2, 3, 10,
+12, and 99.
