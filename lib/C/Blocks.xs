@@ -342,16 +342,28 @@ void fixup_xsub_name(pTHX_ char * end, char * name) {
 	lex_stuff_pv("XS_INTERNAL(", 0);
 }
 
+typedef struct c_blocks_data {
+	char * package_suffix;
+	int N_newlines;
+	
+} c_blocks_data;
+
+void initialize_c_blocks_data(c_blocks_data* data) {
+	data->package_suffix = "__cblocks_extended_symtab_list";
+	data->N_newlines = 0;
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
-	char * package_suffix = "__cblocks_extended_symtab_list";
-	int N_newlines = 0;
-	
 	/* See if this is a keyword we know */
 	int keyword_type = identify_keyword(keyword_ptr, keyword_len);
 	if (!keyword_type)
 		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
+	
+	/* Create the compilation data struct */
+	c_blocks_data data;
+	initialize_c_blocks_data(&data);
 	
 	/* Clear out any leading whitespace, including comments */
 	lex_read_space(0);
@@ -407,7 +419,7 @@ int my_keyword_plugin(pTHX_
 		 * the package global already exists, and use it if so. */
 		SV * import_package_name = newSVpv(PL_bufptr, end - PL_bufptr);
 		SV * symtab_list_name = newSVsv(import_package_name);
-		sv_catpvf(symtab_list_name, "::%s", package_suffix);
+		sv_catpvf(symtab_list_name, "::%s", data->package_suffix);
 		SV * imported_tables_SV = get_sv(SvPVbyte_nolen(symtab_list_name), 0);
 		
 		/* Otherwise, try importing a module with the given name and check
@@ -475,7 +487,7 @@ int my_keyword_plugin(pTHX_
 			}
 			else {
 				#if PERL_VERSION < 18
-					CopLINE(PL_curcop) += N_newlines;
+					CopLINE(PL_curcop) += data->N_newlines;
 					croak("You must use Perl 5.18 or newer for variable interpolation");
 				#endif
 				
@@ -489,7 +501,7 @@ int my_keyword_plugin(pTHX_
 					int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
 					/* Ensure that the variable exists in the pad */
 					if (var_offset == NOT_IN_PAD) {
-						CopLINE(PL_curcop) += N_newlines;
+						CopLINE(PL_curcop) += data->N_newlines;
 						croak("Global symbol \"%s\" requires explicit package name",
 							perl_varname_start);
 					}
@@ -523,7 +535,7 @@ int my_keyword_plugin(pTHX_
 			if (nest_count == 0) break;
 		}
 		else if (*end == '\n') {
-			N_newlines++;
+			data->N_newlines++;
 		}
 		
 		end++;
@@ -705,7 +717,7 @@ int my_keyword_plugin(pTHX_
 			/* add the serialized pointer address to the published pointer
 			 * addresses. */
 			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
-				package_suffix), GV_ADD);
+				data->package_suffix), GV_ADD);
 
 			if (SvPOK(package_lists) && SvCUR(package_lists) > 0) {
 				sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
@@ -729,7 +741,7 @@ all_done:
 	lex_unstuff(end);
 	/* Make the parser count the number of lines correctly */
 	int i;
-	for (i = 0; i < N_newlines; i++) lex_stuff_pv("\n", 0);
+	for (i = 0; i < data->N_newlines; i++) lex_stuff_pv("\n", 0);
 	
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
