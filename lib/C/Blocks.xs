@@ -305,6 +305,43 @@ void add_predeclaration_macros_to_block(pTHX) {
 	#endif
 }
 
+char * find_end_of_xsub_name(pTHX_) {
+	char * end = PL_bufptr;
+	/* Load libperl if it's not already loaded */
+	if (0) {
+		/* load libperl, add to this context */
+	}
+	/* extract the function name */
+	while (1) {
+		ENSURE_LEX_BUFFER(
+			end == PL_bufptr
+			? "C::Blocks encountered the end of the file before seeing the csub name"
+			: "C::Blocks encountered the end of the file before seeing the body of the csub"
+		);
+		if (end == PL_bufptr) {
+			if(!isIDFIRST(*end)) croak("C::Blocks expects a name after csub");
+		}
+		else if (_is_whitespace_char(*end) || *end == '{') {
+			break;
+		}
+		else if (!_is_id_cont(*end)){
+			croak("C::Blocks csub name can contain only underscores, letters, and numbers");
+		}
+		
+		end++;
+	}
+	return end;
+}
+
+void fixup_xsub_name(pTHX_ char * end, char * name) {
+	/* remove the name */
+	lex_unstuff(end);
+	/* re-add what we want in reverse order (LIFO) */
+	lex_stuff_pv(")", 0);
+	lex_stuff_pv(name, 0);
+	lex_stuff_pv("XS_INTERNAL(", 0);
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -339,39 +376,11 @@ int my_keyword_plugin(pTHX_
 	char * xsub_name = NULL;
 	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX);
 	else if (keyword_type == IS_CSUB) {
-		/* Load libperl if it's not already loaded */
-		if (0) {
-			/* load libperl, add to this context */
-		}
-		/* extract the function name */
-		while (1) {
-			ENSURE_LEX_BUFFER(
-				end == PL_bufptr
-				? "C::Blocks encountered the end of the file before seeing the csub name"
-				: "C::Blocks encountered the end of the file before seeing the body of the csub"
-			);
-			if (end == PL_bufptr) {
-				if(!isIDFIRST(*end)) croak("C::Blocks expects a name after csub");
-			}
-			else if (_is_whitespace_char(*end) || *end == '{') {
-				break;
-			}
-			else if (!_is_id_cont(*end)){
-				croak("C::Blocks csub name can contain only underscores, letters, and numbers");
-			}
-			
-			end++;
-		}
-		/* Having reached here, the xsub name ends one character before end.
-		 * Copy that name, then clobber the buffer up to (but not including)
-		 * the end. */
+		/* Find where the name ends, copy it, and replace it with the correct
+		 * declaration */
+		end = find_end_of_xsub_name(aTHX);
 		xsub_name = savepvn(PL_bufptr, end - PL_bufptr);
-		lex_unstuff(end);
-
-		/* re-add what we want in reverse order (LIFO) */
-		lex_stuff_pv(")", 0);
-		lex_stuff_pv(xsub_name, 0);
-		lex_stuff_pv("XS_INTERNAL(", 0);
+		fixup_xsub_name(aTHX, end, name);
 	}
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		keep_curly_brackets = 0;
