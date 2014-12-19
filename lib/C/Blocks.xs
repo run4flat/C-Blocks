@@ -309,6 +309,7 @@ typedef struct c_blocks_data {
 	char * package_suffix;
 	char * end;
 	char * xsub_name;
+	COPHH* hints_hash;
 	int N_newlines;
 } c_blocks_data;
 
@@ -317,6 +318,7 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->N_newlines = 0;
 	data->xsub_name = 0;
 	
+	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
 }
@@ -384,9 +386,7 @@ int my_keyword_plugin(pTHX_
 	/*   Initialization   */
 	/**********************/
 	
-	/* Get the hint hash for later retrieval */
-	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
-	SV * extended_symtab_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/extended_symtab_tables", 0);
+	SV * extended_symtab_tables_SV = cophh_fetch_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", 0);
 	if (extended_symtab_tables_SV == &PL_sv_placeholder) extended_symtab_tables_SV = newSVpvn("", 0);
 	
 	/* The type for the pointer passed to op_func will depend on whether
@@ -440,8 +440,8 @@ int my_keyword_plugin(pTHX_
 		
 		/* Copy these to the hints hash entry, creating said entry if necessary */
 		sv_catsv_mg(extended_symtab_tables_SV, imported_tables_SV);
-		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
-		CopHINTHASH_set(PL_curcop, hints_hash);
+		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
+		CopHINTHASH_set(PL_curcop, data.hints_hash);
 		
 		/* Mortalize the SVs so they get cleared eventually. */
 		//sv_2mortal(import_package_name);  // XXX why not mortalize this?
@@ -714,8 +714,8 @@ int my_keyword_plugin(pTHX_
 		else {
 			sv_setpvn_mg(extended_symtab_tables_SV, (char*)&new_table, sizeof(available_extended_symtab));
 		}
-		hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
-		CopHINTHASH_set(PL_curcop, hints_hash);
+		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
+		CopHINTHASH_set(PL_curcop, data.hints_hash);
 		
 		if (keyword_type == IS_CSHARE) {
 			/* add the serialized pointer address to the published pointer
