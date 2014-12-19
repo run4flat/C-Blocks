@@ -312,6 +312,7 @@ typedef struct c_blocks_data {
 	char * xsub_name;
 	COPHH* hints_hash;
 	SV * exsymtabs;
+	SV * add_test_SV;
 	int N_newlines;
 	int keep_curly_brackets;
 } c_blocks_data;
@@ -321,9 +322,12 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->N_newlines = 0;
 	data->xsub_name = 0;
 	data->exsymtabs = 0;
+	data->add_test_SV = 0;
 	data->keep_curly_brackets = 1;
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
+	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
+	
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
 	
@@ -381,6 +385,22 @@ void fixup_xsub_name(pTHX_ c_blocks_data * data) {
 	lex_stuff_pv(")", 0);
 	lex_stuff_pv(data->xsub_name, 0);
 	lex_stuff_pv("XS_INTERNAL(", 0);
+}
+
+/* Add testing functions if requested */
+void add_msg_function_decl(pTHX_ c_blocks_data * data) {
+	if (SvOK(data->add_test_SV)) {
+		/* The stuff position depends on whether we are going to get rid of the
+		 * first curly bracket or not. */
+		if (!data->keep_curly_brackets) lex_unstuff(PL_bufptr + 1);
+		
+		lex_stuff_pv("void c_blocks_send_msg(char * msg);"
+			"void c_blocks_send_bytes(void * msg, int bytes);"
+			"char * c_blocks_get_msg();"
+			, 0);
+		
+		if (!data->keep_curly_brackets) lex_stuff_pv("{", 0);
+	}
 }
 
 int my_keyword_plugin(pTHX_
@@ -461,22 +481,7 @@ int my_keyword_plugin(pTHX_
 		goto all_done;
 	}
 	
-	/* Add testing functions if requested */
-	SV * add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
-	if (SvOK(add_test_SV)) {
-		/* The stuff position depends on whether we are going to get rid of the
-		 * first curly bracket or not. */
-		if (data.keep_curly_brackets) {
-			lex_stuff_pv("void c_blocks_send_msg(char * msg);"
-				"void c_blocks_send_bytes(void * msg, int bytes);"
-				"char * c_blocks_get_msg();"
-				, 0);
-		}
-		else {
-			lex_unstuff(PL_bufptr + 1);
-			lex_stuff_pv("{void c_blocks_send_msg(char * msg); char * c_blocks_get_msg(); ", 0);
-		}
-	}
+	add_msg_function_decl(aTHX_ &data);
 	
 	/**********************/
 	/* Extract the C code */
@@ -621,7 +626,7 @@ int my_keyword_plugin(pTHX_
 	/******************************************/
 	
 	/* test symbols */
-	if (SvOK(add_test_SV)) {
+	if (SvOK(data.add_test_SV)) {
 		tcc_add_symbol(state, "c_blocks_send_msg", _c_blocks_send_msg);
 		tcc_add_symbol(state, "c_blocks_send_bytes", _c_blocks_send_bytes);
 		tcc_add_symbol(state, "c_blocks_get_msg", _c_blocks_get_msg);
