@@ -313,6 +313,7 @@ typedef struct c_blocks_data {
 	COPHH* hints_hash;
 	SV * exsymtabs;
 	int N_newlines;
+	int keep_curly_brackets;
 } c_blocks_data;
 
 void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
@@ -320,6 +321,7 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->N_newlines = 0;
 	data->xsub_name = 0;
 	data->exsymtabs = 0;
+	data->keep_curly_brackets = 1;
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	/* This is called after we have cleared out whitespace, so just assign */
@@ -401,11 +403,10 @@ int my_keyword_plugin(pTHX_
 	initialize_c_blocks_data(aTHX_ &data);
 	setup_exsymtabs(aTHX_ &data);
 	
-	int keep_curly_brackets = 1;
 	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX);
 	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ &data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
-		keep_curly_brackets = 0;
+		data.keep_curly_brackets = 0;
 	}
 	else if (keyword_type == IS_CUSE) {
 		/* Extract the stash name */
@@ -465,7 +466,7 @@ int my_keyword_plugin(pTHX_
 	if (SvOK(add_test_SV)) {
 		/* The stuff position depends on whether we are going to get rid of the
 		 * first curly bracket or not. */
-		if (keep_curly_brackets) {
+		if (data.keep_curly_brackets) {
 			lex_stuff_pv("void c_blocks_send_msg(char * msg);"
 				"void c_blocks_send_bytes(void * msg, int bytes);"
 				"char * c_blocks_get_msg();"
@@ -599,8 +600,8 @@ int my_keyword_plugin(pTHX_
 	tcc_define_symbol(state, "MY_PERL_TYPE", data.my_perl_type);
 	
 	/* compile the code */
-	tcc_compile_string_ex(state, PL_bufptr + 1 - keep_curly_brackets,
-		data.end - PL_bufptr - 2 + 2*keep_curly_brackets, CopFILE(PL_curcop),
+	tcc_compile_string_ex(state, PL_bufptr + 1 - data.keep_curly_brackets,
+		data.end - PL_bufptr - 2 + 2*data.keep_curly_brackets, CopFILE(PL_curcop),
 		CopLINE(PL_curcop));
 	
 	/*****************************/
