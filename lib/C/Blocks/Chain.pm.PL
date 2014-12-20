@@ -125,7 +125,7 @@ C::Blocks::Chain - simple implementation of a generic linked list container
  use strict;
  use warnings;
  use C::Blocks;
- cuse C::Blocks::Chain;
+ use C::Blocks::Chain;
  
  cblock {
      /* Define the data structure */

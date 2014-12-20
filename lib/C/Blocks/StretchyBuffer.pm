@@ -2,7 +2,7 @@ use strict;
 use warnings;
 package C::Blocks::StretchyBuffer;
 use C::Blocks;
-cuse C::Blocks::libperl;  # for croak and memory stuff
+use C::Blocks::libperl;  # for croak and memory stuff
 
 cshare {
 	#define sbfree(a)         ((a) ? Safefree(stb__sbraw(a)),0 : 0)
@@ -62,7 +62,7 @@ C::Blocks::StretchyBuffer - Enabling stretchy buffers in your context
 =head1 SYNOPSIS
 
  use C::Blocks;
- cuse C::Blocks::StretchyBuffer;
+ use C::Blocks::StretchyBuffer;
  
  # Create a function that uses stretchy buffers:
  $context->code('Body') = C::TinyCompiler::line_number(__LINE__) . q{

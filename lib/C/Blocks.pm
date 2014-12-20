@@ -40,6 +40,27 @@ sub import {
 	_import();
 }
 
+# The XS code for the keyword parser makes sure that if a module invokes cshare,
+# it is also a descendent of C::Blocks::libloader. The only reason it does that
+# is to make sure that this function has a good chance of getting invoked when
+# somebody tries to use the module. This function adds its module's symtab list
+# (a series of pointers) to the calling lexical scope's hints hash. These
+# symtabs are consulted during compilation of cblock declarations in the calling
+# lexical scope.
+sub C::Blocks::libloader::import {
+	# Get the name of the module that is being imported.
+	my ($module) = @_;
+	
+	# Get the use'd module's symbol table list
+	my $symtab_list = do {
+		 no strict 'refs';
+		 ${"${module}::__cblocks_extended_symtab_list"}
+	};
+	
+	# add the symtab list to the calling context's hints hash
+	$^H{"C::Blocks/extended_symtab_tables"} .= $symtab_list;
+}
+
 END {
 	_cleanup();
 }
@@ -102,7 +123,7 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  package main;
  
  # Pull say_hi into this scope
- cuse My::Fastlib;
+ use My::Fastlib;
  
  cblock {
      print_location(3);

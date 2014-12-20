@@ -204,7 +204,7 @@ void my_tcc_error_func (void * message_ptr, const char * msg ) {
 /**** Keyword Identification ****/
 /********************************/
 
-enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB, IS_CUSE } keyword_type;
+enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB } keyword_type;
 
 /* Functions to quickly identify our keywords, assuming that the first letter has
  * already been checked and found to be 'c' */
@@ -218,10 +218,6 @@ int identify_keyword (char * keyword_ptr, STRLEN keyword_len) {
 		if (	keyword_ptr[1] == 'l'
 			&&	keyword_ptr[2] == 'e'
 			&&	keyword_ptr[3] == 'x') return IS_CLEX;
-		
-		if (	keyword_ptr[1] == 'u'
-			&&	keyword_ptr[2] == 's'
-			&&	keyword_ptr[3] == 'e') return IS_CUSE;
 		
 		return 0;
 	}
@@ -283,11 +279,6 @@ int _is_id_cont (char to_check) {
 		end = PL_bufptr + length_so_far;                        \
 	}
 
-
-void keyword_cuse(pTHX_
-	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
-) {
-}
 
 void add_predeclaration_macros_to_block(pTHX) {
 	/* Add a preprocessor macro that we can define with variable
@@ -410,6 +401,22 @@ void add_msg_function_decl(pTHX_ c_blocks_data * data) {
 	}
 }
 
+/* Make the current module a child class of C::Blocks::libloader. */
+void use_parent_libloader(pTHX) {
+	int i;
+	AV * parents = mro_get_linear_isa(PL_curstash);
+	
+	/* Are any parents from C::Blocks::libloader? */
+	for (i = 0; i <= av_len(parents); i++) {
+		SV * parent = *(av_fetch(parents, i, 0));
+		if (strEQ("C::Blocks::libloader", SvPVbyte_nolen(parent))) return;
+	}
+	
+	/* if not, add it to the isa list */
+	AV *isa = perl_get_av(form("%s::ISA", SvPVbyte_nolen(PL_curstname)), 1);
+	av_push(isa, newSVpvn("C::Blocks::libloader", 20));
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -435,59 +442,6 @@ int my_keyword_plugin(pTHX_
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		data.keep_curly_brackets = 0;
 	}
-	else if (keyword_type == IS_CUSE) {
-		/* Extract the stash name */
-		while (1) {
-			ENSURE_LEX_BUFFER(data.end, "C::Blocks encountered the end of the file before seeing the cuse package name");
-			
-			if (data.end == PL_bufptr && !isIDFIRST(*data.end)) {
-				/* Invalid first character. */
-				croak("C::Blocks cuse name must be a valid Perl package name");
-			}
-			else if (_is_whitespace_char(*data.end) || *data.end == ';') {
-				break;
-			}
-			else if (!_is_id_cont(*data.end) && *data.end != ':'){
-				croak("C::Blocks cuse name must be a valid Perl package name");
-			}
-			data.end++;
-		}
-		
-		/* Having reached here, we should have a valid package name. See if
-		 * the package global already exists, and use it if so. */
-		SV * import_package_name = newSVpv(PL_bufptr, data.end - PL_bufptr);
-		SV * symtab_list_name = newSVsv(import_package_name);
-		sv_catpvf(symtab_list_name, "::%s", data.package_suffix);
-		SV * imported_tables_SV = get_sv(SvPVbyte_nolen(symtab_list_name), 0);
-		
-		/* Otherwise, try importing a module with the given name and check
-		 * again. */
-		if (imported_tables_SV == NULL) {
-			load_module(PERL_LOADMOD_NOIMPORT, import_package_name, NULL, NULL);
-			
-			imported_tables_SV = get_sv(SvPVbyte_nolen(symtab_list_name), 0);
-			if (imported_tables_SV == NULL) {
-				croak("C::Blocks did not find any shared blocks in package %s",
-					SvPVbyte_nolen(import_package_name));
-			}
-		}
-		
-		/* Copy these to the hints hash entry, creating said entry if necessary */
-		sv_catsv_mg(data.exsymtabs, imported_tables_SV);
-		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", data.exsymtabs, 0);
-		CopHINTHASH_set(PL_curcop, data.hints_hash);
-		
-		/* Clean up the SVs. */
-		SvREFCNT_dec(import_package_name);
-		SvREFCNT_dec(symtab_list_name);
-		
-		/* Replace this keyword with a null op */
-		*op_ptr = newOP(OP_NULL, 0);
-		
-		/* Skip over all the rest until the end of the function. */
-		goto all_done;
-	}
-	
 	add_msg_function_decl(aTHX_ &data);
 	
 	/**********************/
@@ -747,6 +701,9 @@ int my_keyword_plugin(pTHX_
 			else {
 				sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
 			}
+			
+			/* Add C::Blocks::libloader to @ISA if necessary */
+			use_parent_libloader(aTHX);
 		}
 	}
 	
@@ -759,7 +716,6 @@ int my_keyword_plugin(pTHX_
 	data.end--;
 	*data.end = ';';
 
-all_done:
 	lex_unstuff(data.end);
 	/* Make the parser count the number of lines correctly */
 	int i;

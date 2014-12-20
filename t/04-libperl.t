@@ -10,7 +10,7 @@ use Test::More;
 
 # Load cblocks and libperl
 use C::Blocks;
-cuse C::Blocks::libperl;
+use C::Blocks::libperl;
 
 # Work with package globals for now
 our $shuttle;
