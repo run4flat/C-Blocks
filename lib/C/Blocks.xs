@@ -328,7 +328,7 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
-	data->predeclarations = newSVpv(" ", 1);
+	data->predeclarations = newSVpvn(" ", 1);
 	
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
