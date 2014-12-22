@@ -413,6 +413,78 @@ void use_parent_libloader(pTHX) {
 	av_push(isa, newSVpvn("C::Blocks::libloader", 20));
 }
 
+void extract_C_code(pTHX_ c_blocks_data * data) {
+	/* expand the buffer until we encounter the matching closing bracket. Track
+	 * and clean sigiled variables as well. */
+	char * perl_varname_start = NULL;
+	int nest_count = 0;
+	data->end = PL_bufptr;
+	while (1) {
+		ENSURE_LEX_BUFFER(data->end, "C::Blocks expected closing curly brace but did not find it");
+		
+		if (perl_varname_start && !_is_id_cont(*data->end)) {
+			if (data->end == perl_varname_start + 1) {
+				/* Skip dolar signs followed by non-id characters */
+				perl_varname_start = 0;
+			}
+			else {
+				#if PERL_VERSION < 18
+					CopLINE(PL_curcop) += data->N_newlines;
+					croak("You must use Perl 5.18 or newer for variable interpolation");
+				#endif
+				
+				/* We just identified the character that is one past the end of
+				 * our Perl variable name. Ensure it is available. */
+				char backup = *data->end;
+				*data->end = '\0';
+				char * to_find = form("SV * %s ", perl_varname_start + 1);
+				if (strstr(SvPVbyte_nolen(data->predeclarations), to_find) == NULL) {
+					/* Add a new declaration for it */
+					int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
+					/* Ensure that the variable exists in the pad */
+					if (var_offset == NOT_IN_PAD) {
+						CopLINE(PL_curcop) += data->N_newlines;
+						croak("Global symbol \"%s\" requires explicit package name",
+							perl_varname_start);
+					}
+					
+					/* XXX fix this so that I don't need the ifdef/else */
+//					/* Make sure my_perl has the correct type. */
+//					data->my_perl_type = "PerlInterpreter";
+
+					#ifdef PERL_IMPLICIT_CONTEXT
+						sv_catpvf(data->predeclarations, "SV * %s = "
+							"(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
+							perl_varname_start + 1, var_offset);
+					#else
+						sv_catpvf(data->predeclarations, "SV * %s = PAD_SV(%d); ",
+							perl_varname_start + 1, var_offset);
+					#endif
+				}
+				/* Replace the dollar-sign with white space */
+				*perl_varname_start = ' ';
+				/* Reset the varname detection logic and buffer contents */
+				perl_varname_start = NULL;
+				*data->end = backup;
+			}
+		}
+		if ((keyword_type == IS_CBLOCK) && (*data->end == '$')) {
+			perl_varname_start = data->end;
+		}
+		else if (*data->end == '{') nest_count++;
+		else if (*data->end == '}') {
+			nest_count--;
+			if (nest_count == 0) break;
+		}
+		else if (*data->end == '\n') {
+			data->N_newlines++;
+		}
+		
+		data->end++;
+	}
+	data->end++;
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -421,12 +493,13 @@ int my_keyword_plugin(pTHX_
 	if (!keyword_type)
 		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
 	
-	/* Clear out any leading whitespace, including comments */
-	lex_read_space(0);
-	
 	/**********************/
 	/*   Initialization   */
 	/**********************/
+	
+	/* Clear out any leading whitespace, including comments. Do this before
+	 * initialization so that the assignment of the end pointer is correct. */
+	lex_read_space(0);
 	
 	/* Create the compilation data struct */
 	c_blocks_data data;
@@ -444,75 +517,7 @@ int my_keyword_plugin(pTHX_
 	/* Extract the C code */
 	/**********************/
 	
-	/* expand the buffer until we encounter the matching closing bracket. Track
-	 * and clean sigiled variables as well. */
-	char * perl_varname_start = NULL;
-	int nest_count = 0;
-	data.end = PL_bufptr;
-	while (1) {
-		ENSURE_LEX_BUFFER(data.end, "C::Blocks expected closing curly brace but did not find it");
-		
-		if (perl_varname_start && !_is_id_cont(*data.end)) {
-			if (data.end == perl_varname_start + 1) {
-				/* Skip dolar signs followed by non-id characters */
-				perl_varname_start = 0;
-			}
-			else {
-				#if PERL_VERSION < 18
-					CopLINE(PL_curcop) += data.N_newlines;
-					croak("You must use Perl 5.18 or newer for variable interpolation");
-				#endif
-				
-				/* We just identified the character that is one past the end of
-				 * our Perl variable name. Ensure it is available. */
-				char backup = *data.end;
-				*data.end = '\0';
-				char * to_find = form("SV * %s ", perl_varname_start + 1);
-				if (strstr(SvPVbyte_nolen(data.predeclarations), to_find) == NULL) {
-					/* Add a new declaration for it */
-					int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
-					/* Ensure that the variable exists in the pad */
-					if (var_offset == NOT_IN_PAD) {
-						CopLINE(PL_curcop) += data.N_newlines;
-						croak("Global symbol \"%s\" requires explicit package name",
-							perl_varname_start);
-					}
-					
-					/* XXX fix this so that I don't need the ifdef/else */
-//					/* Make sure my_perl has the correct type. */
-//					data.my_perl_type = "PerlInterpreter";
-
-					#ifdef PERL_IMPLICIT_CONTEXT
-						sv_catpvf(data.predeclarations, "SV * %s = "
-							"(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
-							perl_varname_start + 1, var_offset);
-					#else
-						sv_catpvf(data.predeclarations, "SV * %s = PAD_SV(%d); ",
-							perl_varname_start + 1, var_offset);
-					#endif
-				}
-				/* Replace the dollar-sign with white space */
-				*perl_varname_start = ' ';
-				/* Reset the varname detection logic and buffer contents */
-				perl_varname_start = NULL;
-				*data.end = backup;
-			}
-		}
-		if ((keyword_type == IS_CBLOCK) && (*data.end == '$')) {
-			perl_varname_start = data.end;
-		}
-		else if (*data.end == '{') nest_count++;
-		else if (*data.end == '}') {
-			nest_count--;
-			if (nest_count == 0) break;
-		}
-		else if (*data.end == '\n') {
-			data.N_newlines++;
-		}
-		
-		data.end++;
-	}
-	data.end++;
+	extract_C_code(aTHX_ &data);
 	
 	/************/
 	/* Compile! */
