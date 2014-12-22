@@ -602,6 +602,56 @@ void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
 	newXS(full_func_name, xsub_fcn_ptr, filename);
 }
 
+void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data) {
+	SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
+	/* Build an extended symbol table to serialize */
+	available_extended_symtab new_table;
+	new_table.exsymtab = tcc_get_extended_symbol_table(state);
+	
+	/* Store the pointers to the extended symtabs so that we can clean up
+	 * when everything is over. */
+	AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", 1);
+	av_push(extended_symtab_cache, newSViv(PTR2IV(new_table.exsymtab)));
+	
+	/* Get the dll pointer if this is linked against a dll */
+	new_table.dll = NULL;
+	if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 0) {
+		new_table.dll = dynaloader_get_lib(aTHX_ SvPVbyte_nolen(lib_to_link));
+		if (new_table.dll == NULL) {
+			croak("C::Blocks/DynaLoader unable to load library [%s]",
+				SvPVbyte_nolen(lib_to_link));
+		}
+		SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
+	}
+	
+	/* add the serialized pointer address to the hints hash entry */
+	if (SvPOK(data->exsymtabs)) {
+		sv_catpvn_mg(data->exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
+	}
+	else {
+		sv_setpvn_mg(data->exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
+	}
+	data->hints_hash = cophh_store_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", data->exsymtabs, 0);
+	CopHINTHASH_set(PL_curcop, data->hints_hash);
+	
+	if (keyword_type == IS_CSHARE) {
+		/* add the serialized pointer address to the published pointer
+		 * addresses. */
+		SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
+			data->package_suffix), GV_ADD);
+
+		if (SvPOK(package_lists) && SvCUR(package_lists) > 0) {
+			sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
+		}
+		else {
+			sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
+		}
+		
+		/* Add C::Blocks::libloader to @ISA if necessary */
+		use_parent_libloader(aTHX);
+	}
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -668,60 +718,14 @@ int my_keyword_plugin(pTHX_
 	tcc_relocate(state, SvPVX(machine_code_SV));
 	av_push(machine_code_cache, machine_code_SV);
 	
-	/************************************************************/
-	/* Build the op tree or serialize the symbol table pointers */
-	/************************************************************/
+	/********************************************************/
+	/* Build op tree or serialize the symbol table; cleanup */
+	/********************************************************/
 
 	*op_ptr = build_op(aTHX_ state, keyword_type);
 	if (keyword_type == IS_CSUB) extract_xsub(aTHX_ state, &data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
-		SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
-		/* Build an extended symbol table to serialize */
-		available_extended_symtab new_table;
-		new_table.exsymtab = tcc_get_extended_symbol_table(state);
-		
-		/* Store the pointers to the extended symtabs so that we can clean up
-		 * when everything is over. */
-		AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", 1);
-		av_push(extended_symtab_cache, newSViv(PTR2IV(new_table.exsymtab)));
-		
-		/* Get the dll pointer if this is linked against a dll */
-		new_table.dll = NULL;
-		if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 0) {
-			new_table.dll = dynaloader_get_lib(aTHX_ SvPVbyte_nolen(lib_to_link));
-			if (new_table.dll == NULL) {
-				croak("C::Blocks/DynaLoader unable to load library [%s]",
-					SvPVbyte_nolen(lib_to_link));
-			}
-			SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
-		}
-		
-		/* add the serialized pointer address to the hints hash entry */
-		if (SvPOK(data.exsymtabs)) {
-			sv_catpvn_mg(data.exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
-		}
-		else {
-			sv_setpvn_mg(data.exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
-		}
-		data.hints_hash = cophh_store_pvs(data.hints_hash, "C::Blocks/extended_symtab_tables", data.exsymtabs, 0);
-		CopHINTHASH_set(PL_curcop, data.hints_hash);
-		
-		if (keyword_type == IS_CSHARE) {
-			/* add the serialized pointer address to the published pointer
-			 * addresses. */
-			SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
-				data.package_suffix), GV_ADD);
-
-			if (SvPOK(package_lists) && SvCUR(package_lists) > 0) {
-				sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
-			}
-			else {
-				sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
-			}
-			
-			/* Add C::Blocks::libloader to @ISA if necessary */
-			use_parent_libloader(aTHX);
-		}
+		serialize_symbol_table(aTHX_ state, &data);
 	}
 	
 	/* cleanup */
