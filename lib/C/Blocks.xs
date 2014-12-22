@@ -506,6 +506,41 @@ void setup_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 	tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
 }
 
+void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
+	int len = (int)(data->end - PL_bufptr);
+	
+	/* Set the extended callback handling */
+	#ifdef PERL_IMPLICIT_CONTEXT
+		extended_symtab_callback_data callback_data = { state, aTHX, NULL, 0 };
+	#else
+		extended_symtab_callback_data callback_data = { state, NULL, 0 };
+	#endif
+	
+	/* Set the extended symbol table lists if they exist */
+	if (SvPOK(data->exsymtabs) && SvCUR(data->exsymtabs)) {
+		callback_data.N_tables = SvCUR(data->exsymtabs) / sizeof(available_extended_symtab);
+		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(data->exsymtabs);
+	}
+	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
+		&my_symtab_sym_used, &callback_data);
+	
+	/* compile the code */
+	tcc_compile_string_ex(state, PL_bufptr + 1 - data->keep_curly_brackets,
+		data->end - PL_bufptr - 2 + 2*data->keep_curly_brackets, CopFILE(PL_curcop),
+		CopLINE(PL_curcop));
+	
+	/* Handle any compilation errors */
+	if (SvPOK(data->error_msg_sv)) {
+		if (strstr(SvPV_nolen(data->error_msg_sv), "error")) {
+			croak("C::Blocks error:\n%s", SvPV_nolen(data->error_msg_sv));
+		}
+		else {
+			warn("C::Blocks warning:\n%s", SvPV_nolen(data->error_msg_sv));
+		}
+	}
+	
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -534,22 +569,14 @@ int my_keyword_plugin(pTHX_
 	}
 	add_msg_function_decl(aTHX_ &data);
 	
-	/**********************/
-	/* Extract the C code */
-	/**********************/
+	/************************/
+	/* Extract and compile! */
+	/************************/
 	
 	extract_C_code(aTHX_ &data);
 	
-	/************/
-	/* Compile! */
-	/************/
-	
-	int len = (int)(data.end - PL_bufptr);
-	
-	/* Build the compiler */
 	TCCState * state = tcc_new();
 	if (!state) croak("Unable to create C::TinyCompiler state!\n");
-	
 	setup_compiler(aTHX_ state, &data);
 	
 	/* Ask to save state if it's a cshare or clex block*/
@@ -557,36 +584,8 @@ int my_keyword_plugin(pTHX_
 		tcc_save_extended_symtab(state);
 	}
 	
-	/* Set the extended callback handling */
-	#ifdef PERL_IMPLICIT_CONTEXT
-		extended_symtab_callback_data callback_data = { state, aTHX, NULL, 0 };
-	#else
-		extended_symtab_callback_data callback_data = { state, NULL, 0 };
-	#endif
-	/* Set the extended symbol table lists if they exist */
-	if (SvPOK(data.exsymtabs) && SvCUR(data.exsymtabs)) {
-		callback_data.N_tables = SvCUR(data.exsymtabs) / sizeof(available_extended_symtab);
-		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(data.exsymtabs);
-	}
-	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
-		&my_symtab_sym_used, &callback_data);
-	
-	/* compile the code */
-	tcc_compile_string_ex(state, PL_bufptr + 1 - data.keep_curly_brackets,
-		data.end - PL_bufptr - 2 + 2*data.keep_curly_brackets, CopFILE(PL_curcop),
-		CopLINE(PL_curcop));
-	
-	/*****************************/
-	/* Handle compilation errors */
-	/*****************************/
-	if (SvPOK(data.error_msg_sv)) {
-		if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
-			croak("C::Blocks error:\n%s", SvPV_nolen(data.error_msg_sv));
-		}
-		else {
-			warn("C::Blocks warning:\n%s", SvPV_nolen(data.error_msg_sv));
-		}
-	}
+	/* Compile the extracted code */
+	execute_compiler(aTHX_ state, &data);
 	
 	/******************************************/
 	/* Apply the list of symbols and relocate */
