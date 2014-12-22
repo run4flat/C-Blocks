@@ -151,24 +151,20 @@ void my_symtab_sym_used(char * name, int len, void * data) {
 	for (i = 0; i < callback_data->N_tables; i++) {
 		available_extended_symtab lookup_data
 			= callback_data->available_extended_symtabs[i];
+		
+		/* If we have a dll, then look for the name in there */
 		if (lookup_data.dll != NULL) {
-
-//			/* Check if it is in this symbol table */
-//			TokenSym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
-//			if (ts != NULL) {
-				/* If we have a dll, then look for the name in there */
-				#ifdef PERL_IMPLICIT_CONTEXT
-					pointer = dynaloader_get_symbol(callback_data->my_perl,
-						callback_data->available_extended_symtabs[i].dll, name);
-				#else
-					pointer = dynaloader_get_symbol(
-						callback_data->available_extended_symtabs[i].dll, name);
-				#endif
-//			}
+			#ifdef PERL_IMPLICIT_CONTEXT
+				pointer = dynaloader_get_symbol(callback_data->my_perl,
+					callback_data->available_extended_symtabs[i].dll, name);
+			#else
+				pointer = dynaloader_get_symbol(
+					callback_data->available_extended_symtabs[i].dll, name);
+			#endif
 		}
 		
+		/* Otherwise, it was JIT-compiled, look for it in the exsymtab */
 		else {
-			/* Otherwise, it was JIT-compiled, look for it in the exsymtab */
 			pointer = tcc_get_extended_symbol(lookup_data.exsymtab, name);
 		}
 		
