@@ -573,6 +573,25 @@ void link_static_libraries(pTHX_ TCCState * state) {
 	}
 }
 
+OP * build_op(pTHX_ TCCState * state, int keyword_type) {
+	/* build a null op if not creating a cblock */
+	if (keyword_type != IS_CBLOCK) return newOP(OP_NULL, 0);
+	
+	/* get the function pointer for the block */
+	IV pointer_IV = PTR2IV(tcc_get_symbol(state, "op_func"));
+	if (pointer_IV == 0) {
+		croak("C::Blocks internal error: got null pointer for op function!");
+	}
+	
+	/* Store the address of the function pointer on the stack */
+	OP * o = newUNOP(OP_RAND, 0, newSVOP(OP_CONST, 0, newSViv(pointer_IV)));
+	
+	/* Create an op that pops the address off the stack and invokes it */
+	o->op_ppaddr = Perl_tcc_pp;
+	
+	return o;
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -643,23 +662,7 @@ int my_keyword_plugin(pTHX_
 	/* Build the op tree or serialize the symbol table pointers */
 	/************************************************************/
 
-	if (keyword_type == IS_CBLOCK) {
-		/* build the optree. */
-		IV pointer_IV = PTR2IV(tcc_get_symbol(state, "op_func"));
-		if (pointer_IV == 0) {
-			croak("C::Blocks internal error: got null pointer for op function!");
-		}
-		
-		OP * o = newUNOP(OP_RAND, 0, newSVOP(OP_CONST, 0, newSViv(pointer_IV)));
-		o->op_ppaddr = Perl_tcc_pp;
-	
-		/* Set the op to my newly built one */
-		*op_ptr = o;
-	}
-	else {
-		// build a null op
-		*op_ptr = newOP(OP_NULL, 0);
-	}
+	*op_ptr = build_op(aTHX_ state, keyword_type);
 	if (keyword_type == IS_CSUB) {
 		/* Extract the xsub */
 		XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data.xsub_name);
