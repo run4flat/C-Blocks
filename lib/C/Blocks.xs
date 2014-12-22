@@ -592,6 +592,16 @@ OP * build_op(pTHX_ TCCState * state, int keyword_type) {
 	return o;
 }
 
+void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
+	/* Extract the xsub */
+	XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data->xsub_name);
+	
+	/* Add the xsub to the package's symbol table */
+	char * filename = CopFILE(PL_curcop);
+	char * full_func_name = form("%s::%s", SvPVbyte_nolen(PL_curstname), data->xsub_name);
+	newXS(full_func_name, xsub_fcn_ptr, filename);
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -663,15 +673,7 @@ int my_keyword_plugin(pTHX_
 	/************************************************************/
 
 	*op_ptr = build_op(aTHX_ state, keyword_type);
-	if (keyword_type == IS_CSUB) {
-		/* Extract the xsub */
-		XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data.xsub_name);
-		
-		/* Add the xsub to the package's symbol table */
-		char * filename = CopFILE(PL_curcop);
-		char * full_func_name = form("%s::%s", SvPVbyte_nolen(PL_curstname), data.xsub_name);
-		newXS(full_func_name, xsub_fcn_ptr, filename);
-	}
+	if (keyword_type == IS_CSUB) extract_xsub(aTHX_ state, &data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
 		/* Build an extended symbol table to serialize */
