@@ -301,6 +301,7 @@ typedef struct c_blocks_data {
 	SV * exsymtabs;
 	SV * add_test_SV;
 	SV * predeclarations;
+	SV * error_msg_sv;
 	int N_newlines;
 	int keep_curly_brackets;
 } c_blocks_data;
@@ -316,6 +317,7 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
 	data->predeclarations = newSVpvn(" ", 1);
+	data->error_msg_sv = newSV(0);
 	
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
@@ -329,6 +331,7 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 
 void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	SvREFCNT_dec(data->predeclarations);
+	SvREFCNT_dec(data->error_msg_sv);
 	Safefree(data->xsub_name);
 }
 
@@ -485,6 +488,24 @@ void extract_C_code(pTHX_ c_blocks_data * data) {
 	data->end++;
 }
 
+void setup_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
+	/* Get and reset the compiler options */
+	SV * compiler_options = get_sv("C::Blocks::compiler_options", 0);
+	tcc_set_options(state, SvPVbyte_nolen(compiler_options));
+	SvSetMagicSV(compiler_options, get_sv("C::Blocks::default_compiler_options", 0));
+	
+	/* Ensure output goes to memory */
+	tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
+	
+	/* Set the error function to write to the error message SV */
+	tcc_set_error_func(state, data->error_msg_sv, my_tcc_error_func);
+	
+	/* set the predeclarations */
+	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
+		SvPVbyte_nolen(data->predeclarations));
+	tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -527,19 +548,9 @@ int my_keyword_plugin(pTHX_
 	
 	/* Build the compiler */
 	TCCState * state = tcc_new();
-	if (!state) {
-		croak("Unable to create C::TinyCompiler state!\n");
-	}
+	if (!state) croak("Unable to create C::TinyCompiler state!\n");
 	
-	/* Get and reset the compiler options */
-	SV * compiler_options = get_sv("C::Blocks::compiler_options", 0);
-	tcc_set_options(state, SvPVbyte_nolen(compiler_options));
-	SvSetMagicSV(compiler_options, get_sv("C::Blocks::default_compiler_options", 0));
-	
-	/* Setup error handling */
-	SV * error_msg_sv = newSV(0);
-	tcc_set_error_func(state, error_msg_sv, my_tcc_error_func);
-	tcc_set_output_type(state, TCC_OUTPUT_MEMORY);
+	setup_compiler(aTHX_ state, &data);
 	
 	/* Ask to save state if it's a cshare or clex block*/
 	if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
@@ -560,11 +571,6 @@ int my_keyword_plugin(pTHX_
 	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
 		&my_symtab_sym_used, &callback_data);
 	
-	/* set the predeclarations */
-	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
-		SvPVbyte_nolen(data.predeclarations));
-	tcc_define_symbol(state, "MY_PERL_TYPE", data.my_perl_type);
-	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - data.keep_curly_brackets,
 		data.end - PL_bufptr - 2 + 2*data.keep_curly_brackets, CopFILE(PL_curcop),
@@ -573,12 +579,12 @@ int my_keyword_plugin(pTHX_
 	/*****************************/
 	/* Handle compilation errors */
 	/*****************************/
-	if (SvPOK(error_msg_sv)) {
-		if (strstr(SvPV_nolen(error_msg_sv), "error")) {
-			croak("C::Blocks error:\n%s", SvPV_nolen(error_msg_sv));
+	if (SvPOK(data.error_msg_sv)) {
+		if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
+			croak("C::Blocks error:\n%s", SvPV_nolen(data.error_msg_sv));
 		}
 		else {
-			warn("C::Blocks warning:\n%s", SvPV_nolen(error_msg_sv));
+			warn("C::Blocks warning:\n%s", SvPV_nolen(data.error_msg_sv));
 		}
 	}
 	
@@ -711,7 +717,6 @@ int my_keyword_plugin(pTHX_
 	/* cleanup */
 	cleanup_c_blocks_data(aTHX_ &data);
 	tcc_delete(state);
-	sv_2mortal(error_msg_sv);
 	
 	/* insert a semicolon to make the parser happy */
 	data.end--;
