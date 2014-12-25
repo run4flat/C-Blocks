@@ -294,7 +294,6 @@ void add_predeclaration_macros_to_block(pTHX) {
 
 typedef struct c_blocks_data {
 	char * my_perl_type;
-	char * package_suffix;
 	char * end;
 	char * xsub_name;
 	COPHH* hints_hash;
@@ -307,7 +306,6 @@ typedef struct c_blocks_data {
 } c_blocks_data;
 
 void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
-	data->package_suffix = "__cblocks_extended_symtab_list";
 	data->N_newlines = 0;
 	data->xsub_name = 0;
 	data->exsymtabs = 0;
@@ -602,7 +600,7 @@ void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
 	newXS(full_func_name, xsub_fcn_ptr, filename);
 }
 
-void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data) {
+void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int keyword_type) {
 	SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
 	/* Build an extended symbol table to serialize */
 	available_extended_symtab new_table;
@@ -634,13 +632,11 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data) {
 	data->hints_hash = cophh_store_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", data->exsymtabs, 0);
 	CopHINTHASH_set(PL_curcop, data->hints_hash);
 	
+	/* add the serialized pointer address to the package symtab list */
 	if (keyword_type == IS_CSHARE) {
-		/* add the serialized pointer address to the published pointer
-		 * addresses. */
-		SV * package_lists = get_sv(form("%s::%s", SvPVbyte_nolen(PL_curstname),
-			data->package_suffix), GV_ADD);
-
-		if (SvPOK(package_lists) && SvCUR(package_lists) > 0) {
+		SV * package_lists = get_sv(form("%s::__cblocks_extended_symtab_list",
+			SvPVbyte_nolen(PL_curstname)), GV_ADDMULTI | GV_ADD);
+		if (SvPOK(package_lists)) {
 			sv_catpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
 		}
 		else {
@@ -725,7 +721,7 @@ int my_keyword_plugin(pTHX_
 	*op_ptr = build_op(aTHX_ state, keyword_type);
 	if (keyword_type == IS_CSUB) extract_xsub(aTHX_ state, &data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
-		serialize_symbol_table(aTHX_ state, &data);
+		serialize_symbol_table(aTHX_ state, &data, keyword_type);
 	}
 	
 	/* cleanup */
