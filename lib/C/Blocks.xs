@@ -410,7 +410,7 @@ void use_parent_libloader(pTHX) {
 	}
 	
 	/* if not, add it to the isa list */
-	AV *isa = perl_get_av(form("%s::ISA", SvPVbyte_nolen(PL_curstname)), 1);
+	AV *isa = perl_get_av(form("%s::ISA", SvPVbyte_nolen(PL_curstname)), GV_ADDMULTI | GV_ADD);
 	av_push(isa, newSVpvn("C::Blocks::libloader", 20));
 }
 
@@ -489,7 +489,7 @@ void extract_C_code(pTHX_ c_blocks_data * data) {
 void setup_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 	/* Get and reset the compiler options */
 	SV * compiler_options = get_sv("C::Blocks::compiler_options", 0);
-	tcc_set_options(state, SvPVbyte_nolen(compiler_options));
+	if (SvPOK(compiler_options)) tcc_set_options(state, SvPVbyte_nolen(compiler_options));
 	SvSetMagicSV(compiler_options, get_sv("C::Blocks::default_compiler_options", 0));
 	
 	/* Ensure output goes to memory */
@@ -608,7 +608,7 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	
 	/* Store the pointers to the extended symtabs so that we can clean up
 	 * when everything is over. */
-	AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", 1);
+	AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
 	av_push(extended_symtab_cache, newSViv(PTR2IV(new_table.exsymtab)));
 	
 	/* Get the dll pointer if this is linked against a dll */
@@ -709,7 +709,7 @@ int my_keyword_plugin(pTHX_
 	
 	/* prepare for relocation; store in a global so that we can free everything
 	 * at the end of the Perl program's execution. */
-	AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", 1);
+	AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
 	SV * machine_code_SV = newSV(tcc_relocate(state, 0));
 	tcc_relocate(state, SvPVX(machine_code_SV));
 	av_push(machine_code_cache, machine_code_SV);
@@ -772,7 +772,7 @@ CODE:
 	/* Remove all of the extended symol tables. Note that the code pages
 	 * were stored directly into Perl SV's, which were pushed into an
 	 * array, so they are cleaned up for us automatically. */
-	AV * cache = get_av("C::Blocks::__symtab_cache_array", 1);
+	AV * cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
 	int i;
 	SV ** elem_p;
 	for (i = 0; i < av_len(cache); i++) {
