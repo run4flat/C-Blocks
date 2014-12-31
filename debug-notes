@@ -252,3 +252,13 @@ the enormous my_keyword_plugin() in Blocks.xs.
 
 To begin, I wrote add_predeclaration_macros_to_block. Passes tests 1, 2, 3, 10,
 12, and 99.
+
+December 31, 2014
+=================
+
+I finished refactoring, then turned to debugging test 13 before changing how
+libperl works. That led to a bug found and squashed in tccexsymtab. I have now
+revised test 13, as well as test 15, so that they both test nontrivial things
+and pass! Now, passing tests include 1, 2, 3, 10, 12, 13, 15, and 99!.
+
+I am now in a position to revise the library handling, and libperl test.

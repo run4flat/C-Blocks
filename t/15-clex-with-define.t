@@ -2,37 +2,34 @@ use strict;
 use warnings;
 use Test::More;
 use C::Blocks;
-cuse C::Blocks::libperl;
+
+# Tell C::Blocks to add rudimentary communications functions for testing
+BEGIN { $C::Blocks::_add_msg_functions = 1 }
 
 # Build a function that sets a global for me.
-our $shuttle;
 clex {
-	int Perl_get_shuttle_i(pTHX) {
-		#define get_shuttle_i() Perl_get_shuttle(aTHX)
-		SV * shuttle = get_sv("shuttle", 0);
-		return SvIV(shuttle);
-	}
-	void Perl_set_shuttle_i(pTHX_ int new_value) {
-		#define set_shuttle_i(new_value) Perl_set_shuttle_i(aTHX_ new_value)
-		SV * shuttle = get_sv("shuttle", 0);
-		sv_setiv(shuttle, 5);
-	}
+	#define get_dbl ((double*)c_blocks_get_msg())[0]
+	#define send_dbl(to_send) c_blocks_send_bytes(&to_send, sizeof(double))
 }
 
 BEGIN {
-	pass('Lexical block compiles without trouble');
+	pass('Lexical block with defines compiles without trouble');
 }
 pass('At runtime, lexical block gets skipped without trouble');
 
-# Generate a random integer between zero and 20
-$shuttle = rand(20) % 20;
-my $double = $shuttle * 2;
-# Double it
+# Generate a random integer between zero and 20, send it
+my $number = rand(20) % 20;
+$C::Blocks::_msg = pack('d', $number);
+
+my $double = $number * 2;
+# Double it in C
 cblock {
-	int old = get_shuttle_i();
-	set_shuttle_i(old * 2);
+	double old = get_dbl;
+	old *= 2.0;
+	send_dbl(old);
 }
-is($shuttle, $double, 'C functions from previously compiled scope work');
+my $result = unpack('d', $C::Blocks::_msg);
+is($result, $double, 'C defines from previously compiled scope work');
 
 BEGIN {
 	pass('cblock following lexical block compiles without trouble');
