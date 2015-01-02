@@ -64,7 +64,7 @@ eval q{
 	fail('Cannot call a function outside its lexical scope');
 	1;
 } or do {
-	like($@, qr/foo/, 'Cannot call a function outside its lexical scope');
+	like($@, qr/undeclared function/, 'Cannot call a function outside its lexical scope');
 };
 
 done_testing;

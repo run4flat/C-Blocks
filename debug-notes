@@ -262,3 +262,20 @@ revised test 13, as well as test 15, so that they both test nontrivial things
 and pass! Now, passing tests include 1, 2, 3, 10, 12, 13, 15, and 99!.
 
 I am now in a position to revise the library handling, and libperl test.
+
+January 1, 2015
+===============
+
+But before getting to libperl stuff, I decided to test out the lexical scoping
+of declarations in clex blocks. This led me to write a number of tests which
+revealed a subtle problem with how I was modifying the hints hash. I also seem
+to have uncovered an even more subtle bug in tccexsymtab, as test 11 sometimes
+crashes with a segmentation fault. That will be handled upstream. The most
+important result is that when a function is not declared, it gets a *warning*,
+not an error:
+
+  implicit declaration of function '<name>'
+
+To fix this, I changed the code that throws errors and warnings to search for
+that phrase and replace it with "error: undeclared function '<name'>". After
+fixing the test to search for the correct croak string, everything works!

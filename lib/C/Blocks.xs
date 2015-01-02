@@ -527,9 +527,20 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 	
 	/* Handle any compilation errors */
 	if (SvPOK(data->error_msg_sv)) {
+		/* rewrite implicit function declarations as errors */
+		char * loc;
+		while(loc = strstr(SvPV_nolen(data->error_msg_sv),
+			"warning: implicit declaration of function")
+		) {
+			/* replace "warning: implicit declaration of" with an error */
+			sv_insert(data->error_msg_sv, loc - SvPV_nolen(data->error_msg_sv),
+				32, "error: undeclared", 17);
+		}
+		/* Look for errors and croak */
 		if (strstr(SvPV_nolen(data->error_msg_sv), "error")) {
 			croak("C::Blocks error:\n%s", SvPV_nolen(data->error_msg_sv));
 		}
+		/* Otherwise, look for warnings and warn */
 		else {
 			warn("C::Blocks warning:\n%s", SvPV_nolen(data->error_msg_sv));
 		}
