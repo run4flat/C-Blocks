@@ -308,7 +308,6 @@ typedef struct c_blocks_data {
 void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->N_newlines = 0;
 	data->xsub_name = 0;
-	data->exsymtabs = 0;
 	data->add_test_SV = 0;
 	data->keep_curly_brackets = 1;
 	
@@ -325,17 +324,16 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	 * whatever is in this string. The default assumes no libperl, in which case
 	 * we should use a void pointer. */
 	data->my_perl_type = "void";
+	
+	/* Get the current exsymtabs list. If this doesn't exist, we'll have */
+	data->exsymtabs = cophh_fetch_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", 0);
 }
 
 void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	SvREFCNT_dec(data->predeclarations);
 	SvREFCNT_dec(data->error_msg_sv);
+	//if (SvPOK(data->exsymtabs)) SvREFCNT_dec(data->exsymtabs);
 	Safefree(data->xsub_name);
-}
-
-void setup_exsymtabs (pTHX_ c_blocks_data* data) {
-	data->exsymtabs = cophh_fetch_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", 0);
-	if (data->exsymtabs == &PL_sv_placeholder) data->exsymtabs = newSVpvn("", 0);
 }
 
 void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
@@ -624,10 +622,11 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	
 	/* add the serialized pointer address to the hints hash entry */
 	if (SvPOK(data->exsymtabs)) {
-		sv_catpvn_mg(data->exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
+		data->exsymtabs = newSVsv(data->exsymtabs);
+		sv_catpvn(data->exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
 	}
 	else {
-		sv_setpvn_mg(data->exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
+		data->exsymtabs = newSVpvn((char*)&new_table, sizeof(available_extended_symtab));
 	}
 	data->hints_hash = cophh_store_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", data->exsymtabs, 0);
 	CopHINTHASH_set(PL_curcop, data->hints_hash);
@@ -667,7 +666,6 @@ int my_keyword_plugin(pTHX_
 	/* Create the compilation data struct */
 	c_blocks_data data;
 	initialize_c_blocks_data(aTHX_ &data);
-	setup_exsymtabs(aTHX_ &data);
 	
 	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX);
 	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ &data);
