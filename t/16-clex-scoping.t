@@ -53,7 +53,7 @@ sub copy_numbers_to_msg {
 	cblock { perform_subtract_check(); }
 	BEGIN { pass 'inner cblock compiles fine' }
 	
-	my $answer = unpack('d', $C::Blocks::_msg);
+	$answer = unpack('d', $C::Blocks::_msg);
 	is($answer, $numbers[0] - $numbers[1], 'get_numbers and subtract work in nested function');
 }
 
