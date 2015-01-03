@@ -20,6 +20,7 @@ clex {
 	void send_second() {
 		c_blocks_send_msg("Second");
 	}
+	int some_data;
 }
 
 BEGIN { pass 'Lexical block compiles without trouble' }
@@ -65,8 +66,6 @@ BEGIN { pass 'Nth cblock after lexical block compiles without trouble' }
 pass 'Nth cblock is called and run without trouble';
 is($C::Blocks::_msg, 'baz', 'sending baz works');
 
-
-
 #### Invoke hello for the second time ####
 cblock {
 	send_hello();
@@ -89,5 +88,28 @@ eval q{
 	fail "string-eval'd code has access to lexically scoped functions";
 	diag $@;
 };
+
+#### Twiddle with some_data ####
+cblock { some_data = 5; }
+BEGIN { pass 'cblock with global variable modification compiles without trouble' }
+pass 'cblock with global variable modification is called and run without trouble';
+
+# Pack a random integer and set some_data to it
+my $rand_int = int(rand(10_000));
+$C::Blocks::_msg = pack('i', $rand_int);
+cblock { some_data = *((int*)c_blocks_get_msg()); }
+BEGIN { pass 'cblock with global variable modification compiles without trouble' }
+pass 'cblock with global variable modification is called and run without trouble';
+
+# Double and then unpack the random integer
+cblock {
+	some_data *= 2;
+	c_blocks_send_bytes(&some_data, sizeof(int));
+}
+BEGIN { pass 'second cblock with global variable modification compiles without trouble' }
+pass 'second cblock with global variable modification is called and run without trouble';
+
+my $modified_rand = unpack('i', $C::Blocks::_msg);
+is($modified_rand, $rand_int * 2, 'Shared integer data between cblocks using global int');
 
 done_testing;
