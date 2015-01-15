@@ -33,7 +33,13 @@ build directory when you run C<Build.PL>. Thus, to get started, simply say:
  perl Build.PL
 
 This will automatically pull the latest tinycc, build it, and install it to a
-local directory for you.
+local directory for you. There is only one thing special you will have to do:
+you will need to include a definition of C<LD_LIBRARY_PATH> in your calls to
+C<Build>, like so (on my machine):
+
+ LD_LIBRARY_PATH="/home/dcmertens/projects/Perl/C-Blocks/tinycc/lib" ./Build test
+
+A message will be printed with the correct path for you if you fail to do this.
 
 =head1 ALPHA
 
