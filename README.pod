@@ -222,29 +222,11 @@ would like to hack on tcc to provide extended symbol table dump and
 load functionality to minimize the startup time when using
 L<C::Blocks::libperl>.
 
-=item Hash table for extended symbol table lookups
-
-The lookup-by-name is currently implemented by iterating through each
-TokenSym and checking if that TokenSym's name matches the bareword of
-interest. This could be substantially sped up if I had a hash table
-mapping names to TokenSym array offsets.
-
-=item Refactor Blocks.xs
-
-The keyword parser in Blocks.xs is enormous. This needs to be split
-into several smaller functions.
-
 =item Switch to call_checker and call_parser
 
 The keyword API is so yesterday. I used it for prototyping, but I
 need to switch to the new method. That doesn't need to happen before
 it hits CPAN, but I would like for it to happen soon.
-
-=item Scrap cuse
-
-I need to come up with a better way of importing code into the
-current lexical scope. C<cuse> is doin the job for the moment, but
-it kinda sucks and needs to be rethought.
 
 =item Threadsafe
 
