@@ -27,7 +27,7 @@ if (not -d 'tinycc') {
 	# Build it (make this Windows friendly?)
 	chdir 'tinycc-src';
 	banner "Building tinycc";
-	system("./configure --prefix=$dist_dir") and die "TCC configure failed";
+	system("./configure --prefix=$dist_dir --disable-static") and die "TCC configure failed";
 	system('make') and die "TCC make failed";
 	banner "Installing to the local tinycc directory";
 	system(make => 'install') and die "Install failed";
@@ -40,9 +40,7 @@ $INC{'Alien/TinyCC.pm'} = $INC{'inc/Alien/TinyCC.pm'};
 # Make sure we have LD_LIBRARY_PATH available. It seems that setting it
 # below doesn't actually work! :-(
 my $calling_filename = (caller)[1];
-if($calling_filename ne 'Build.PL'
-	and (!$ENV{LD_LIBRARY_PATH} or index($ENV{LD_LIBRARY_PATH}, libtcc_library_path()) == -1))
-{
+if(!$ENV{LD_LIBRARY_PATH} or index($ENV{LD_LIBRARY_PATH}, libtcc_library_path()) == -1){
 	die '***  Be sure to execute your programs like so:
 ***  LD_LIBRARY_PATH="' . $dist_dir . "/lib\" perl -Mblib -Mlib=inc $0 @ARGV\n";
 }
