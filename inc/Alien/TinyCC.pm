@@ -8,9 +8,16 @@ use Cwd;
 use File::Spec;
 my $dist_dir = File::Spec->catfile(getcwd, 'tinycc');
 
+sub banner {
+	my $message = shift;
+	print "\n", '#' x (length($message) + 4), "\n";
+	print "# $message #\n";
+	print '#' x (length($message) + 4), "\n\n";
+}
+
 # Do they have the tinycc source directory?
 if (not -d 'tinycc-src') {
-	print "Pulling the tinycc source code from https://github.com/run4flat/tinycc.git\n";
+	banner "Pulling the tinycc source code from https://github.com/run4flat/tinycc.git";
 	system(git => clone => 'https://github.com/run4flat/tinycc.git' => 'tinycc-src')
 		and die "Unable to clone the source code for the Tiny C Compiler";
 }
@@ -19,10 +26,10 @@ if (not -d 'tinycc-src') {
 if (not -d 'tinycc') {
 	# Build it (make this Windows friendly?)
 	chdir 'tinycc-src';
-	print "Building tinycc\n";
+	banner "Building tinycc";
 	system("./configure --prefix=$dist_dir") and die "TCC configure failed";
 	system('make') and die "TCC make failed";
-	print "Installing to the local tinycc directory\n";
+	banner "Installing to the local tinycc directory";
 	system(make => 'install') and die "Install failed";
 	chdir '..';
 }
