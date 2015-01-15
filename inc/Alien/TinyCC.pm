@@ -12,7 +12,7 @@ my $dist_dir = File::Spec->catfile(getcwd, 'tinycc');
 if (not -d 'tinycc-src') {
 	print "Pulling the tinycc source code from https://github.com/run4flat/tinycc.git\n";
 	system(git => clone => 'https://github.com/run4flat/tinycc.git' => 'tinycc-src')
-		or die "Unable to clone the source code for the Tiny C Compiler";
+		and die "Unable to clone the source code for the Tiny C Compiler";
 }
 
 # Do they have a tinycc binary directory?
@@ -20,10 +20,10 @@ if (not -d 'tinycc') {
 	# Build it (make this Windows friendly?)
 	chdir 'tinycc-src';
 	print "Building tinycc\n";
-	system("./configure --prefix=$dist_dir") or die "TCC configure failed";
-	system('make') or die "TCC make failed";
+	system("./configure --prefix=$dist_dir") and die "TCC configure failed";
+	system('make') and die "TCC make failed";
 	print "Installing to the local tinycc directory\n";
-	system(make => 'install');
+	system(make => 'install') and die "Install failed";
 	chdir '..';
 }
 
