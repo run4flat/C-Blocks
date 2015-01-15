@@ -1,110 +1,13 @@
 use strict;
 use warnings;
 
-# |||| Bootstrap |||| #
-# \/\/           \/\/ #
-
-# Options:
-# perl Build.PL --devel-tcc    <- use tcc configured in inc::Alien::TinyCC
-# perl Build.PL --local-alien  <- install Alien::TinyCC in CWD and use it
-
-sub install_local_alien {
-	print <<message;
-C::Blocks requires the latest git release of Alien::TinyCC.
-If you like, I can fetch the latest work, build it in a
-subdirectory of this one, and have C::Blocks use that
-distribution while building.
-
-message
-	print "Would you like me to do that? (y/N) ";
-	my $response = <>;
-	exit(1) unless $response =~ /^y/i;
-	
-	system('git clone https://github.com/run4flat/Alien-TinyCC.git');
-	chdir 'Alien-TinyCC';
-	system('git submodule init');
-	system('git submodule update');
-	system("$^X Build.PL");
-	system("$^X Build");
-print <<message;
-If you anticipate doing a lot of development with C::Blocks
-then it might be simplest to install Alien::TinyCC. If you
-do not install Alien::TinyCC, then manually running any
-scripts that use C::Blocks (i.e. test scripts) will require
-that you invoke them with a special incantation that I will
-explain shortly.
-
-message
-	print "Would you like me to install Alien::TinyCC? (y/N) ";
-	$response = <>;
-	if ($response =~ /^y/i) {
-		system("$^X Build install");
-		chdir '..';
-		use File::Path qw(remove_tree);
-		remove_tree('Alien-TinyCC') if $response =~ /^y/i;
-	}
-	else {
-		chdir '..';
-	}
-	exec("$^X Build.PL");  # Start over
-}
-
-BEGIN {
-	if (-d 'Alien-TinyCC') {
-		eval q{ use blib 'Alien-TinyCC' };
-		print <<message;
-Using the copy of Alien::TinyCC in the like-named sub-
-directory. When running stand-alone scripts, be sure to
-call them like so:
-
-	perl -Mblib=Alien-TinyCC -Mblib <script-name>
-
-message
-	}
-
-	# Bootstrap things to help new developers. Remove this before publishing to
-	# CPAN.
-	
-	# If I want to use local tcc development, I build with --dev-tcc.
-	if (grep /--devel-tcc/, @ARGV) {
-		print "Using inc::Alien::TinyCC\n";
-		require lib;
-		lib::import('inc');
-		require inc::Alien::TinyCC;
-	}
-	else {
-		# Otherwise I need to make sure that other modules are available
-		eval {
-			require File::ShareDir;
-		} or do {
-			print "You need File::ShareDir in order to install and use Alien::TinyCC. Shall I install it using cpanm? ";
-			my $answer = <>;
-			if ($answer =~ /^y/i) {
-				system('cpanm File::ShareDir');
-				exec("$^X Build.PL");  # Start over
-			}
-			exit(1);
-		};
-		
-		if (grep /--local-alien/, @ARGV) {
-			@ARGV = grep { $_ ne '--local-alien' } @ARGV;
-			install_local_alien;
-		}
-		# Make sure we have Alien::TinyCC
-		eval {
-			require Alien::TinyCC;
-			1;
-		} or do {
-			install_local_alien;
-		};
-		# Make sure Alien::TinyCC is new enough
-		install_local_alien if $Alien::TinyCC::VERSION < 0.05_01;
-	}
-}
-
-# /\/\           /\/\ #
-# |||| Bootstrap |||| #
-
+#######################################################
+# TEMPORARY BOOTSTRAPPING TO HELP BRING DEVELOPERS ON #
+#######################################################
+use inc::Alien::TinyCC;
+###########################################################
+# END TEMPORARY BOOTSTRAPPING TO HELP BRING DEVELOPERS ON #
+###########################################################
 
 use Module::Build;
 use Alien::TinyCC;

@@ -3,8 +3,29 @@ package Alien::TinyCC;
 use strict;
 use warnings;
 
-# EDIT THIS LINE with your prefix:
-my $dist_dir = ...;
+# Set up the directory where we can find TCC
+use Cwd;
+use File::Spec;
+my $dist_dir = File::Spec->catfile(getcwd, 'tinycc');
+
+# Do they have the tinycc source directory?
+if (not -d 'tinycc-src') {
+	print "Pulling the tinycc source code from https://github.com/run4flat/tinycc.git\n";
+	system(git => clone => 'https://github.com/run4flat/tinycc.git' => 'tinycc-src')
+		or die "Unable to clone the source code for the Tiny C Compiler";
+}
+
+# Do they have a tinycc binary directory?
+if (not -d 'tinycc') {
+	# Build it (make this Windows friendly?)
+	chdir 'tinycc-src';
+	print "Building tinycc\n";
+	system("./configure --prefix=$dist_dir") or die "TCC configure failed";
+	system('make') or die "TCC make failed";
+	print "Installing to the local tinycc directory\n";
+	system(make => 'install');
+	chdir '..';
+}
 
 # Make sure that later require and use statements don't choke
 $INC{'Alien/TinyCC.pm'} = $INC{'inc/Alien/TinyCC.pm'};
@@ -66,24 +87,3 @@ sub MB_linker_flags {
 # version
 
 1;
-
-__END__
-
-=head1 NAME
-
-inc::Alien::TinyCC - stand-in for Alien::TinyCC for development
-
-=head1 SYNOPSIS
-
- # Edit inc::Alien::TinyCC and set:
- my $dist_dir = 'path/to/your/current/tcc/prefix';
- ...
-
-=head1 DESCRIPTION
-
-The purpose of this module is to make it easy for you to work on tcc development
-and easily test the resulting work on C::Blocks. You would do this by running
-the C<configure> script in your tcc source directory with the C<--prefix>
-switch set to whatever path you like. Then, edit 
-
-=cut

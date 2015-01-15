@@ -7,7 +7,7 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  use strict;
  use warnings;
  use C::Blocks;
- cuse C::Blocks::libperl;
+ use C::Blocks::libperl;
  
  our $global_var = "Before first cblock";
  print "Before the first cblock, \$global_var conains [$global_var]\n";
@@ -20,6 +20,21 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  print "After the first cblock, \$global_var conains [$global_var]\n";
 
+=head1 DEVELOPMENT BOOTSTRAPPING
+
+This software is in active development and is not (quite) set up for distribution
+on CPAN. Instead, it is set up to help you get started as quickly and painlessly
+as possible. To that end, it will automatically install the most recent
+development version of the Tiny C Compiler to a directory within your C::Blocks
+build directory when you run C<Build.PL>. Thus, to get started, simply say:
+
+ git clone https://github.com/run4flat/C-Blocks.git
+ cd C-Blocks
+ perl Build.PL
+
+This will automatically pull the latest tinycc, build it, and install it to a
+local directory for you.
+
 =head1 ALPHA
 
 This project is currently in alpha. Using this software is likely to
@@ -30,7 +45,7 @@ probably steer clear of it for now.
 =head1 DESCRIPTION
 
 This module uses Perl's pluggable keyword API to add a number of new
-keywords including C<cblock>, C<cshare>, C<clex>, and C<cuse>.
+keywords including C<cblock>, C<clex>, C<cshare>, and C<csub>.
 
 =over
 
@@ -56,63 +71,7 @@ declarations, and function definitions can be imported into a caller's
 lexical scope using C<cuse> (which is likely to be replaced soon, see
 below).
 
-=item cuse
-
-The C<cuse> keyword (which is likely to be replaced soon, btw) takes a
-package name and pulls in the functionality of any C<cshare> blocks of
-code defined in that package. This functionality can then be used in
-C<cshare>, C<clex>, and C<cblock> blocks in the current lexical scope.
-
 =back
-
-=head1 DEVELOPMENT BOOTSTRAP
-
-C<C::Blocks> has a somewhat complicated dependency on a version of
-L<Alien::TinyCC> that is not yet on CPAN. Since I would like to make it
-as easy as possible for others to hack on it and contribute to the
-development of the software, I have written functionality into the
-F<Build.PL> file that will set up a local copy of the development
-version of L<Alien::TinyCC> and build against that. This means that to
-get started developing on this library, you simply need to clone the
-github repository and run F<Build.PL>:
-
- git clone https://github.com/run4flat/C-Blocks.git
- cd C-Blocks
- perl Buil.PL
-
-The bootstrap code in F<Build.PL> detects any missing dependencies for
-L<Alien::TinyCC> and offers to install them for you. It then builds
-L<Alien::TinyCC> in a subfolder of your current directory or installs
-the current development copy to your machine if you wish.
-
-=over
-
-Note: the bootstrap restarts itself by calling C<exec>. Strangely, this
-seems to cause the very end of the build process to hang on Windows. If
-it looks like everything is done on Windows, simply hit C<CTRL-C> to
-break out of the deadlock and proceed.
-
-=back
-
-
-Once everything has been installed, you should be able to proceed with
-the normal L<Module::Build> incantation:
-
- # Linux, Mac        Windows
- ./Build             Build
-
-You should then be able to run tests with code such as
-
- perl -Mblib t/01-basics.t    # Linux, Mac
- perl -Mblib t\01-basics.t    # Windows
-
-or with C<prove>:
-
- prove -vb t/01-basics.t    # Linux, Mac
- prove -vb t\01-basics.t    # Windows
-
-You can then hop on to the MagNET's #tinycc channel and join in the
-discussion!
 
 =head1 CURRENT STATUS
 
