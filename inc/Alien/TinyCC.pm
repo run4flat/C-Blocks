@@ -40,7 +40,9 @@ $INC{'Alien/TinyCC.pm'} = $INC{'inc/Alien/TinyCC.pm'};
 # Make sure we have LD_LIBRARY_PATH available. It seems that setting it
 # below doesn't actually work! :-(
 my $calling_filename = (caller)[1];
-if(!$ENV{LD_LIBRARY_PATH} or index($ENV{LD_LIBRARY_PATH}, libtcc_library_path()) == -1){
+if($calling_filename ne 'Build.PL'
+	and (!$ENV{LD_LIBRARY_PATH} or index($ENV{LD_LIBRARY_PATH}, libtcc_library_path()) == -1))
+{
 	die '***  Be sure to execute your programs like so:
 ***  LD_LIBRARY_PATH="' . $dist_dir . "/lib\" perl -Mblib -Mlib=inc $0 @ARGV\n";
 }
