@@ -281,15 +281,94 @@ Later in your file, you could make use of the functions in a C<cblock> such as:
  
  print "Average distance to origin is $avg_distance\n";
 
-Of course, this code could be part of a module, but none of the C declarations
-would be available to modules that C<use> this module. C<clex> blocks let you
-declare private things, to be used only within the lexical scope that encloses
-the C<clex> block. Sharing is a good thing, of course, so if you want to share a
-public API, you should look into the next type of block: C<cshare>.
+With the Tiny C Compiler backend, this works copying the C symbol table and
+storing a reference to it in a lexically scoped location. Later C blocks consult
+the symbol tables that are referenced in the current lexical scope, and copy
+individual symbols on an as-needed basis into their own symbol tables.
+
+This code could be part of a module, but none of the C declarations would be
+available to modules that C<use> this module. C<clex> blocks let you declare
+private things to be used only within the lexical scope that encloses the
+C<clex> block. If you want to share a C API, for others to use in their own
+C<cblock> and C<clex> code, you should look into the next type of block:
+C<cshare>.
 
 =head2 Shared C Declarations
 
-...
+I mentioned that the symbol tables of C<clex> blocks are copied and a lexically
+scoped reference is made to the copy. The same is true of C<cshare> blocks, but
+a reference is also stored in the current package. Later, when somebody C<use>es
+the module (or otherwise calls the package's C<import> method), the references
+to all C<cshare> symbol tables are copied into the caller's lexically scoped set
+of symbol tables.
+
+For example, if the C<clex> block given in the L<private declarations
+example|/Private C Declarations> were a C<cshare> block in a module called
+F<My/Module.pm>, others could use the functions and struct definition by saying
+
+ use My::Module;
+
+They would then be able to call C<point_from_SV>. Equally important, access to
+those declarations is lexically scoped. Thus:
+
+ {
+     use My::Module;
+     cblock {
+         point * p = point_from_SV($var); /* no problem */
+     }
+ }
+ 
+ cblock {
+     point * p = point_from_SV($var); /* dies: unknown type "point" */
+ }
+
+The second C<cblock> is outside of the block in which C<My::Module> was C<use>d.
+This means that its reference of symbol tables does not include the declarations
+from C<My::Module>.
+
+=head2 Breaking Sharing
+
+How do shared C declarations work? When C<C::Blocks> encounters a C<cshare>, it
+appends C<C::Blocks::libloader> to the current package's C<@ISA> array. The sole
+purpose of this is to provide a default C<import> method that properly copies
+the symbol table references in a lexically scoped way. This can be broken in one
+of two ways.
+
+First, if you overwrite C<@ISA> by direct assignment, you will erase the
+C<libloader> entry. This is easier than you might think. For example, this will
+break the import mechanism:
+
+ package Some::Code;
+ our @ISA = qw(Base::Class);
+ cshare {
+     /* ... */
+ }
+
+The reason is that the assignment to C<@ISA> occurs when the package definition
+is executed, but C<libloader> is added to C<@ISA> at compile time (like adding
+it in a C<BEGIN> block).
+
+Another way to break sharing is to provide your own C<import> method which does
+not call C<C::Blocks::libloader::import>. In that case, Perl's own method
+resolution will resolve to your C<import> and never call C<libloader>'s. To fix
+this, you should include the following line in your C<import> method:
+
+ sub import {
+     my ($package, @args) = @_;
+     ...
+     C::Blocks::libloader::import($package);
+ }
+
+You could also experience this problem the other way around: you expect your
+module to use an inherited C<import> method, but you only get C<libloader>'s
+import behavior. You fix that by providing your own C<import> method:
+
+ sub import {
+     my ($package, @args) = @_;
+     C::Blocks::libloader::import($package);
+     my $method = Parent::Package->can('import');
+     goto $method;  # XXX check this
+ }
 
 =head1 KEYWORDS
 
