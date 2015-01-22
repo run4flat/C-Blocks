@@ -2,80 +2,161 @@
 
 C::Blocks - embeding a fast C compiler directly into your Perl parser
 
-=head1 SYNOPSIS
+=head1 PRE-ALPHA
 
- use strict;
- use warnings;
- use C::Blocks;
- use C::Blocks::libperl;
- 
- our $global_var = "Before first cblock";
- print "Before the first cblock, \$global_var conains [$global_var]\n";
- 
- cblock {
-     /* This is raw C code! */
-     SV * global = get_sv("global_var", 0);
-     sv_setpv(global, "After first cblock");
- }
- 
- print "After the first cblock, \$global_var conains [$global_var]\n";
+This project is currently in pre-alpha. (See the goals and milestones below.)
+Using this software is likely to cause segmentation faults and the API is likely
+to change over time. Basically, if you're not actively developing this code, you
+should probably steer clear of it for now.
 
 =head1 DEVELOPMENT BOOTSTRAPPING
 
-This software is in active development and is not (quite) set up for distribution
-on CPAN. Instead, it is set up to help you get started as quickly and painlessly
-as possible. To that end, it will automatically install the most recent
-development version of the Tiny C Compiler to a directory within your C::Blocks
-build directory when you run C<Build.PL>. Thus, to get started, simply say:
+This software is in active development and is not (quite) set up for
+distribution on CPAN. Instead, it is set up to help developers and early testers
+get started as quickly and painlessly as possible. To that end, it will
+automatically install the most recent development version of the Tiny C Compiler
+to a directory within your C::Blocks build directory when you run C<Build.PL>.
+Thus, to get started, simply say:
 
  git clone https://github.com/run4flat/C-Blocks.git
  cd C-Blocks
  perl Build.PL
 
-This will automatically pull the latest tinycc, build it, and install it to a
-local directory for you. There is only one thing special you will have to do:
-you will need to include a definition of C<LD_LIBRARY_PATH> in your calls to
-C<Build>, like so (on my machine):
+This will automatically pull the latest version of my fork of the Tiny C
+Compiler, build it, and install it to a local directory for you. There is only
+one thing special you will have to do: you will need to include a definition of
+C<LD_LIBRARY_PATH> in your calls to C<Build>, like so (on my machine):
 
  LD_LIBRARY_PATH="/home/dcmertens/projects/Perl/C-Blocks/tinycc/lib" ./Build test
 
 A message will be printed with the correct path for you if you fail to do this.
 
-=head1 ALPHA
-
-This project is currently in alpha. Using this software is likely to
-cause segmentation faults and the API is likely to change over time.
-Basically, if you're not actively developing this code, you should
-probably steer clear of it for now.
-
 =head1 DESCRIPTION
 
-This module uses Perl's pluggable keyword API to add a number of new
-keywords including C<cblock>, C<clex>, C<cshare>, and C<csub>.
+This distribution contains C<C::Blocks>, a module that adds a few lexically
+scoped keywords to your Perl parser. These keywords delimit C code blocks, and
+(in the current implementation) the code within them is compiled during Perl's
+bytecode compilation phase. The keywords including C<cblock>, C<clex>,
+C<cshare>, and C<csub>.
+
+In addition, this distribution contains C<C::Blocks::libperl>, which loads the
+Perl C API. I plan to include similar modules for all standard C libraries,
+such as libstdio, libmath, etc. Since libperl is itself compiled with these
+libraries, I suspect that most of them will be redundant.
+
+Finally, this distribution presently includes C<C::Blocks::StretchyBuffer> and
+C<C::Blocks::Chain>. The first provides a rudimentary vector type, while the
+latter provides a rudimentary linked list type. I plan to either expand the
+number of similar container libraries, or get rid of them.
+
+=head1 GOALS AND MILESTONES
+
+I have a number of goals I would like to accomplish for this project.
+
+=head2 Alpha CPAN Release
+
+I want to accomplish the following before I make the alpha release of
+C<C::Blocks> to CPAN, v0.01:
 
 =over
 
-=item cblock
+=item load libperl
 
-The C<cblock> keyword is immediately followed by a curly-bracket
-delimited block of C code. That code is wrapped into a specially formed
-function and compiled at Perl parse time. An OP is then inserted into
-the generated OP tree that knows how to call that function whenever
-the Perl interpreter reaches this execution point.
+libperl used to work. Now it is giving trouble. Since libperl is required for
+certain basic functionality, it has priority.
 
-=item clex, cshare
+=item Expand the test suite
 
-The C<clex> and C<cshare> keywords are immediately followed by a
-curly-bracket delimited block of C code. That code is compiled at Perl
-parse time and the symbol table is made accessible to later C<clex>s,
-C<cshare>s, and C<cblock>s in the current lexical scope. In other words,
-you can write struct layouts and functions in C<clex> and C<cshare>
-blocks that you can later use in C<cblocks>. Furthermore, any code in
-C<cshare> blocks is added to the current package's list of shared code
-blocks, and the struct definitions, typedefs, macros, function
-declarations, and function definitions can be imported into a caller's
-lexical scope using C<cuse> (which is likely to be replaced soon, see
-below).
+I need to write a comprehensive test of the API, for user and library author
+alike. Failures in most of my tests up to this point have revealed bugs in the
+underlying C compiler hooks, but with those mostly fixed, it is time to test
+C<C::Blocks> itself, not the hooks of the underlying library.
+
+It would be good to push the system with things like typedefs, crazy
+preprocessor macros, and complex nested structs. Perhaps such tests could live
+in this distribution as author tests, but probably most of them should be pushed
+back upstream.
+
+=back
+
+=head2 Beta CPAN Release
+
+Once the distribution hits CPAN as an alpha library, I will need to do a number
+of things to make it faster and more robust. By the time C<C::Blocks> hits v0.50
+I want to accomplish the following:
+
+=over
+
+=item Switch to call_checker and call_parser
+
+The keyword API is so yesterday. I used it for prototyping, but I need to switch
+to the new method. That doesn't need to happen before it hits CPAN, but I would
+like for it to happen soon.
+
+=item Extended Symbol Table Caching
+
+The symbol table copy procedure is time consuming and runs on the order of N**2,
+where N is the number of symbols in the table. I plan to create symbol table
+dump and load functionality in my fork of tcc. Once that is in place, I need to
+use it with libperl.
+
+=back
+
+=head2 v1.0
+
+For the first prime-time release of C<C::Blocks>, I want to have the following:
+
+=over
+
+=item Simple C-based Object System
+
+I plan to write a module that makes it easy to write single-inheritance object
+oriented C code. My current plans are to steal from Prima, which does this sort
+of thing exceptionally well.
+
+=item Author API for extended symbol table caching
+
+Authors writing a C<C::Blocks> interface for their C library should be able to
+utilize the symbol table load/dump functionality (that will be) used by libperl.
+Once it's working for libperl, I want to create author tools for
+L<Module::Build> and L<ExtUtils::MakeMaker> so that the symbol table cache can
+be created at distribution build time.
+
+=item C::Blocks::lib
+
+Write a module that makes it easy to import a bunch of C::Blocks modules in
+one shot, i.e.
+
+ use C::Blocks::lib qw(perl gsl prima);
+
+would be equivalent to
+
+ use C::Blocks::libperl;
+ use C::Blocks::libgsl;
+ use C::Blocks::libprima;
+
+=back
+
+=head2 v2.0
+
+By v2.0, I want to expand C<C::Blocks> to be a front end with multiple back
+ends. This means I would need to turn attention to authoring tools.
+
+=item Inline::C, XS
+
+Right now the C code gets compiled at Perl's parse time. Once the C code is out
+of the prototyping stage, it would be nice to be able to automatically extract
+it and generate .h and .c files that can be compiled by the system's optimizing
+compiler. I need to write author tools that would allow this to be done using
+Inline::C, or to generate XS files with the proper scoping.
+
+=item Threadsafe
+
+The Tiny C Compiler uses lots of global variables and is therefore not
+threadsafe. I would like to contribute back to the project by encapsulating all
+of that global state into the compiler state object, where it belongs. Others in
+the tcc community have expressed interest in getting this done, so it is a
+welcome contribution.
 
 =back
 
@@ -127,125 +208,6 @@ As of late May 26, I modifed test #12 so that it actually generates a new
 struct of data and sends it back to Perl using C<c_blocks_send_bytes>. This new
 test is more techniclly correct and avoids the segfaults that had been giving
 trouble on Windows.
-
-=head2 Old error reports for tests that that now pass
-
-=over
-
-=item 1
-
-On Windows XP running Strawberry Perl 5.18, the very first subtest
-of test 04 prints its status:
-
- ok 1 - Can set Perl data in a cblock using direct function calls
-
-Then Perl crashes.
-
-=item 2
-
-On Windows XP running Strawberry Perl 5.18, for test 10, all cblocks
-compile fine, and everything runs fine until I try to execute a
-cblock that calls a function that was already called by a previous
-cblock. This happens to be the code just after test #14, "sending foo
-works". Thereafter, the process crashes.
-
-=item Old 3
-
-On Mac and Linux, test 10 sometimes displays the following error:
-
- Internal error: unable to locate extended symbol
-
-Other times, it runs the full test suite, passing all but the last
-test. for that test, it always reports some odd mish-mashed string,
-certainly not the string that I sent it the first time.
-
-=item Old 5
-
-All operating systems appear to segfault with test 12 after the 11th
-subtest. That subtest is the *second* subtest in which I would actually
-manipulate data in an already allocated struct. It appears that the
-second time through when actually manipulating things, we get weird
-segfaults.
-
-=item 6
-
-With the introduction of lexical interpolation, test 04 fails completely on
-Windows XP running Strawberry Perl 5.18 and Debian Wheezy running perlbrew
-with v5.18.2. The failure message is:
-
- C::Blocks error:
- t/04-libperl.t:60: error: struct or union expected
-
-I believe that the trouble arises in the auto-generated code inserted via the
-C<C_BLOCK_PREDECLARATIONS> macro, which is supposed to pre-declare the SV *
-variables at the top of the block function. This almost certainly is due to
-some type being undeclared in MinGW and Linux headers.
-
-If the final C<cblock> (which uses the interpolation) is commented out, the
-issue is not a problem. The test runs, and the last check fails, obviously,
-since the last  C<cblock> can't do its magic.
-
-=over
-
-This was fixed by explicitly casting C<my_perl> to type C<PerlInterpreter*>.
-Better handling for C<my_perl>'s type is in order, but my first attempts
-failed, so I am putting that off until later.
-
-=back
-
-=back
-
-=head1 GOALS
-
-I have a number of goals I would like to accomplish for this project.
-
-=over
-
-=item Expanded test suite
-
-I have managed to squash many segfaults, and now most tests pass on
-most operating systems. I need to push the system with more tests,
-including things like typedefs, crazy preprocessor macros, and complex
-nested structs.
-
-=item Squash all segfaults
-
-I am still encountering a few of segfaults. I need to figure out what
-gives rise to those and plug them.
-
-=item Extended Symbol Table Caching
-
-The current symbol table copying implemented in Alien::TinyCC's copy
-of tcc involves an N**2 lookup procedure. For large code bases such
-as libperl's, the copy procedure takes on the order of seconds. I
-would like to hack on tcc to provide extended symbol table dump and
-load functionality to minimize the startup time when using
-L<C::Blocks::libperl>.
-
-=item Switch to call_checker and call_parser
-
-The keyword API is so yesterday. I used it for prototyping, but I
-need to switch to the new method. That doesn't need to happen before
-it hits CPAN, but I would like for it to happen soon.
-
-=item Threadsafe
-
-The Tiny C Compiler uses lots of global variables and is therefore not
-threadsafe. I would like to contribute back to the project by
-encapsulating all of that global state into the compiler state object,
-where it belongs. Others in the tcc community have expressed interest in
-getting this done, so it is a welcome contribution.
-
-=item Extraction for optimized compiling
-
-Right now the C code gets compiled at Perl's parse time. However, for
-code that doesn't change, it would be nice to prototype the code using
-C::Blocks, then extract the op-code definitions into an XS file to be
-compiled by an optimized compiler (such as gcc). This would require
-writing a second pluggable keyword module that takes the same input and
-generates XS output instead of compiling the code.
-
-=back
 
 =head1 SEE ALSO
 
