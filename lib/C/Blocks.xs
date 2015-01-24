@@ -545,39 +545,6 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 			warn("C::Blocks warning:\n%s", SvPV_nolen(data->error_msg_sv));
 		}
 	}
-	
-}
-
-void link_static_libraries(pTHX_ TCCState * state) {
-	/* Link to statically linked library, if appropriate and capable */
-	SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
-	
-	if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 3) {
-		STRLEN len;
-		char * lib_string = SvPVbyte(lib_to_link, len);
-		#ifdef __APPLE__
-			if (lib_string[len-1] == 'a' && lib_string[len-2] == '.') {
-				croak("C::Blocks does not yet support static libraries on Mac");
-			}
-			// consider converting using this formula:
-			// http://stackoverflow.com/questions/16082470/osx-how-do-i-convert-a-static-library-to-a-dynamic-one
-		#else
-			if
-			#ifdef __GNUC__
-				(lib_string[len-1] == 'a' && lib_string[len-2] == '.')
-			#else
-				( && lib_string[len-4] == '.' && lib_string[len-3] == 'l'
-				  && lib_string[len-2] == 'i' && lib_string[len-1] == 'b')
-			#endif
-				{
-					int return_value = tcc_add_library(state, lib_string);
-					if (return_value) {
-						croak("C::Blocks: Unable to load static library [%s]", lib_string);
-					}
-					SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
-				}
-		#endif
-	}
 }
 
 OP * build_op(pTHX_ TCCState * state, int keyword_type) {
@@ -713,8 +680,6 @@ int my_keyword_plugin(pTHX_
 		tcc_add_symbol(state, "c_blocks_send_bytes", _c_blocks_send_bytes);
 		tcc_add_symbol(state, "c_blocks_get_msg", _c_blocks_get_msg);
 	}
-	
-	link_static_libraries(aTHX_ state);
 	
 	/* prepare for relocation; store in a global so that we can free everything
 	 * at the end of the Perl program's execution. */

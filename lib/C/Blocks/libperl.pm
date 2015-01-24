@@ -17,43 +17,13 @@ use Carp;
 
 BEGIN {
 	# Utilize ExtUtils::Embed to get some build info
-	$C::Blocks::compiler_options = ccopts;
+	$C::Blocks::compiler_options = join(' ', ccopts, ldopts);
 	
 	# tcc doesn't know how to use quotes in -I paths; remove them if found.
 	$C::Blocks::compiler_options =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
 	
-	# Finding the library is much trickier, and OS dependent
-	my $shared_location;
-	if ($^O =~ /MSWin/) {
-		# the dll file is probably in the same directory as the interpreter
-		my $perlbin_folder = $^X;
-		$perlbin_folder =~ s/[^\\]+$//;
-		# Look for something resembling a perl dll
-		my @files = glob("$perlbin_folder*perl*.dll");
-		carp("More than one perl-looking dll; taking first option: $files[0]")
-			if @files > 1;
-		croak('Unable to find libperl') unless @files;
-		
-		$shared_location = $files[0];
-	}
-	else {
-		# Mine the EU::Embed linker options for library folders. Extract the
-		# folders associated with "-L" flags
-		my @linker_dirs = map { /^-L(.*)/ } split (/\s+/, ldopts);
-		# Add a default option for linux
-		push @linker_dirs, '/usr/lib' if $^O eq 'linux';
-		# See if anything sticks
-		for my $dir (@linker_dirs) {
-			if (-f File::Spec->catfile($dir, $Config{libperl})) {
-				$shared_location = File::Spec->catfile($dir, $Config{libperl});
-				last;
-			}
-		}
-		# make sure we found something
-		croak('Unable to find libperl') unless $shared_location and -f $shared_location;
-	}
-		
-	$C::Blocks::library_to_link = $shared_location;
+	# Scrub all linker (-Wl,...) options
+	$C::Blocks::compiler_options =~ s/-Wl,[^\s]+//g;
 }
 
 cshare {
