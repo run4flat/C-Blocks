@@ -142,13 +142,23 @@ would be equivalent to
 By v2.0, I want to expand C<C::Blocks> to be a front end with multiple back
 ends. This means I would need to turn attention to authoring tools.
 
-=item Inline::C, XS
+=item Generate Inline::C, XS, ExtUtils::Depends
 
 Right now the C code gets compiled at Perl's parse time. Once the C code is out
 of the prototyping stage, it would be nice to be able to automatically extract
 it and generate .h and .c files that can be compiled by the system's optimizing
 compiler. I need to write author tools that would allow this to be done using
-Inline::C, or to generate XS files with the proper scoping.
+Inline::C, or to generate XS files with the proper scoping. Of course, it would
+also make sense for the contents of those header files to be accessible to other
+XS authors via ExtUtils::Depends.
+
+=item Utilize ExtUtils::Depends
+
+There is a lot of overlap between C<C::Blocks> and ExtUtils::Depends, and
+undoubtedly users of C<C::Blocks> would like to have access to functions and
+data structures that are made available through ExtUtils::Depends. It would be
+nice to provide some sort of automatic C::Blocks wrapper for ExtUtils::Depends
+based modules.
 
 =item Threadsafe
 
