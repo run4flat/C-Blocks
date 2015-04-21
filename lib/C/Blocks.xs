@@ -179,6 +179,22 @@ void my_symtab_sym_used(char * name, int len, void * data) {
 	// working here: warn("Could not find symbol '%s' to mark as used");
 }
 
+void my_prep_table (void * data) {
+	/* Unpack the callback data */
+	extended_symtab_callback_data * callback_data = (extended_symtab_callback_data*)data;
+	
+	/* Run through all of the available extended symbol tables and call the
+	 * TokenSym preparation function. Order is important here: go from last
+	 * to first!!! */
+	int i;
+	for (i = callback_data->N_tables - 1; i >= 0; i--) {
+		extended_symtab_p my_symtab
+			= callback_data->available_extended_symtabs[i].exsymtab;
+		tcc_prep_tokensym_list(my_symtab);
+	}
+}
+
+
 /************************/
 /**** Error handling ****/
 /************************/
@@ -518,7 +534,7 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(data->exsymtabs);
 	}
 	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
-		&my_symtab_sym_used, &callback_data);
+		&my_symtab_sym_used, &my_prep_table, &callback_data);
 	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - data->keep_curly_brackets,
