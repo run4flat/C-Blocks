@@ -24,27 +24,62 @@ if (not -d 'tinycc-src') {
 
 # Do they have a tinycc binary directory?
 if (not -d 'tinycc') {
-	# Build it (make this Windows friendly?)
-	chdir 'tinycc-src';
+	# Build it
 	banner "Building tinycc";
-	system("./configure --prefix=$dist_dir --disable-static") and die "TCC configure failed";
-	system('make') and die "TCC make failed";
-	banner "Installing to the local tinycc directory";
-	system(make => 'install') and die "Install failed";
-	chdir '..';
+	if ($^O =~ /MSWin/) {
+		mkdir 'tinycc';
+		chdir 'tinycc-src\\win32';
+		system("build-tcc.bat") and die "TCC build failed";
+		chdir '..\\..';
+		banner "Installing to the local tinycc directory";
+		system(qw(xcopy /E tinycc-src\win32 tinycc)) and die "Install failed";
+	}
+	else {
+		chdir 'tinycc-src';
+		system("./configure --prefix=$dist_dir --disable-static") and die "TCC configure failed";
+		system('make') and die "TCC make failed";
+		banner "Installing to the local tinycc directory";
+		system(make => 'install') and die "Install failed";
+		chdir '..';
+	}
 }
 
 # Make sure that later require and use statements don't choke
 $INC{'Alien/TinyCC.pm'} = $INC{'inc/Alien/TinyCC.pm'};
 
+sub path_setting_string {
+	my $message = "***  Be sure to set the LD_LIBRARY_PATH like so:\n";
+	# DOS
+	if ($^O =~ /MSWin/) {
+		$message .= 'PATH=%PATH%;'.$dist_dir;
+	}
+	elsif ($ENV{SHELL} =~ /csh$/) {
+		# C Shell
+		$message .= 'setenv LD_LIBRARY_PATH '.libtcc_library_path()
+	}
+	else {
+		# Bourne shell (the default)
+		$message .= 'LD_LIBRARY_PATH='.libtcc_library_path().'; export LD_LIBRARY_PATH';
+	}
+	return $message . "\n";
+}
+
 # Make sure we have LD_LIBRARY_PATH available. It seems that setting it
 # below doesn't actually work! :-(
 my $calling_filename = (caller)[1];
-if($calling_filename ne 'Build.PL'
-	and (!$ENV{LD_LIBRARY_PATH} or index($ENV{LD_LIBRARY_PATH}, libtcc_library_path()) == -1))
-{
-	die '***  Be sure to execute your programs like so:
-***  LD_LIBRARY_PATH="' . $dist_dir . "/lib\" perl -Mblib -Mlib=inc $0 @ARGV\n";
+if($calling_filename ne 'Build.PL') {
+	if ($^O =~ /MSWin/) {
+		# Windows. See if the dist dir is in %PATH%
+		die path_setting_string()
+			if !$ENV{PATH} or index($ENV{PATH}, libtcc_library_path()) == -1;
+	}
+	elsif (!$ENV{LD_LIBRARY_PATH} or index($ENV{LD_LIBRARY_PATH}, libtcc_library_path()) == -1)
+	{
+		die path_setting_string();
+	}
+}
+else {
+	print path_setting_string();
 }
 
 ############################
@@ -67,14 +102,6 @@ unshift @PATH, path_to_tcc();
 sub libtcc_library_path {
 	return $dist_dir if $^O =~ /MSWin/;
 	return File::Spec->catdir($dist_dir, 'lib');
-}
-
-# Add library path on Unixish:
-if ($ENV{LD_LIBRARY_PATH}) {
-	$ENV{LD_LIBRARY_PATH} = libtcc_library_path() . ':' . $ENV{LD_LIBRARY_PATH};
-}
-elsif ($^O !~ /MSWin/) {
-	$ENV{LD_LIBRARY_PATH} = libtcc_library_path();
 }
 
 # Determine path for libtcc.h
