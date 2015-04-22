@@ -18,8 +18,10 @@ clex {
 BEGIN { pass 'Lexical block with struct definition compiles without trouble' }
 pass('At runtime, lexical block with struct gets skipped without trouble');
 
-# Start by packing in an interesting piece of data
-$C::Blocks::_msg = pack('ccZ*', 10, 5, 'subtract');
+# Start by packing in an interesting piece of data. Make sure there's enough
+# room in the buffer for the return message since the for loop writes directly
+# over the buffer's memory. (Failing to do so causes a problem in Windows.)
+$C::Blocks::_msg = pack('ccZ*', 10, 5, 'subtract   ');
 
 #### Unpack that data, perform the subtraction, and send back the result
 cblock {
