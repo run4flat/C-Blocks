@@ -24,12 +24,18 @@ Thus, to get started, simply say:
 
 This will automatically pull the latest version of my fork of the Tiny C
 Compiler, build it, and install it to a local directory for you. There is only
-one thing special you will have to do: you will need to include a definition of
-C<LD_LIBRARY_PATH> in your calls to C<Build>, like so (on my machine):
+one other thing you will have to do: you will set the C<LD_LIBRARY_PATH> (Unixen)
+or C<PATH> (Windows) environment variables before making calls to C<Build>,
+C<prove>, or C<perl>. Instructions are given for you if you try to run anything;
+for example, here's what I get on my machine when I haven't set my variable:
 
- LD_LIBRARY_PATH="/home/dcmertens/projects/Perl/C-Blocks/tinycc/lib" ./Build test
+ prompt$ prove -vb t/01-basics.t 
+ t/01-basics.t .. ***  Be sure to set the LD_LIBRARY_PATH like so:
+ LD_LIBRARY_PATH=/home/dcmertens/projects/Perl/C-Blocks/tinycc/lib; export LD_LIBRARY_PATH
+ Compilation failed in require ...
 
-A message will be printed with the correct path for you if you fail to do this.
+Notice the part that begins C<***  Be sure>. This should tell you what you need
+to do set to get going.
 
 =head1 DESCRIPTION
 
