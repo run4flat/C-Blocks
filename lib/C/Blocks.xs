@@ -216,7 +216,7 @@ void my_tcc_error_func (void * message_ptr, const char * msg ) {
 /**** Keyword Identification ****/
 /********************************/
 
-enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB } keyword_type;
+enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB } keyword_type_list;
 
 /* Functions to quickly identify our keywords, assuming that the first letter has
  * already been checked and found to be 'c' */
@@ -428,7 +428,7 @@ void use_parent_libloader(pTHX) {
 	av_push(isa, newSVpvn("C::Blocks::libloader", 20));
 }
 
-void extract_C_code(pTHX_ c_blocks_data * data) {
+void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 	/* expand the buffer until we encounter the matching closing bracket. Track
 	 * and clean sigiled variables as well. */
 	char * perl_varname_start = NULL;
@@ -672,7 +672,7 @@ int my_keyword_plugin(pTHX_
 	/* Extract and compile! */
 	/************************/
 	
-	extract_C_code(aTHX_ &data);
+	extract_C_code(aTHX_ &data, keyword_type);
 	
 	TCCState * state = tcc_new();
 	if (!state) croak("Unable to create C::TinyCompiler state!\n");
