@@ -511,11 +511,6 @@ void setup_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 	
 	/* Set the error function to write to the error message SV */
 	tcc_set_error_func(state, data->error_msg_sv, my_tcc_error_func);
-	
-	/* set the predeclarations */
-	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
-		SvPVbyte_nolen(data->predeclarations));
-	tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
 }
 
 void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
@@ -535,6 +530,11 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 	}
 	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
 		&my_symtab_sym_used, &my_prep_table, &callback_data);
+	
+	/* set the predeclarations */
+	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
+		SvPVbyte_nolen(data->predeclarations));
+	tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
 	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - data->keep_curly_brackets,
