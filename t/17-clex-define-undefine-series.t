@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Test::More;
 use C::Blocks;
-use C::Blocks::libperl;
 
 # Tell C::Blocks to add rudimentary communications functions for testing
 BEGIN { $C::Blocks::_add_msg_functions = 1 }
@@ -26,12 +25,11 @@ cblock {
 	send_dbl(old);
 }
 my $result = unpack('d', $C::Blocks::_msg);
-is($result, $double, 'C defines from previously compiled scope work');
+is($result, $double, 'C defines from previously compiled scope work (as already tested)');
 
 ###### Redefine the preprocessor macro in a lexically scoped way ######
 
 {
-	diag("Previous result is $result");
 	clex {
 		#undef get_dbl
 		#define get_dbl -125
@@ -39,7 +37,6 @@ is($result, $double, 'C defines from previously compiled scope work');
 	# invoke the new definition
 	cblock {
 		double new_val = get_dbl;
-		printf("# Got new value of %f\n", new_val);
 		send_dbl(new_val);
 	}
 	my $result = unpack('d', $C::Blocks::_msg);

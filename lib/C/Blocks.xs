@@ -125,7 +125,7 @@ TokenSym_p my_symtab_lookup_by_name(char * name, int len, void * data, extended_
 	/* Run through all of the available extended symbol tables and look for this
 	 * identifier. */
 	int i;
-	for (i = 0; i < callback_data->N_tables; i++) {
+	for (i = callback_data->N_tables - 1; i >= 0; i--) {
 		extended_symtab_p my_symtab
 			= callback_data->available_extended_symtabs[i].exsymtab;
 		TokenSym_p ts = tcc_get_extended_tokensym(my_symtab, name_to_find);
@@ -148,7 +148,7 @@ void my_symtab_sym_used(char * name, int len, void * data) {
 	 * identifier. If found, add the symbol to the state. */
 	int i;
 	void * pointer = NULL;
-	for (i = 0; i < callback_data->N_tables; i++) {
+	for (i = callback_data->N_tables - 1; i >= 0; i--) {
 		available_extended_symtab lookup_data
 			= callback_data->available_extended_symtabs[i];
 		
