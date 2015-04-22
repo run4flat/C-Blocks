@@ -513,7 +513,7 @@ void setup_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 	tcc_set_error_func(state, data->error_msg_sv, my_tcc_error_func);
 }
 
-void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
+void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword_type) {
 	int len = (int)(data->end - PL_bufptr);
 	
 	/* Set the extended callback handling */
@@ -532,9 +532,11 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
 		&my_symtab_sym_used, &my_prep_table, &callback_data);
 	
 	/* set the predeclarations */
-	tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
-		SvPVbyte_nolen(data->predeclarations));
-	tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
+	if (keyword_type == IS_CBLOCK) {
+		tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
+			SvPVbyte_nolen(data->predeclarations));
+		tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
+	}
 	
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - data->keep_curly_brackets,
@@ -684,7 +686,7 @@ int my_keyword_plugin(pTHX_
 	}
 	
 	/* Compile the extracted code */
-	execute_compiler(aTHX_ state, &data);
+	execute_compiler(aTHX_ state, &data, keyword_type);
 	
 	/******************************************/
 	/* Apply the list of symbols and relocate */
