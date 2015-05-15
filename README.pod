@@ -66,16 +66,10 @@ C<C::Blocks> to CPAN, v0.01:
 
 =over
 
-=item share global variables
-
-Although it appears that functions are correctly shared across blocks, it looks
-like global variables are not. At least, this appears to be the case for test
-10.
-
 =item load libperl
 
-libperl used to work. Now it is giving trouble. Since libperl is required for
-certain basic functionality, it has priority.
+libperl does not load for libperls that are static (rather than shared)
+libraries. This needs to be fixed.
 
 =item Expand the test suite
 
