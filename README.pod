@@ -68,8 +68,13 @@ C<C::Blocks> to CPAN, v0.01:
 
 =item load libperl
 
-libperl does not load for libperls that are static (rather than shared)
-libraries. This needs to be fixed.
+It will soon be possible in my fork of tcc to compile a file and obtain
+the list of all tokens that expect to be externally linked. This will
+allow me to write an libperl.xs.PL file that produces a libperl.xs file
+which loads the cached symbol table and adds all symbols. The resulting
+C code should be properly linked to libperl, whether libperl is static
+or dynamic, and so it should be possible to get libperl to work for
+everyone.
 
 =item Expand the test suite
 
@@ -99,12 +104,29 @@ The keyword API is so yesterday. I used it for prototyping, but I need to switch
 to the new method. That doesn't need to happen before it hits CPAN, but I would
 like for it to happen soon.
 
-=item Extended Symbol Table Caching
+=item Streamline Symbol Table Copying and Caching
 
-The symbol table copy procedure is time consuming and runs on the order of N**2,
-where N is the number of symbols in the table. I plan to create symbol table
-dump and load functionality in my fork of tcc. Once that is in place, I need to
-use it with libperl.
+This is really an issue for the underlying libtcc implementation, but it
+will be a blocker for C::Blocks, as far as I am concerned.
+
+The symbol
+table copy procedure currently copies I<every> token and Sym, which come
+along for the ride with the caching procedure. This is a poor solution
+to an important problem. A large number of tokens are added to each
+compiler context before any compilation begins, including tokens like
+C<str>, C<push>, and C<pop>. If a compiling context has a function
+defined with this name, it will refer to a token that was in place before
+the compiler saw one character of code. Thus, if I only copy tokens that
+were created by the compilation unit, I could miss some of these tokens.
+Thus I copy all TokenSyms. Instead, I should just copy (and serialize)
+the TokenSyms that are used. This will reduce the memory footprint of
+extended symbol tables and the quantity of data read from disk.
+
+Also, the current copy and cache procedures use a home-spun binary tree
+to map old pointers to new pointers. While this achieves the goal of
+reducing the time complexity of the copy and serialization process, I'm
+sure I can use less memory and write a faster implementation with a hash
+table.
 
 =back
 
