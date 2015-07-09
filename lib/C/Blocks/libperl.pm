@@ -9,8 +9,6 @@ BEGIN {
 
 use C::Blocks;
 use ExtUtils::Embed;
-use File::Spec;
-use Config;
 use Carp;
 
 # Provide functions and macros from libperl
