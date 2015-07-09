@@ -3,10 +3,6 @@ use warnings;
 
 package C::Blocks::libperl;
 
-BEGIN {
-	print "About to load libperl\n";
-}
-
 use C::Blocks;
 use ExtUtils::Embed;
 use Carp;
@@ -41,8 +37,6 @@ cshare {
 	#include "perl.h"
 	#include "XSUB.h"
 }
-
-print "All done loading libperl\n";
 
 1;
 
