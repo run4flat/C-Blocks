@@ -95,18 +95,18 @@ BOOT:
 	
 	/*** Borrowed, with slight modification, from Blocks.xs's serialize_symbol_table ***/
 	{
-		/* Store the pointers to the extended symtabs so that it gets cleaned up
-		 * when everything is over. */
-		AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
-		av_push(extended_symtab_cache, newSViv(PTR2IV(new_table.exsymtab)));
-		
 		/* Add to my package's cshare space. This code is borrowed from
 		 * Blocks.xs's serialize_symbol_table */
 		SV * package_lists = get_sv("C::Blocks::libperl::__cblocks_extended_symtab_list");
 		available_extended_symtab new_table;
-		new_table.dll = NULL
+		new_table.dll = NULL;
 		new_table.exsymtab = symtab;
 		sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
+		
+		/* Store the pointers to the extended symtabs so that it gets cleaned up
+		 * when everything is over. */
+		AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
+		av_push(extended_symtab_cache, newSViv(PTR2IV(new_table.exsymtab)));
 	}
 	
 	/* Add all symbols to the exsymtab */
@@ -118,5 +118,15 @@ open my $in_fh, '<', 'names.txt'
 	or die "Unable to open file containing list of global symbols\n";
 while (my $line = <$in_fh>) {
 	chomp $line;
-	print $out_fh "\ttcc_set_extended_symbol(symtab, \"$line\", &$line);\n";
+	my @stuff = split /\s+/, $line;
+	my $identifier = shift(@stuff);
+	my $type = pop @stuff;
+	my %is = map { +$_ => 1 } @stuff;
+	if ($type ne 'func' and $type ne 'struct' and $is{static}) {
+		print $out_fh "\t$type _tmp_$identifier = $identifier;\n";
+		print $out_fh "\ttcc_set_extended_symbol(symtab, \"$identifier\", &_tmp_$identifier);\n";
+	}
+	else {
+		print $out_fh "\ttcc_set_extended_symbol(symtab, \"$identifier\", &$identifier);\n";
+	}
 }
