@@ -113,6 +113,11 @@ BOOT:
 	
 XS_FILE
 
+# These symbols are to be ignored, at least on Linuxen:
+#my @to_ignore = qw(
+# __va_start __va_arg __va_copy __va_end
+#);
+
 # Add global symbols
 open my $in_fh, '<', 'names.txt'
 	or die "Unable to open file containing list of global symbols\n";
@@ -122,7 +127,13 @@ while (my $line = <$in_fh>) {
 	my $identifier = shift(@stuff);
 	my $type = pop @stuff;
 	my %is = map { +$_ => 1 } @stuff;
-	if ($type ne 'func' and $type ne 'struct' and $is{static}) {
+	if ($identifier =~ /^__va/) {
+		# ignore these
+	}
+	elsif ($type eq 'func') {
+		print $out_fh "\ttcc_set_extended_symbol(symtab, \"$identifier\", $identifier);\n";
+	}
+	elsif ($type ne 'struct' and $type ne 'pointer' and $type ne 'enum') {
 		print $out_fh "\t$type _tmp_$identifier = $identifier;\n";
 		print $out_fh "\ttcc_set_extended_symbol(symtab, \"$identifier\", &_tmp_$identifier);\n";
 	}
