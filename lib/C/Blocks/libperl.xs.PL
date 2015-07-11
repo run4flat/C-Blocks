@@ -97,7 +97,7 @@ BOOT:
 	{
 		/* Add to my package's cshare space. This code is borrowed from
 		 * Blocks.xs's serialize_symbol_table */
-		SV * package_lists = get_sv("C::Blocks::libperl::__cblocks_extended_symtab_list");
+		SV * package_lists = get_sv("C::Blocks::libperl::__cblocks_extended_symtab_list", 0);
 		available_extended_symtab new_table;
 		new_table.dll = NULL;
 		new_table.exsymtab = symtab;
