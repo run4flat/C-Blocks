@@ -2,10 +2,9 @@ use strict;
 use warnings;
 
 package C::Blocks::libperl;
-use C::Blocks;
 
 require DynaLoader;
-push our @ISA, qw( DynaLoader );
+our @ISA = qw( DynaLoader C::Blocks::libloader );
 
 our $VERSION = '0.000_001';
 bootstrap C::Blocks::libperl $VERSION;
