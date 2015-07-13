@@ -11,11 +11,16 @@ use File::Spec;
 # Serialize perl.h and get a list of identifiers #
 ##################################################
 
-my($perl_h_fh, $perl_h_file) = File::Temp::tempfile(
-	'perl_h_XXXXXXXX', SUFFIX => '.c'
-);
+sub serialize_perl_h {
+	# Put the cache file in the sharedir
+	my $share_file_location = File::Spec->catfile('share', 'perl.h.cache');
+	return if -f $share_file_location and -f 'names.txt';
 
-my $header_contents = <<HEADER_CONTENTS;
+	my($perl_h_fh, $perl_h_file) = File::Temp::tempfile(
+		'perl_h_XXXXXXXX', SUFFIX => '.c'
+	);
+
+	my $header_contents = <<HEADER_CONTENTS;
 
 #ifdef PERL_DARWIN
 	typedef unsigned short __uint16_t, uint16_t;
@@ -35,35 +40,83 @@ my $header_contents = <<HEADER_CONTENTS;
 
 HEADER_CONTENTS
 
-print $perl_h_fh $header_contents;
-close $perl_h_fh;
+	print $perl_h_fh $header_contents;
+	close $perl_h_fh;
 
-END {
+	# Construct the compiler arguments
+	my $compiler_args = join(' ', ccopts);
+	$compiler_args =~ s/\n+//g;
+	# tcc doesn't know how to use quotes in -I paths; remove them if found.
+	$compiler_args =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
+	# Scrub all linker (-Wl,...) options
+	$compiler_args =~ s/-Wl,[^\s]+//g;
+
+	# Add arguments to produce the identifier list and serialization
+	mkdir 'share';
+	$compiler_args = join(' ', $compiler_args,
+		'-dump-identifier-names=names.txt',
+		'-serialize-symtab='.$share_file_location,
+		$perl_h_file
+	);
+
+	# Build the files!
+	system("tcc $compiler_args") == 0
+		or die "Unable to serialize the header file\n";
 	unlink $perl_h_file;
 }
 
-# Construct the compiler arguments
-my $compiler_args = join(' ', ccopts);
-$compiler_args =~ s/\n+//g;
-# tcc doesn't know how to use quotes in -I paths; remove them if found.
-$compiler_args =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
-# Scrub all linker (-Wl,...) options
-$compiler_args =~ s/-Wl,[^\s]+//g;
-# Put the cache file in the sharedir
-my $share_file_location = File::Spec->catfile('share', 'perl.h.cache');
+#######################################
+# Identify which identifiers are good #
+#######################################
 
-# Add arguments to produce the identifier list and serialization
-mkdir 'share';
-$compiler_args = join(' ', $compiler_args,
-	'-dump-identifier-names=names.txt',
-	'-serialize-symtab='.$share_file_location,
-	$perl_h_file
-);
+sub build_names_tested {
+	return if -f 'names.tested';
+	
+	# Make sure we have names.txt to work with
+	serialize_perl_h;
+	open my $in_fh, '<', 'names.txt'
+		or die "Unable to open file containing list of global symbols\n";
+	
+	# This is the file we will use to store our results
+	open my $out_fh, '>', 'names.tested'
+		or die "Unable to open tested names file\n";
+	
+	# Read global symbols
+	while (my $line = <$in_fh>) {
+		chomp $line;
+		my @stuff = split /\s+/, $line;
+		my $identifier = shift(@stuff);
+		my $type = pop @stuff;
+		my %is = map { +$_ => 1 } @stuff;
+		my ($XS_code, $check_code);
+		if ($type eq 'func') {
+			$check_code = "void * tmp = $identifier";
+			$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", $identifier);\n";
+		}
+		elsif ($type ne 'struct' and $type ne 'pointer' and $type ne 'enum') {
+			$check_code = "$type _tmp_$identifier = $identifier";
+			$XS_code  = "\t$type _tmp_$identifier = $identifier;\n";
+			$XS_code .=  "\ttcc_set_extended_symbol(symtab, \"$identifier\", &_tmp_$identifier);\n";
+		}
+		else {
+			$check_code = "void * tmp = &$identifier";
+			$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", &$identifier);\n";
+		}
+		
+		if (check_identifier ($check_code)) {
+			print $out_fh $XS_code;
+			print "Adding $identifier\n";
+		}
+		else {
+			print "Skipping $identifier\n";
+		}
+	}
 
-# Build the files!
-system("tcc $compiler_args") == 0
-	or die "Unable to serialize the header file\n";
-
+	# Clean things up
+	close $in_fh;
+	close $out_fh;
+	unlink 'names.txt';
+}
 
 ####################
 # check_identifier #
@@ -132,6 +185,9 @@ TEST_CONTENTS
 # Generate the XS file #
 ########################
 
+build_names_tested;
+open my $in_fh, '<', 'names.tested'
+	or die "Unable to open tested names file\n";
 my $out_filename = $ARGV[0];
 open my $out_fh, '>', $out_filename or die "Unable to open $out_filename\n";
 
@@ -183,38 +239,8 @@ BOOT:
 	
 XS_FILE
 
-# Read global symbols
-open my $in_fh, '<', 'names.txt'
-	or die "Unable to open file containing list of global symbols\n";
-while (my $line = <$in_fh>) {
-	chomp $line;
-	my @stuff = split /\s+/, $line;
-	my $identifier = shift(@stuff);
-	my $type = pop @stuff;
-	my %is = map { +$_ => 1 } @stuff;
-	my ($XS_code, $check_code);
-	if ($type eq 'func') {
-		$check_code = "void * tmp = $identifier";
-		$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", $identifier);\n";
-	}
-	elsif ($type ne 'struct' and $type ne 'pointer' and $type ne 'enum') {
-		$check_code = "$type _tmp_$identifier = $identifier";
-		$XS_code  = "\t$type _tmp_$identifier = $identifier;\n";
-		$XS_code .=  "\ttcc_set_extended_symbol(symtab, \"$identifier\", &_tmp_$identifier);\n";
-	}
-	else {
-		$check_code = "void * tmp = &$identifier";
-		$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", &$identifier);\n";
-	}
-	
-	if (check_identifier ($check_code)) {
-		print $out_fh $XS_code;
-		print "Adding $identifier\n";
-	}
-	else {
-		print "Skipping $identifier\n";
-	}
-}
+# Copy the contents
+print $out_fh (<$in_fh>);
 
-# Clean up files
-unlink 'names.txt';
+close $out_fh;
+close $in_fh;

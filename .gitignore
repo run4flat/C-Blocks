@@ -13,3 +13,5 @@ lib/C/Blocks/libperl.xs
 MANIFEST
 MANIFEST.SKIP.bak
 share/
+names.tested
+names.txt
