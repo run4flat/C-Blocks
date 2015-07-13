@@ -2,41 +2,13 @@ use strict;
 use warnings;
 
 package C::Blocks::libperl;
-
 use C::Blocks;
-use ExtUtils::Embed;
-use Carp;
 
-# Provide functions and macros from libperl
+require DynaLoader;
+push our @ISA, qw( DynaLoader );
 
-BEGIN {
-	# Utilize ExtUtils::Embed to get some build info
-	$C::Blocks::compiler_options = join(' ', ccopts, ldopts);
-	
-	# tcc doesn't know how to use quotes in -I paths; remove them if found.
-	$C::Blocks::compiler_options =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
-	
-	# Scrub all linker (-Wl,...) options
-	$C::Blocks::compiler_options =~ s/-Wl,[^\s]+//g;
-}
-
-cshare {
-	#ifdef PERL_DARWIN
-		typedef unsigned short __uint16_t, uint16_t;
-		typedef unsigned int __uint32_t, uint32_t;
-		typedef unsigned long __uint64_t, uint64_t;
-	#elif defined WIN32
-		#define __C89_NAMELESS __extension__
-		#define __MINGW_EXTENSION __extension__
-		typedef long uid_t;
-		typedef long gid_t;
-	#endif
-	
-	#define PERL_NO_GET_CONTEXT
-	#include "EXTERN.h"
-	#include "perl.h"
-	#include "XSUB.h"
-}
+our $VERSION = '0.000_001';
+bootstrap C::Blocks::libperl $VERSION;
 
 1;
 

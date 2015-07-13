@@ -13,13 +13,15 @@ use strict;
 use warnings;
 use ExtUtils::Embed;
 use inc::Alien::TinyCC;
+use Devel::CheckLib;
+use Config;
 
 ##################################################
 # Serialize perl.h and get a list of identifiers #
 ##################################################
 
 open my $out_fh, '>', 'temp.c' or die "Unable to open temp.c\n";
-print $out_fh <<HEADER_CONTENTS;
+my $header_contents = <<HEADER_CONTENTS;
 
 #ifdef PERL_DARWIN
 	typedef unsigned short __uint16_t, uint16_t;
@@ -39,6 +41,7 @@ print $out_fh <<HEADER_CONTENTS;
 
 HEADER_CONTENTS
 
+print $out_fh $header_contents;
 close $out_fh;
 
 END {
@@ -60,10 +63,9 @@ $compiler_args = join(' ', $compiler_args,
 	'temp.c'
 );
 
-print "About to run: tcc $compiler_args\n";
-
 # Build the files!
-system("tcc $compiler_args") == 0 or die "Unable to compile header file\n";
+system("tcc $compiler_args") == 0
+	or die "Unable to serialize the header file\n";
 
 ########################
 # Generate the XS file #
@@ -118,7 +120,61 @@ XS_FILE
 # __va_start __va_arg __va_copy __va_end
 #);
 
-# Add global symbols
+use File::Temp ();
+sub check_identifier {
+	my $code = shift;
+	
+	# Much of this code is copied from Devel::CheckLib. I wish I could
+	# specify more things when using that module. :-(
+	
+	# open a temporary file and add the testing material
+	my($ch, $cfile) = File::Temp::tempfile(
+		'func_test_XXXXXXXX', SUFFIX => '.c'
+	);
+	print $ch <<TEST_CONTENTS;
+#define PERL_NO_GET_CONTEXT
+#include "EXTERN.h"
+#include "perl.h"
+#include "XSUB.h"
+int main(void) { $code; return 0; }
+TEST_CONTENTS
+	close $ch;
+	
+	# Build output filenames
+	my $ofile = $cfile;
+	$ofile =~ s/\.c$/$Config{_o}/;
+	my $exefile = File::Temp::mktemp( 'func_test_XXXXXXXX' ) . $Config{_exe};
+	
+	# Build the system command arguments
+	my $sys_cmd;
+	if ( $Config{cc} eq 'cl' ) {                 # Microsoft compiler
+		$sys_cmd = join(' ' , $Config{cc}, ccopts, $cfile, "/Fe$exefile", "/link", ldopts);
+	}
+	elsif($Config{cc} =~ /bcc32(\.exe)?/) {    # Borland
+		$sys_cmd = join(' ' , $Config{cc}, ccopts, ldopts, "-o$exefile", $cfile);
+	}
+	else {                                     # Unix-ish
+		$sys_cmd = join(' ' , $Config{cc}, ccopts, $cfile, "-o", $exefile, ldopts);
+	}
+	$sys_cmd =~ s/\n+//g;
+	
+	# Compile it
+	my $compile_rv = Devel::CheckLib::_quiet_system($sys_cmd);
+	my $success = 1 if $compile_rv == 0 and -x $exefile;
+	if ($success) {
+		# Run it
+		my $absexefile = File::Spec->rel2abs($exefile);
+		$absexefile = '"'.$absexefile.'"' if $absexefile =~ m/\s/;
+		$success = 0 if system($absexefile) != 0;
+	}
+	
+	# Clean up
+	Devel::CheckLib::_cleanup_exe($exefile);
+	unlink $cfile;
+	return $success;
+}
+
+# Read global symbols
 open my $in_fh, '<', 'names.txt'
 	or die "Unable to open file containing list of global symbols\n";
 while (my $line = <$in_fh>) {
@@ -127,17 +183,26 @@ while (my $line = <$in_fh>) {
 	my $identifier = shift(@stuff);
 	my $type = pop @stuff;
 	my %is = map { +$_ => 1 } @stuff;
-	if ($identifier =~ /^__va/) {
-		# ignore these
-	}
-	elsif ($type eq 'func') {
-		print $out_fh "\ttcc_set_extended_symbol(symtab, \"$identifier\", $identifier);\n";
+	my ($XS_code, $check_code);
+	if ($type eq 'func') {
+		$check_code = "void * tmp = $identifier";
+		$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", $identifier);\n";
 	}
 	elsif ($type ne 'struct' and $type ne 'pointer' and $type ne 'enum') {
-		print $out_fh "\t$type _tmp_$identifier = $identifier;\n";
-		print $out_fh "\ttcc_set_extended_symbol(symtab, \"$identifier\", &_tmp_$identifier);\n";
+		$check_code = "$type _tmp_$identifier = $identifier";
+		$XS_code  = "\t$type _tmp_$identifier = $identifier;\n";
+		$XS_code .=  "\ttcc_set_extended_symbol(symtab, \"$identifier\", &_tmp_$identifier);\n";
 	}
 	else {
-		print $out_fh "\ttcc_set_extended_symbol(symtab, \"$identifier\", &$identifier);\n";
+		$check_code = "void * tmp = &$identifier";
+		$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", &$identifier);\n";
+	}
+	
+	if (check_identifier ($check_code)) {
+		print $out_fh $XS_code;
+		print "Adding $identifier\n";
+	}
+	else {
+		print "Skipping $identifier\n";
 	}
 }
