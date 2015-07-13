@@ -4,10 +4,10 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
 
 =head1 PRE-ALPHA
 
-This project is currently in pre-alpha. (See the goals and milestones below.)
-Using this software is likely to cause segmentation faults and the API is likely
-to change over time. Basically, if you're not actively developing this code, you
-should probably steer clear of it for now.
+This project is nearing its alpha release, at which point I spin a CPAN
+distribution and see what happens. (See the goals and milestones below.)
+Using this software in its current state may cause segmentation faults
+and the API is likely to change.
 
 =head1 DEVELOPMENT BOOTSTRAPPING
 
@@ -66,16 +66,6 @@ C<C::Blocks> to CPAN, v0.01:
 
 =over
 
-=item load libperl
-
-It will soon be possible in my fork of tcc to compile a file and obtain
-the list of all tokens that expect to be externally linked. This will
-allow me to write an libperl.xs.PL file that produces a libperl.xs file
-which loads the cached symbol table and adds all symbols. The resulting
-C code should be properly linked to libperl, whether libperl is static
-or dynamic, and so it should be possible to get libperl to work for
-everyone.
-
 =item Expand the test suite
 
 I need to write a comprehensive test of the API, for user and library author
@@ -121,12 +111,6 @@ were created by the compilation unit, I could miss some of these tokens.
 Thus I copy all TokenSyms. Instead, I should just copy (and serialize)
 the TokenSyms that are used. This will reduce the memory footprint of
 extended symbol tables and the quantity of data read from disk.
-
-Also, the current copy and cache procedures use a home-spun binary tree
-to map old pointers to new pointers. While this achieves the goal of
-reducing the time complexity of the copy and serialization process, I'm
-sure I can use less memory and write a faster implementation with a hash
-table.
 
 =back
 
