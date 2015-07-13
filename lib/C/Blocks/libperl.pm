@@ -3,6 +3,16 @@ use warnings;
 
 package C::Blocks::libperl;
 
+# Figure out where the symbol table serialization file lives
+use File::ShareDir;
+use File::Spec;
+our $symtab_file_location;
+BEGIN {
+	$symtab_file_location = File::Spec->catfile(
+		File::ShareDir::dist_dir('C-Blocks'),'perl.h.cache'
+	);
+}
+
 require DynaLoader;
 our @ISA = qw( DynaLoader C::Blocks::libloader );
 

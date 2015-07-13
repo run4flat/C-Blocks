@@ -50,6 +50,7 @@ my $build = Module::Build->new(
 			file      => [ 'README.pod' ],
 		},
 	},
+	share_dir => 'share',
 );
 
 $build->create_build_script;

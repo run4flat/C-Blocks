@@ -12,3 +12,4 @@ tinycc-src/
 lib/C/Blocks/libperl.xs
 MANIFEST
 MANIFEST.SKIP.bak
+share/
