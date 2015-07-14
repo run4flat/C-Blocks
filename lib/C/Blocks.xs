@@ -203,6 +203,8 @@ void my_prep_table (void * data) {
  * order. In other words, croak is inappropriate here. */
 void my_tcc_error_func (void * message_ptr, const char * msg ) {
 	SV* message_sv = (SV*)message_ptr;
+	/* ignore "defined twice" errors */
+	if (strstr(msg, "defined twice") != NULL) return;
 	/* set the message in the error_message key of the compiler context */
 	if (SvPOK(message_sv)) {
 		sv_catpvf(message_sv, "%s\n", msg);
@@ -556,12 +558,11 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 		}
 		/* Look for errors and croak */
 		if (strstr(SvPV_nolen(data->error_msg_sv), "error")) {
-			croak("C::Blocks error:\n%s", SvPV_nolen(data->error_msg_sv));
+			croak("C::Blocks compiler error:\n%s", SvPV_nolen(data->error_msg_sv));
 		}
-		/* Otherwise, look for warnings and warn */
-		else {
-			warn("C::Blocks warning:\n%s", SvPV_nolen(data->error_msg_sv));
-		}
+		/* Otherwise, look for warnings, warn, and clear */
+		warn("C::Blocks compiler warning:\n%s", SvPV_nolen(data->error_msg_sv));
+		sv_setpv(data->error_msg_sv, "");
 	}
 }
 
@@ -704,6 +705,14 @@ int my_keyword_plugin(pTHX_
 	AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
 	SV * machine_code_SV = newSV(tcc_relocate(state, 0));
 	tcc_relocate(state, SvPVX(machine_code_SV));
+	if (SvPOK(data.error_msg_sv)) {
+		/* Look for errors and croak */
+		if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
+			croak("C::Blocks linker error:\n%s", SvPV_nolen(data.error_msg_sv));
+		}
+		/* Otherwise report warnings */
+		warn("C::Blocks linker warning:\n%s", SvPV_nolen(data.error_msg_sv));
+	}
 	av_push(machine_code_cache, machine_code_SV);
 	
 	/********************************************************/
