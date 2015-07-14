@@ -31,6 +31,7 @@ clex {
 
 my ($x, $y) = (1, 0);
 my ($N_x, $N_y) = (30, 30);
+my ($A, $B) = (20, 40);
 
 Prima::MainWindow-> new( text => 'C::Blocks',
 #	buffer => 1,
@@ -38,9 +39,10 @@ Prima::MainWindow-> new( text => 'C::Blocks',
 		my ($self, $canvas) = @_;
 		return $self->repaint if $self->get_paint_state != 1;
 		$self->clear;
+		my $rotation = atan2($y - 250, $x - 250);
 		cblock {
 Point points_to_plot[200];
-int x_pt, y_pt, C_N_x, C_N_y;
+int x_pt, y_pt, C_N_x, C_N_y, N_points;
 double A_rad, B_rad;
 A_rad = SvNV($A);
 B_rad = SvNV($B);
@@ -48,6 +50,7 @@ x_pt = SvIV($x);
 y_pt = SvIV($y);
 C_N_x = SvIV($N_x);
 C_N_y = SvIV($N_y);
+N_points = 200;
 
 			Handle widget_handle = gimme_the_mate($self);
 			/* Draw an ellipse tilted toward the mouse. Thanks to
@@ -57,25 +60,25 @@ C_N_y = SvIV($N_y);
 			double theta, theta_inc, theta_0, sin_theta_0, cos_theta_0;
 			
 			/* set the per-step theta increment */
-			theta_inc = M_PI / 100;
+			theta_inc = 2 * M_PI / N_points;
 			
 			/* Iterate through the number of x and y ellipses to draw */
 			for (i = 0; i < C_N_x; i++) {
-				int x_pos = ...
+				//int x_pos = ...
 				for (j = 0; j < C_N_y; j++) {
 					theta_0 = SvNV($rotation);
 					sin_theta_0 = sin(theta_0);
 					cos_theta_0 = cos(theta_0);
 					
 					/* Build the set of points */
-					for (i = 0; i < 200; i++) {
+					for (i = 0; i < N_points; i++) {
 						theta = i*theta_inc;
 						points_to_plot[i].x = 250 + A_rad * cos(theta)*cos_theta_0
 							- B_rad * sin(theta)*sin_theta_0;
 						points_to_plot[i].y = 250 + A_rad * cos(theta)*sin_theta_0 /* === syntax hilite :-( */
 							+ B_rad * sin(theta)*cos_theta_0;
 					}
-					apc_gp_fill_poly (widget_handle, C_N_points, points_to_plot);
+					apc_gp_fill_poly (widget_handle, N_points, points_to_plot);
 				}
 			}
 		}
@@ -88,6 +91,7 @@ C_N_y = SvIV($N_y);
 
 my @points;
 my $pi = 2*atan2(1, 0);
+my $N_points = 200;
 
 Prima::MainWindow-> new( text => 'Pure Perl',
 	onPaint => sub {
