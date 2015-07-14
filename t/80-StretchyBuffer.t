@@ -3,6 +3,7 @@ use warnings;
 use Test::More;
 use C::Blocks;
 
+use C::Blocks::libperl;
 use C::Blocks::StretchyBuffer;
 BEGIN { pass 'StretchyBuffer imports without trouble' }
 
@@ -18,20 +19,20 @@ BEGIN { pass 'Use of StretchyBuffer compiles without issue' }
 
 cblock {
 	double * data = INT2PTR(double*, SvIV($sb_pointer));
-	SvIV($info_to_test, sbcount(data));
+	sv_setiv($info_to_test, sbcount(data));
 }
 
 is($info_to_test, 20, 'Size is correctly stored and accessible');
 
 cblock {
 	double * data = INT2PTR(double*, SvIV($sb_pointer));
-	SvIV($info_to_test, sbpop($sb_pointer));
+	sv_setiv($info_to_test, sbpop($sb_pointer));
 }
 is($info_to_test, 19, 'Popping off the last item of a 20-item');
 
 cblock {
 	double * data = INT2PTR(double*, SvIV($sb_pointer));
-	SvIV($info_to_test, sbcount(data));
+	sv_setiv($info_to_test, sbcount(data));
 }
 is($info_to_test, 19, 'After popping, buffer reports only 19 elements');
 
@@ -42,3 +43,5 @@ cblock {
 pass 'Freeing data does not segfault';
 
 done_testing;
+
+BEGIN { pass 'Remainder of test script compiled without issue' }
