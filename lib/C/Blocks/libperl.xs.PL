@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use ExtUtils::Embed;
-use inc::Alien::TinyCC;
+use Alien::TinyCCx;
 use Devel::CheckLib;
 use Config;
 use File::Temp ();

@@ -5,14 +5,15 @@ use warnings;
 
 # Development tool. If *this* *module* is in a blib, then I'm developing.
 # In that case, I would like to use a development tcc if available.
-BEGIN {
-	my $mod_path = $INC{'C/Blocks.pm'};
-	if ($mod_path =~ /blib/) {
-		eval { require inc::Alien::TinyCC };
-		die $@ if $@ =~ /LD_LIBRARY_PATH/;
-		require Alien::TinyCC;
-	}
-}
+#BEGIN {
+#	my $mod_path = $INC{'C/Blocks.pm'};
+#	if ($mod_path =~ /blib/) {
+#		eval { require inc::Alien::TinyCC };
+#		die $@ if $@ =~ /LD_LIBRARY_PATH/;
+#		require Alien::TinyCC;
+#	}
+#}
+use Alien::TinyCCx;
 
 use XSLoader;
 
@@ -458,7 +459,7 @@ C<C::Blocks>, rather than being restricted to the Tiny C Compiler.
 =head1 SEE ALSO
 
 This module uses the Tiny C Compiler through the Alien package provided
-by L<Alien::TinyCC>. To learn more about the Tiny C Compiler, see
+by L<Alien::TinyCCx>. To learn more about the Tiny C Compiler, see
 L<http://bellard.org/tcc/> and L<http://savannah.nongnu.org/projects/tinycc>.
 
 For other ways of compiling C code in your Perl scripts, check out
