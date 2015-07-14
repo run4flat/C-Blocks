@@ -111,6 +111,17 @@ sub build_names_tested {
 			print "Skipping $identifier\n";
 		}
 	}
+	
+	# Add entries for S_croak_memory_wrap and S_bootstrap_ctype, static
+	# functions defined in inline.h
+	if (check_identifier("void * tmp = S_croak_memory_wrap")) {
+		print $out_fh "\ttcc_set_extended_symbol(symtab, \"S_croak_memory_wrap\", S_croak_memory_wrap);\n";
+		print "Manually adding S_croak_memory_wrap\n";
+	}
+	if (check_identifier("void * tmp = S_bootstrap_ctype")) {
+		print $out_fh "\ttcc_set_extended_symbol(symtab, \"S_bootstrap_ctype\", S_bootstrap_ctype);\n";
+		print "Manually adding S_bootstrap_ctype\n";
+	}
 
 	# Clean things up
 	close $in_fh;
