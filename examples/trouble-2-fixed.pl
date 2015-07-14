@@ -63,7 +63,7 @@ printf("i = %d\n", i);
 		double sin_sq_sum = 0;
 		double rel_t, sin_t, cos_t;
 		for (j = 0; j < N_data; j++) {
-			rel_t = j * t_step - tau
+			rel_t = j * t_step - tau;
 			sin_t = sin(om * rel_t);
 			cos_t = cos(om * rel_t);
 			sin_sum += data[j] * sin_t;
