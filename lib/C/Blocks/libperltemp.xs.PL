@@ -37,6 +37,9 @@ void Safefree(void* ptr);
 /*** exception handling ***/
 void croak(char * message);
 
+/*** IO ***/
+int printf(const char * format, ...);
+
 HEADER_CONTENTS
 
 	print $perltemp_h_fh $header_contents;
@@ -132,6 +135,7 @@ BOOT:
 	tcc_set_extended_symbol(symtab, "perltemp_Renew", perltemp_Renew);
 	tcc_set_extended_symbol(symtab, "Safefree", perltemp_Safefree);
 	tcc_set_extended_symbol(symtab, "croak", perltemp_croak);
+	tcc_set_extended_symbol(symtab, "printf", printf);
 	
 XS_FILE
 
