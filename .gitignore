@@ -15,3 +15,4 @@ MANIFEST.SKIP.bak
 share/
 names.tested
 names.txt
+lib/C/Blocks/libperltemp.xs
