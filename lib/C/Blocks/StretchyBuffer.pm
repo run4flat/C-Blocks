@@ -25,7 +25,7 @@ cshare {
 	{
 		int N_items;
 		int * p;
-		if (arr) {
+		if (*arr) {
 			/* If the array was previously allocated, then call for a
 			 * reallocation. */
 			p = stb__sbraw(*arr);
