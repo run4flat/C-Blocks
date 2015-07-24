@@ -112,6 +112,14 @@ C<C::Blocks> to CPAN, v0.01:
 
 =over
 
+=item Get libperl caching working on all platforms
+
+The symbol verification process is slow, but that is not the key issue
+with libperl caching at the moment. The problem is that on Windows, I get
+a long list of linker errors, stating C<undefined reference to `_imp__...'>.
+These need to be figured out. (Speeding up the symbol verification would
+also be nice.)
+
 =item Expand the test suite
 
 I need to write a comprehensive test of the API, for user and library author
@@ -119,10 +127,8 @@ alike. Failures in most of my tests up to this point have revealed bugs in the
 underlying C compiler hooks, but with those mostly fixed, it is time to test
 C<C::Blocks> itself, not the hooks of the underlying library.
 
-It would be good to push the system with things like typedefs, crazy
-preprocessor macros, and complex nested structs. Perhaps such tests could live
-in this distribution as author tests, but probably most of them should be pushed
-back upstream.
+In particular, I would like to see a collection of tests for the Perl C
+API.
 
 =back
 
@@ -166,20 +172,6 @@ For the first prime-time release of C<C::Blocks>, I want to have the following:
 
 =over
 
-=item Simple C-based Object System
-
-I plan to write a module that makes it easy to write single-inheritance object
-oriented C code. My current plans are to steal from Prima, which does this sort
-of thing exceptionally well.
-
-=item Author API for extended symbol table caching
-
-Authors writing a C<C::Blocks> interface for their C library should be able to
-utilize the symbol table load/dump functionality (that will be) used by libperl.
-Once it's working for libperl, I want to create author tools for
-L<Module::Build> and L<ExtUtils::MakeMaker> so that the symbol table cache can
-be created at distribution build time.
-
 =item C::Blocks::lib
 
 Write a module that makes it easy to import a bunch of C::Blocks modules in
@@ -192,6 +184,20 @@ would be equivalent to
  use C::Blocks::libperl;
  use C::Blocks::libgsl;
  use C::Blocks::libprima;
+
+=item Author API for extended symbol table caching
+
+Authors writing a C<C::Blocks> interface for their C library should be able to
+utilize the symbol table load/dump functionality and symbol verification
+currently under development for use with libperl. Once it's working for libperl,
+I want to create author tools for L<Module::Build> and L<ExtUtils::MakeMaker> so
+that the symbol table cache can be created at distribution build time.
+
+=item Simple C-based Object System
+
+I plan to write a module that makes it easy to write single-inheritance object
+oriented C code. My current plans are to steal from Prima, which does this sort
+of thing exceptionally well.
 
 =back
 
@@ -225,37 +231,6 @@ threadsafe. I would like to contribute back to the project by encapsulating all
 of that global state into the compiler state object, where it belongs. Others in
 the tcc community have expressed interest in getting this done, so it is a
 welcome contribution.
-
-=back
-
-=head1 CURRENT STATUS
-
-As of May 29, 2014, the pass/fail matrix is this:
-
- System \ Test          | 01 | 02 | 03 | 04 | 10 | 11 | 12 | 13 | 15 | 16 | 17
- ------------------------------------------------------------------------------
- Ubuntu 14.10 brew 5.20 |  y |  y |  y |  y |  y |  y |  y |  y |  y |  y |  y
- Win7 Strawberry 5.18   |  y |  y |  y | #1 |  y |  y |  y |  y |  y |  y |  y
-
-Any failures are enumerated in the table and described below. If
-things change, or if you have a new result, please add it to the
-table and update the failure descriptions below.
-
-=over
-
-=item 1
-
-The libperl test fails on Windows due to symbol lookup issues. I suspect this
-has something to do with static linking to the plethora of windows libraries,
-but I have not yet confirmed it. The actual error is somewhat cryptic:
-
- C::Blocks internal error: got nul pointer for op function!
-
-Though not shown here, it is known that on any default-compiled Perlbrew, the
-generated F<libperl> is a static library. There is a slim chance that TCC can
-link against a static library on Windows and Linux. There is no chance that the
-currently C::Blocks-specialized libtcc can link against a static library on Mac.
-Any tests against L<C::Blocks::libperl> will fail in this situation.
 
 =back
 
