@@ -11,20 +11,60 @@ and the API is likely to change.
 
 =head1 DEVELOPMENT BOOTSTRAPPING
 
-This software is in active development and is not (quite) set up for
-distribution on CPAN. Instead, it is set up to help developers and early testers
-get started as quickly and painlessly as possible. To that end, it will
-automatically install the most recent development version of the Tiny C Compiler
-to a directory within your C::Blocks build directory when you run C<Build.PL>.
-Thus, to get started, simply say:
+Both C<C::Blocks> and the extended symbol table management fork of the
+Tiny C Compiler are under active and symbiotic development. Once the
+basic set of features are in place, I will create two distributions,
+C<Alien::TinyCCx> for the compiler and C<C::Blocks> for this
+distribution. At the current stage of development, coordinating both of
+those moving targets would be a pain. To that end, this distribution in
+its current form is unconventional. It is not set up as a typical CPAN
+distribution, but is instead set up to help developers and early
+testers get started as quickly and painlessly as possible. It will
+automatically make a temporary installation of the most recent development
+version of the Tiny C Compiler with extended symbol table support. The
+temporary installation will be in a directory within your C::Blocks build
+directory. This is all performed when you run C<Build.PL>.
+
+=head2 Basic Fast Setup
+
+The fastest way to get set up and see if things work is to checkout the
+C<cached-names> branch like so:
+
+ git clone https://github.com/run4flat/C-Blocks.git
+ cd C-Blocks
+ git checkout cached-names
+ perl Build.PL
+
+This should quickly provide an incomplete but functional interface to
+libperl.
+
+=head2 Basic Full Setup
+
+If the cached-names branch fails to compile, or if you want to try
+parts of the Perl API that are not available via the cached names branch,
+run the same set of commands on the master branch:
 
  git clone https://github.com/run4flat/C-Blocks.git
  cd C-Blocks
  perl Build.PL
 
-This will automatically pull the latest version of my fork of the Tiny C
-Compiler, build it, and install it to a local directory for you. There is only
-one other thing you will have to do: you will set the C<LD_LIBRARY_PATH> (Unixen)
+Be warned, however, that the verification process can take a very long
+time. On my Linux machine it took 10 minutes. On my Windows machine, it
+took 30 minutes. If you just want to get started, see the fast branch
+discussed above, or the no-caching branch discussed next.
+
+=head2 No Caching
+
+If you encounter trouble with caching, you can also try the C<libperl-nocache>
+branch. This will not cache the symbol table from F<perl.h> at all. However,
+it will also fail to load any linker symbols (i.e. functions) if your
+libperl happened to be compiled as a static library (which is often the
+case). Don't be surprised, then, if F<t/04-libperl.t> fails if you check
+out this branch.
+
+=head2 Environment Variable Setup
+
+There is only one other thing you will have to do: you will set the C<LD_LIBRARY_PATH> (Unixen)
 or C<PATH> (Windows) environment variables before making calls to C<Build>,
 C<prove>, or C<perl>. Instructions are given for you if you try to run anything;
 for example, here's what I get on my machine when I haven't set my variable:
@@ -36,6 +76,12 @@ for example, here's what I get on my machine when I haven't set my variable:
 
 Notice the part that begins C<***  Be sure>. This should tell you what you need
 to do set to get going.
+
+=head2 Temporary Branches
+
+The F<cached-names> and F<libperl-nocache> are merely for your convenience.
+They are not development branches. I will frequently rebase these branches
+onto the latest master branch.
 
 =head1 DESCRIPTION
 
