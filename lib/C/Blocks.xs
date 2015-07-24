@@ -562,7 +562,7 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 		}
 		/* Otherwise, look for warnings, warn, and clear */
 		warn("C::Blocks compiler warning:\n%s", SvPV_nolen(data->error_msg_sv));
-		sv_setpv(data->error_msg_sv, "");
+		SvPOK_off(data->error_msg_sv);
 	}
 }
 
