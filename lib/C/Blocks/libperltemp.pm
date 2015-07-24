@@ -25,36 +25,39 @@ __END__
 
 =head1 NAME
 
-C::Blocks::libperl - C interface for interacting with Perl
+C::Blocks::libperltemp - temporary interface to some of Perl's C API
 
 =head1 SYNOPSIS
 
  use strict;
  use warnings;
  use C::Blocks;
- use C::Blocks::libperl;
+ use C::Blocks::libperltemp;
  
  cshare {
      void say_hi() {
-         PerlIO_stdoutf("hi!");
+         printf("hi!");
      }
  }
 
 =head1 DESCRIPTION
 
-This C::Blocks module provides access to the Perl C library. It is roughly
-equivalent to including these lines at the top of your cblocks:
+This pre-alpha C::Blocks module provides access to selected functions
+from Perl's C API. Presently, some of the functions provided by libperl
+lead to segmentation faults, for reasons I do not understand. This
+module is designed as a stop-gap until the bugs in tcc and C::Blocks are
+ironed out.
 
- #define PERL_NO_GET_CONTEXT
- #include "EXTERN.h"
- #include "perl.h"
- #include "XSUB.h"
+The linker checks each symbol table in order of inclusion. This means
+that you can use this in combinaton with C::Blocks::libperl as long as
+you C<use> it before you C<use> libperl:
 
-as well as linking to F<libperl>. Of course, as a C::Blocks module, it also
-avoids the re-parsing necessary if you were to include those at the top of each
-of your cblocks.
+ use C::Blocks::libperltemp;
+ use C::Blocks::libperl;
 
-The Perl C library is vast, and a tutorial for it may be useful at some point.
-Until that time, I will simply refer you to L<perlapi> and L<perlguts>.
+=head1 FUNCTIONS
+
+This modules provides Newx, Newxc, Newxz, Renew, Renewc, Safefree, croak,
+and printf.
 
 =cut
