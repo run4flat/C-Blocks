@@ -254,7 +254,8 @@ for putting that code in the public domain!
 =head1 LICENSE AND COPYRIGHT
 
 Sean Barett's original code is in the public domain. All modifications made by
-David Mertens are Copyright 2012 Northwestern University.
+David Mertens are Copyright 2012 Northwestern University and 2015
+Dickinson College.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
