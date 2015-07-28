@@ -104,59 +104,53 @@ number of similar container libraries, or get rid of them.
 =head1 GOALS AND MILESTONES
 
 I have a number of goals I would like to accomplish for this project.
+The basic set of milestones are (1) make it work, (2) test the heck out
+of it, (3) settle on an API, and (4) decide whether to throw in the
+kitchen sink.
 
-=head2 Alpha CPAN Release
+=head2 Pre-Alpha
 
-I want to accomplish the following before I make the alpha release of
-C<C::Blocks> to CPAN, v0.01:
-
-=over
-
-=item Get libperl caching working on all platforms
+The goal during the pre-alpha stage is to get things mostly working on
+most platforms. Once this is accomplished, I will spin an Alpha release
+on CPAN. To reach that goal, I must get libperl caching working on all
+platforms.
 
 The symbol verification process is slow, but that is not the key issue
 with libperl caching at the moment. The problem is that on Windows, I get
 a long list of linker errors, stating C<undefined reference to `_imp__...'>.
 These need to be figured out. (Speeding up the symbol verification would
-also be nice.)
+also be nice.) I also need to get the pre-alpha branches to build
+something useful on Macs.
 
-=item Expand the test suite
+=head2 Alpha CPAN Release, v0.01 - 0.49
 
-I need to write a comprehensive test of the API, for user and library author
-alike. Failures in most of my tests up to this point have revealed bugs in the
-underlying C compiler hooks, but with those mostly fixed, it is time to test
-C<C::Blocks> itself, not the hooks of the underlying library.
+The goal during the alpha stage is to vastly expand the test suite to
+make sure that everything works properly. For the most part, this means
+writing lots of tests of Perl's own C API. Additional tests for things
+like scoping and memory duration could stand to be expanded as well.
+Once I feel the test suite is robust, I move on to v0.5, beta.
 
-In particular, I would like to see a collection of tests for the Perl C
-API.
+The API for tweaking the compiler will still be considered in flux, so
+substantial library development is discouraged during Alpha.
 
-=back
+Also, I currently get a lot of warnings saying
 
-=head2 Beta CPAN Release
+ warning: assignment from incompatible pointer type
 
-Once the distribution hits CPAN as an alpha library, I will need to do a number
-of things to make it faster and more robust. By the time C<C::Blocks> hits v0.50
-I want to accomplish the following:
+This is a bug with the underlying extended symbol table handling and
+struct type checking. I would like this to be fixed sooner rather than
+later.
 
-=over
+=head2 Beta CPAN Release, v0.50 - v0.99
 
-=item Switch to call_checker and call_parser
+After the distribution hits v0.50, it'll be time to begin settling on an
+API to set up the compiler. The current API uses global variables, but
+this almost certainly can be done better.
 
-The keyword API is so yesterday. I used it for prototyping, but I need to switch
-to the new method. That doesn't need to happen before it hits CPAN, but I would
-like for it to happen soon.
-
-=back
-
-=head2 v1.0
-
-For the first prime-time release of C<C::Blocks>, I want to have the following:
-
-=over
-
-=item C::Blocks::lib
-
-Write a module that makes it easy to import a bunch of C::Blocks modules in
+With the settling of the API, I also hope to make it easier to write
+libraries that are export wrappers. The simplest example would be
+something that, for the moment, I am calling C<C::Blocks::lib>. This
+module would make it easy to import a bunch of C::Blocks modules in
 one shot, i.e.
 
  use C::Blocks::lib qw(perl gsl prima);
@@ -167,26 +161,38 @@ would be equivalent to
  use C::Blocks::libgsl;
  use C::Blocks::libprima;
 
-=item Author API for extended symbol table caching
+Of course, I've not yet decided if I want to call all libraries C<lib...>,
+so this still needs some thought.
 
-Authors writing a C<C::Blocks> interface for their C library should be able to
-utilize the symbol table load/dump functionality and symbol verification
-currently under development for use with libperl. Once it's working for libperl,
-I want to create author tools for L<Module::Build> and L<ExtUtils::MakeMaker> so
-that the symbol table cache can be created at distribution build time.
+Another important thing that'll come either during Alpha or Beta is
+switching to C<call_checker> and C<call_parser>. I used the keyword API
+for prototyping because it was easy for me to get started, but the newer
+API is the preferred method for this sort of stuff.
 
-=item Simple C-based Object System
+Finally, I want to create a module that helps automate the symbol
+table load/dump functionality and symbol verification currently under
+development for use with libperl. Once it's working for libperl, I want
+to create author tools for L<Module::Build> and L<ExtUtils::MakeMaker>
+so that build-time symbol table caching is easy.
+
+=head2 v1.0
+
+When C::Blocks hits v1.0, it'll have a solid test suite and stable API.
+From v1.0 onward, it'll simply be a question of what to include in the
+distribution itself.
+
+=over
+
+=item Simple C-based Object System?
 
 I plan to write a module that makes it easy to write single-inheritance object
 oriented C code. My current plans are to steal from Prima, which does this sort
 of thing exceptionally well.
 
-=back
+=item XS::Object::Magic
 
-=head2 v2.0
-
-By v2.0, I want to expand C<C::Blocks> to be a front end with multiple back
-ends. This means I would need to turn attention to authoring tools.
+I like XS::Object::Magic, and I think I'd like to distribute a C::Blocks
+module with that functionality within C::Blocks itself.
 
 =item Generate Inline::C, XS, ExtUtils::Depends
 
