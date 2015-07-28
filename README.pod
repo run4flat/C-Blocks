@@ -146,24 +146,6 @@ The keyword API is so yesterday. I used it for prototyping, but I need to switch
 to the new method. That doesn't need to happen before it hits CPAN, but I would
 like for it to happen soon.
 
-=item Streamline Symbol Table Copying and Caching
-
-This is really an issue for the underlying libtcc implementation, but it
-will be a blocker for C::Blocks, as far as I am concerned.
-
-The symbol
-table copy procedure currently copies I<every> token and Sym, which come
-along for the ride with the caching procedure. This is a poor solution
-to an important problem. A large number of tokens are added to each
-compiler context before any compilation begins, including tokens like
-C<str>, C<push>, and C<pop>. If a compiling context has a function
-defined with this name, it will refer to a token that was in place before
-the compiler saw one character of code. Thus, if I only copy tokens that
-were created by the compilation unit, I could miss some of these tokens.
-Thus I copy all TokenSyms. Instead, I should just copy (and serialize)
-the TokenSyms that are used. This will reduce the memory footprint of
-extended symbol tables and the quantity of data read from disk.
-
 =back
 
 =head2 v1.0
