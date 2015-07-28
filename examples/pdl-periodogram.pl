@@ -1,24 +1,19 @@
 use strict;
 use warnings;
-use blib;
 use C::Blocks;
 use C::Blocks::libperl;
 use PDL;
 
-die "You must give at least one input file\n" unless @ARGV;
-my $filename = shift;
-
-# Open the file
-use PDL::IO::FlexRaw;
-my $N_entries = (-s $filename) / length(pack('d', 0));
-$N_entries = 1000;
-my ($data_pdl) = mapflex($filename, [{
-	Type => 'double', NDims => 1, Dims => [ $N_entries ],
-}]);
-
-BEGIN { print "line ", __LINE__, "\n" }
-
+# Build a sample dataset
 my $dt = 0.1;
+my $N_entries = 1000;
+my $data_pdl = sin(sequence($N_entries) * $dt);
+$data_pdl += $data_pdl->grandom;
+
+# Here is a 'function' that unpacks a piddle's dataref for me
+clex {
+	#define get_data_pointer_from_ref(dataref) (double *)(SvPVbyte_nolen(SvRV(dataref)))
+}
 
 # Construct the frequencies to query
 my $N_frequencies = 1000;
@@ -29,10 +24,7 @@ my $frequencies = $power->xlogvals(1e-3, 100);
 my $data_ref = $data_pdl->get_dataref;
 my $frequencies_ref = $frequencies->get_dataref;
 my $power_ref = $power->get_dataref;
-BEGIN { print "line ", __LINE__, "\n" }
 cblock {
-printf("line %d\n", __LINE__);
-	#define get_data_pointer_from_ref(dataref) (double *)(SvPVbyte_nolen(SvRV(dataref)))
 	/* Unpack the data */
 	int N_data = SvIV($N_entries);
 	int N_oms = SvIV($N_frequencies);
@@ -41,11 +33,9 @@ printf("line %d\n", __LINE__);
 	double * power = get_data_pointer_from_ref($power_ref);
 	double t_step = SvNV($dt);
 	
-printf("line %d\n", __LINE__);
 	/* Compute the value for each frequency */
 	int i, j;
 	for (i = 0; i < N_oms; i++) {
-printf("i = %d\n", i);
 		double om = oms[i];
 		
 		/* compute tau */
@@ -72,11 +62,9 @@ printf("i = %d\n", i);
 			cos_sq_sum += cos_t*cos_t;
 		}
 		power[i] = (sin_sum*sin_sum / sin_sq_sum + cos_sum*cos_sum / cos_sq_sum) / 2;
-printf("line %d\n", __LINE__);
 	}
 }
 $power->upd_data;
-BEGIN { print "line ", __LINE__, "\n" }
 
 use PDL::Graphics::Prima::Simple;
 line_plot($frequencies, $power);
