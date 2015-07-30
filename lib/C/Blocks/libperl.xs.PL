@@ -167,7 +167,7 @@ sub dll_screen {
 		for my $line (`objdump -x $dll`) {
 			if ($line =~ /DLL Name: (\S+)/) {
 				my $full_dll = find_dll($1);
-				next if $found_dlls{$full_dll};
+				next if exists $found_dlls{$full_dll};
 				# Load this one
 				$found_dlls{$full_dll} = DynaLoader::dl_load_file($full_dll);
 				# Mark it so we look through this one's dependencies
@@ -175,7 +175,13 @@ sub dll_screen {
 			}
 		}
 	}
-
+	
+	# Dynaloader has trouble loading some dlls. Whether it's because
+	# they're hidden, or because they have a different format, I
+	# cannot say. But it doesn't matter, just get rid of them.
+	for my $k (keys %found_dlls) {
+		delete $found_dlls{$k} if not defined $found_dlls{$k};
+	}
 	# Figure out which identifiers can be located in one of our dlls
 	my @to_return;
 	IDENTIFIER: for my $identifier (@identifiers) {
