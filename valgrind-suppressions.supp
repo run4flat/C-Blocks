@@ -1,0 +1,228 @@
+{
+   perl_main_memory_allocation_01
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_savepvn
+   fun:perl_construct
+   fun:main
+}
+
+{
+   perl_main_memory_allocation_02
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_sv_grow
+   fun:Perl_sv_setpvn
+   fun:perl_construct
+   fun:main
+}
+{
+   perl_main_memory_allocation_03
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_savepv
+   fun:Perl_new_collate
+   fun:Perl_init_i18nl10n
+   fun:perl_construct
+   fun:main
+}
+{
+   perl_main_memory_allocation_04
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_savepv
+   fun:Perl_new_numeric
+   fun:Perl_init_i18nl10n
+   fun:perl_construct
+   fun:main
+}
+{
+   perl_main_memory_allocation_05
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_savepv
+   fun:Perl_find_script
+   fun:perl_parse
+   fun:main
+}
+{
+   perl_main_memory_allocation_06
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_init_stacks
+   fun:perl_construct
+   fun:main
+}
+{
+   perl_dynaloader_startup_01
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_my_cxt_init
+   fun:boot_DynaLoader
+   fun:Perl_pp_entersub
+   fun:Perl_runops_standard
+   fun:Perl_call_sv
+   fun:Perl_call_list
+   fun:S_process_special_blocks
+   fun:Perl_newATTRSUB_x
+   fun:Perl_utilize
+   fun:Perl_yyparse
+}
+{
+   perl_suppression_01
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:realloc
+   fun:Perl_safesysrealloc
+   fun:Perl_push_scope
+   fun:Perl_yylex
+   fun:Perl_yyparse
+   fun:S_doeval
+   fun:Perl_pp_require
+   fun:Perl_runops_standard
+   fun:Perl_call_sv
+   fun:Perl_call_list
+   fun:S_process_special_blocks
+   fun:Perl_newATTRSUB_x
+}
+{
+   perl_suppression_02
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_bytes_from_utf8
+   fun:Perl_pad_findmy_pvn
+   fun:Perl_yylex
+   fun:Perl_yyparse
+   fun:S_doeval
+   fun:Perl_pp_require
+   fun:Perl_runops_standard
+   fun:Perl_call_sv
+   fun:Perl_call_list
+   fun:S_process_special_blocks
+}
+{
+   perl_suppression_03
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   fun:Perl_safesyscalloc
+   fun:Perl_gv_fetchpvn_flags
+   fun:Perl_yylex
+   fun:Perl_yyparse
+   fun:S_doeval
+   fun:Perl_pp_require
+   fun:Perl_runops_standard
+   fun:Perl_call_sv
+   fun:Perl_call_list
+   fun:S_process_special_blocks
+   fun:Perl_newATTRSUB_x
+}
+{
+   perl_suppression_04
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_bytes_from_utf8
+   fun:Perl_pad_add_name_pvn
+   fun:Perl_allocmy
+   fun:Perl_yylex
+   fun:Perl_yyparse
+   fun:S_doeval
+   fun:Perl_pp_require
+   fun:Perl_runops_standard
+   fun:Perl_call_sv
+   fun:Perl_call_list
+}
+{
+   perl_suppression_05
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   fun:Perl_safesyscalloc
+   fun:perl_construct
+   fun:main
+}
+{
+   perl_suppression_06
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:realloc
+   fun:Perl_safesysrealloc
+   fun:Perl_tmps_grow
+   fun:Perl_sv_2mortal
+   fun:Perl__invlist_union_maybe_complement_2nd
+   fun:Perl__add_range_to_invlist
+   fun:S_get_ANYOF_cp_list_for_ssc
+   fun:S_ssc_or
+   fun:S_study_chunk.constprop.11
+   fun:Perl_re_op_compile
+   fun:Perl_pmruntime
+   fun:Perl_yyparse
+}
+{
+   perl_suppression_07
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:realloc
+   fun:Perl_safesysrealloc
+   fun:Perl_savestack_grow
+   fun:Perl_yylex
+   fun:Perl_yyparse
+   fun:S_doeval
+   fun:Perl_pp_require
+   fun:Perl_runops_standard
+   fun:Perl_call_sv
+   fun:Perl_call_list
+   fun:S_process_special_blocks
+   fun:Perl_newATTRSUB_x
+}
+{
+   perl_suppression_08
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_new_stackinfo
+   fun:Perl_init_stacks
+   fun:perl_construct
+   fun:main
+}
+{
+   perl_suppression_09
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:Perl_safesysmalloc
+   fun:Perl_reentrant_init
+   fun:perl_construct
+   fun:main
+}
+{
+   perl_suppression_10
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   fun:Perl_safesyscalloc
+   fun:Perl_more_bodies
+   fun:S_new_body
+   fun:Perl_init_constants
+   fun:perl_construct
+   fun:main
+}
