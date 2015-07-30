@@ -7,10 +7,20 @@ use Config;
 use File::Temp ();
 use File::Spec;
 
+# With static libperls, I cannot look up symbol names on the fly.
+# In order to work on all Perls, these libperl bindings build a
+# cached symbol table for perl.h. They then load all pointers to
+# the symbols during the BOOT section. Module::Build knows how to
+# build XS modules that have access to these symbols, whether
+# libperl is static or shared.
+
 ##################################################
 # Serialize perl.h and get a list of identifiers #
 ##################################################
-
+# It turns out that lots of identifiers in the various header files
+# are declared but are not actually defined. This command uses TCC
+# to get the list of declarations, not definitions. We'll have to
+# pare down the results next.
 sub serialize_perl_h {
 	# Put the cache file in the sharedir
 	my $share_file_location = File::Spec->catfile('share', 'perl.h.cache');
@@ -69,92 +79,151 @@ HEADER_CONTENTS
 # Identify which identifiers are good #
 #######################################
 
-sub build_names_tested {
-	return if -f 'names.tested';
-	
-	# Make sure we have names.txt to work with
-	serialize_perl_h;
+sub build_identifiers_list {
 	open my $in_fh, '<', 'names.txt'
 		or die "Unable to open file containing list of global symbols\n";
 	
-	# This is the file we will use to store our results
-	open my $out_fh, '>', 'names.tested'
-		or die "Unable to open tested names file\n";
-	
 	# Read global symbols
+	my @identifiers;
 	while (my $line = <$in_fh>) {
-		chomp $line;
-		my @stuff = split /\s+/, $line;
-		my $identifier = shift(@stuff);
-		my $type = pop @stuff;
-		my %is = map { +$_ => 1 } @stuff;
-		my ($XS_code, $check_code);
-		if ($type eq 'func') {
-			$check_code = "void * tmp = $identifier";
-			$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", $identifier);\n";
+		push @identifiers, $1 if $line =~ /(\w+)/;
+	}
+	
+	# Fast screening for compiler and linker error messages
+	@identifiers = screen_identifiers(@identifiers);
+	
+	# Double-check in case the fast screening returned false positives.
+	my @to_return;
+	my @set_of_maybe_good = [@identifiers];
+	while(@set_of_maybe_good) {
+		my @curr_set = @{shift @set_of_maybe_good};
+		@curr_set = sort @curr_set if @curr_set < 128;
+		if (check_identifier(@curr_set)) {
+			push @to_return, @curr_set;
 		}
-		elsif ($type ne 'struct' and $type ne 'pointer' and $type ne 'enum') {
-			$check_code = "$type _tmp_$identifier = $identifier";
-			$XS_code  = "\t$type _tmp_$identifier = $identifier;\n";
-			$XS_code .=  "\ttcc_set_extended_symbol(symtab, \"$identifier\", &_tmp_$identifier);\n";
-		}
-		else {
-			$check_code = "void * tmp = &$identifier";
-			$XS_code = "\ttcc_set_extended_symbol(symtab, \"$identifier\", &$identifier);\n";
-		}
-		
-		if (check_identifier ($check_code)) {
-			print $out_fh $XS_code;
-			print "Adding $identifier\n";
+		elsif (@curr_set == 1) {
+			print "Skipping @curr_set\n";
 		}
 		else {
-			print "Skipping $identifier\n";
+			# Three-way split is faster than two-way split. It is equally
+			# fast as a four-way split, too, so go for the simpler code.
+			# See benchmarks listed below.
+			my @mid = splice @curr_set, @curr_set/3;
+			my @right = splice @mid, @mid/2;
+			unshift @set_of_maybe_good, \@right if @right;
+			unshift @set_of_maybe_good, \@mid if @mid;
+			unshift @set_of_maybe_good, \@curr_set if @curr_set;
 		}
 	}
 	
-	# Add entries for S_croak_memory_wrap and S_bootstrap_ctype, static
-	# functions defined in inline.h
-	if (check_identifier("void * tmp = S_croak_memory_wrap")) {
-		print $out_fh "\ttcc_set_extended_symbol(symtab, \"S_croak_memory_wrap\", S_croak_memory_wrap);\n";
-		print "Manually adding S_croak_memory_wrap\n";
-	}
-	if (check_identifier("void * tmp = S_bootstrap_ctype")) {
-		print $out_fh "\ttcc_set_extended_symbol(symtab, \"S_bootstrap_ctype\", S_bootstrap_ctype);\n";
-		print "Manually adding S_bootstrap_ctype\n";
-	}
-
 	# Clean things up
 	close $in_fh;
-	close $out_fh;
 	unlink 'names.txt';
+	return @to_return;
 }
 
-####################
-# check_identifier #
-####################
-# Some of the identifiers that are identified by tcc are not available,
-# for some reason. I'm not sure if they're compiler intrinsics or
-# some other thing. To help solve this problem, this function takes a
-# string of C code, compiles a small test program linked against libperl,
-# and executes the program to make sure that the symbol's usage does not
-# cause unexpected termination.
-sub check_identifier {
-	my $code = shift;
+######################################
+# Windows Dynamics Library Screening #
+######################################
+# On Linux and Mac, I can identify bad identifiers by attempting to compile
+# a source file and examining the output. Unfortunately, linking to bad symbols
+# in msvcrt.dll leads to a pop-up window stating "procedure entry point <foo>
+# could not be located" and stalls the process until the user closes it! This
+# is not useful for screening out bad identifiers. So here we take a more
+# active approach. We load the DLLs used in libperl.dll and check that each
+# identifier can be found in one of them. This is a little more aggressive than
+# I would like, but it's pretty fast and avoids the pop-ups.
+
+my @path = File::Spec->path;
+# Searches all folders in the path for the given dll, returning the full path
+# if found, and croaking otherwise.
+sub find_dll {
+	my $dll_to_find = shift;
+	for my $dir (@path) {
+		my $full = File::Spec->catfile($dir, $dll_to_find);
+		return $full if -f $full;
+	}
+	die "Unable to find full path for $dll_to_find\n";
+}
+
+sub dll_screen {
+	my @identifiers = @_;
 	
-	# Much of this code is copied from Devel::CheckLib. I wish I could
-	# specify more things when using that module. :-(
+	# Figure out the perl dll file
+	return @identifiers unless $Config{libperl};
+	my $perl_dll = $Config{libperl};
+	$perl_dll =~ s/^lib//;
+	$perl_dll =~ s/\.a/\.dll/;
+	$perl_dll = find_dll($perl_dll);
 	
-	# open a temporary file and add the testing material
-	my($ch, $cfile) = File::Temp::tempfile(
-		'func_test_XXXXXXXX', SUFFIX => '.c'
-	);
-	print $ch <<TEST_CONTENTS;
+	# Load the perl dll file and scan for dependencies
+	my %found_dlls = ($perl_dll => DynaLoader::dl_load_file($perl_dll));
+	my @dlls_to_scan = ($perl_dll);
+	
+	# Build the full list of dlls
+	while(@dlls_to_scan) {
+		my $dll = shift @dlls_to_scan;
+		# Get all dlls that this one depends on
+		for my $line (`objdump -x $dll`) {
+			if ($line =~ /DLL Name: (\S+)/) {
+				my $full_dll = find_dll($1);
+				next if $found_dlls{$full_dll};
+				# Load this one
+				$found_dlls{$full_dll} = DynaLoader::dl_load_file($full_dll);
+				# Mark it so we look through this one's dependencies
+				push @dlls_to_scan, $full_dll;
+			}
+		}
+	}
+
+	# Figure out which identifiers can be located in one of our dlls
+	my @to_return;
+	IDENTIFIER: for my $identifier (@identifiers) {
+		for my $lib (values %found_dlls) {
+			if (DynaLoader::dl_find_symbol($lib, $identifier)) {
+				push @to_return, $identifier;
+				next IDENTIFIER;
+			}
+		}
+	}
+	
+	return @to_return;
+}
+
+######################
+# build_test_program #
+######################
+# The code to test symbols is used in a couple of different places, so I
+# extracted it into its own function. This takes a list of identifiers to test
+# and constructs the test program to check it. It returns the test file name
+# and the system command to perform the compilation. Much of this code is
+# copied from Devel::CheckLib.
+sub build_test_program {
+	my @identifiers = @_;
+		# open a temporary file and add the testing material. I use printf
+		# because I found that merely accessing the symbol address was not
+		# sufficient for making the linker fail. The printf command does
+		# not lead to any visible output on the terminal, though, so it's
+		# not a problem.
+		my($ch, $cfile) = File::Temp::tempfile(
+			'func_test_XXXXXXXX', SUFFIX => '.c'
+		);
+		print $ch <<TEST_CONTENTS;
 #define PERL_NO_GET_CONTEXT
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
-int main(void) { $code; return 0; }
+int main(void) {
 TEST_CONTENTS
+	for my $identifier (@identifiers) {
+		print $ch <<CHECK_IDENTIFIER;
+			#ifdef $identifier
+			#undef $identifier
+			#endif
+			printf(\"%p\\r                        \\r\", &$identifier);
+CHECK_IDENTIFIER
+	}
+	print $ch "\treturn 0;\n}";
 	close $ch;
 	
 	# Build output filenames
@@ -174,6 +243,74 @@ TEST_CONTENTS
 		$sys_cmd = join(' ' , $Config{cc}, ccopts, $cfile, "-o", $exefile, ldopts);
 	}
 	$sys_cmd =~ s/\n+//g;
+	
+	return ($cfile, $ofile, $exefile, $sys_cmd);
+}
+
+######################
+# screen_identifiers #
+######################
+# Given a list of identifiers, puts all of them in a C file and
+# processes the output of compiler and linker errors to remove obvious
+# bad ones.
+sub screen_identifiers {
+	my @identifiers = @_;
+	
+	# early and aggressive screening on Windows
+	@identifiers = dll_screen(@identifiers) if $^O =~ /Win32/;
+	
+	# Check with the compiler and linker, useful even on Windows for removing
+	# deprecated symbols.
+	while(1) {
+		# Create the test file
+		my ($cfile, $ofile, $exefile, $sys_cmd) = build_test_program(@identifiers);
+		
+		# compile and link, capturing all output
+		my @failures = `$sys_cmd 2>&1`;
+		
+		# Clean up files
+		unlink $exefile;
+		unlink $ofile;
+		unlink $cfile;
+		
+		# Pick out the failures and scrub them from the list of identifiers
+		@failures = map {
+			  /undefined reference to `\@?([^\@']+)/ ? ($1)
+			: /error: '(.*)' undeclared/ ? ($1)
+			: /warning: '(.*)' is deprecated/ ? ($1)
+			# Linux
+			: /warning: .*`(\w+)'.*is dangerous/ ? ($1)
+			: /warning: (\w+) is not implemented/ ? ($1)
+			: /warning: `?(\w+)'? is obsolete/ ? ($1)
+			: /warning: \W*(\w+)\W* is deprecated/ ? ($1)
+			: /error: \W*(\w+)\W* undeclared/ ? ($1)
+			# Mac
+			: /error: use of undeclared identifier \W(\w+)\W/ ? ($1)
+			: /_getdirentries_is_not_available_when_64_bit/ ? ('getdirentries') # weird
+			: /"_(\w+)", referenced from/ ? ($1)
+			: ()
+		} @failures;
+		
+		# All done if nothing failed
+		return @identifiers if @failures == 0;
+		
+		# Produce a hash of failure strings
+		my %is_bad = map {
+			$_ => 1,
+			(/^_imp__(.*)/ ? ($1 => 1) : ())
+		} @failures;
+		@identifiers = grep { !$is_bad{$_} } @identifiers;
+	}
+}
+
+####################
+# check_identifier #
+####################
+# The initial screening process may not remove all troublesome identifiers.
+# This function is similar to the screening process, but it actually runs
+# the generated C file to make sure everything is accessible at runtime.
+sub check_identifier {
+	my ($cfile, $ofile, $exefile, $sys_cmd) = build_test_program(@_);
 	
 	# Compile it
 	my $compile_rv = Devel::CheckLib::_quiet_system($sys_cmd);
@@ -196,9 +333,8 @@ TEST_CONTENTS
 # Generate the XS file #
 ########################
 
-build_names_tested;
-open my $in_fh, '<', 'names.tested'
-	or die "Unable to open tested names file\n";
+serialize_perl_h;
+my @identifiers = build_identifiers_list;
 my $out_filename = $ARGV[0];
 open my $out_fh, '>', $out_filename or die "Unable to open $out_filename\n";
 
@@ -216,7 +352,18 @@ typedef struct _available_extended_symtab {
 	extended_symtab_p exsymtab;
 	void * dll;
 } available_extended_symtab;
+XS_FILE
 
+# Set up the undefs:
+for my $id (@identifiers) {
+	print $out_fh <<ADD_IDENTIFIER;
+		#ifdef $id
+		#undef $id
+		#endif
+ADD_IDENTIFIER
+}
+
+print $out_fh <<'XS_FILE';
 MODULE = C::Blocks::libperl       PACKAGE = C::Blocks::libperl
 
 BOOT:
@@ -250,8 +397,10 @@ BOOT:
 	
 XS_FILE
 
-# Copy the contents
-print $out_fh (<$in_fh>);
+for my $id (@identifiers) {
+	print $out_fh <<ADD_IDENTIFIER;
+		tcc_set_extended_symbol(symtab, \"$id\", &$id);
+ADD_IDENTIFIER
+}
 
 close $out_fh;
-close $in_fh;
