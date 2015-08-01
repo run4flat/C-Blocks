@@ -17,16 +17,16 @@ my $build = Module::Build->new(
 	dist_author         => q{David Mertens <dcmertens.perl@gmail.com>},
 	configure_requires => {
 		'Devel::PPPort' => 0,
-		'Alien::TinyCCx' => '0.05_01',
+		'Alien::TinyCCx' => '0.06',
 		# meta_merge was added in v 0.28:
 		'Module::Build' => 0.28,
 	},
 	build_requires => {
 		'Test::More' => 0.88,
-		'Alien::TinyCCx' => '0.05_01',
+		'Alien::TinyCCx' => '0.06',
 	},
 	requires => {
-		'Alien::TinyCCx' => '0.05_01',
+		'Alien::TinyCCx' => '0.06',
 	},
 	needs_compiler => 1,
 	dynamic_config => 1,
