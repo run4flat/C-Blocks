@@ -1,0 +1,57 @@
+use strict;
+use warnings;
+
+use C::Blocks;
+use C::Blocks::PerlAPI;
+use Benchmark qw(timethese :hireswallclock);
+
+# Generate some data
+my $N;
+for my $log_n (1, 2, 3, 4, 5, 6) {
+	$N = 10**$log_n;
+	print "--- For N = $N ---\n";
+	
+	timethese(1000, {
+		perl_allocate => \&perl_alloc,
+		perl_push => \&perl_push,
+		perl_map => \&perl_map,
+		CBlocks_allocate => \&c_blocks_alloc,
+#		CBlocks_push => \&c_blocks_push,
+	});
+}
+
+# Push N zeros onto an array
+sub perl_push {
+	my @array;
+	push (@array, 0) for 1 .. $N;
+}
+
+sub perl_map {
+	my @array = map { 0 } (1 .. $N);
+}
+
+sub perl_alloc {
+	my @array;
+	$#array = $N - 1;
+	$array[$_] = 0 foreach (0 .. $N - 1);
+}
+
+sub c_blocks_alloc {
+	my @array;
+	my $array_ref = \@array;
+	cblock {
+		int i;
+		int n_elem = SvIV($N);
+		
+		/* Dereference to get the original array */
+		AV * my_array = (AV*)SvRV($array_ref);
+		av_extend(my_array, n_elem);
+		
+		for (i = 0; i < n_elem; i++) {
+			sv_setiv(*(av_fetch(my_array, i, 1)), 0);
+		}
+	}
+}
+
+#sub c_blocks_push {
+#}
