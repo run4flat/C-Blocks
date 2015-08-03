@@ -370,13 +370,13 @@ ADD_IDENTIFIER
 }
 
 print $out_fh <<'XS_FILE';
-MODULE = C::Blocks::libperl       PACKAGE = C::Blocks::libperl
+MODULE = C::Blocks::PerlAPI       PACKAGE = C::Blocks::PerlAPI
 
 BOOT:
 	/* Get the symtab file location */
-	SV * file_location = get_sv("C::Blocks::libperl::symtab_file_location", 0);
+	SV * file_location = get_sv("C::Blocks::PerlAPI::symtab_file_location", 0);
 	if (file_location == NULL) {
-		croak("Internal error: could not find $C::Blocks::libperl::symtab_file_location");
+		croak("Internal error: could not find $C::Blocks::PerlAPI::symtab_file_location");
 	}
 	
 	/* Deserialize the extended symbol table. */
@@ -386,7 +386,7 @@ BOOT:
 	{
 		/* Add to my package's cshare space. This code is borrowed from
 		 * Blocks.xs's serialize_symbol_table */
-		SV * package_lists = get_sv("C::Blocks::libperl::__cblocks_extended_symtab_list",
+		SV * package_lists = get_sv("C::Blocks::PerlAPI::__cblocks_extended_symtab_list",
 			GV_ADDMULTI | GV_ADD);
 		available_extended_symtab new_table;
 		new_table.dll = NULL;

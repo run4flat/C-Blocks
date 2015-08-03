@@ -165,7 +165,7 @@ Code in C<cblock>s have access to declarations contained in any C<clex> or
 C<cshare> blocks that precede it. These blocks are discussed next.
 
 If you use a Perl variable in your C<cblock>, it automatically pull in
-L<C::Blocks::libperl>, and the reference to the variable will be replaced with
+L<C::Blocks::PerlAPI>, and the reference to the variable will be replaced with
 the C<SV*>, C<AV*>, or C<HV*> that refers to the variable by the same name:
 
  use C::Blocks;
@@ -244,7 +244,7 @@ Such a block might look like this:
      }
  }
 
-Notice that I need to include C<libperl> because I use structs and functions
+Notice that I need to include C<PerlAPI> because I use structs and functions
 defined in the Perl C API (C<SV*> and C<SvPVbyte_nolen>). I need to include
 C<libmath> because I use C<sqrt>. The Perl C API, in particular, is not
 included automatically. It is only included automatically if a C<cblock>

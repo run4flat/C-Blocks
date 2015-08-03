@@ -3,8 +3,8 @@ use warnings;
 use Test::More;
 use C::Blocks;
 
+use C::Blocks::PerlAPI;
 use C::Blocks::StretchyBuffer;
-use C::Blocks::libperl; # order is important so long as StretchyBuffer uses libperltemp
 BEGIN { pass 'StretchyBuffer imports without trouble' }
 
 my ($sb_pointer, $info_to_test);

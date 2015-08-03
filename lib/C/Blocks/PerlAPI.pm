@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-package C::Blocks::libperl;
+package C::Blocks::PerlAPI;
 
 # Figure out where the symbol table serialization file lives
 use File::ShareDir;
@@ -17,7 +17,7 @@ require DynaLoader;
 our @ISA = qw( DynaLoader C::Blocks::libloader );
 
 our $VERSION = '0.01';
-bootstrap C::Blocks::libperl $VERSION;
+bootstrap C::Blocks::PerlAPI $VERSION;
 
 1;
 
@@ -25,14 +25,14 @@ __END__
 
 =head1 NAME
 
-C::Blocks::libperl - C interface for interacting with Perl
+C::Blocks::PerlAPI - C interface for interacting with Perl
 
 =head1 SYNOPSIS
 
  use strict;
  use warnings;
  use C::Blocks;
- use C::Blocks::libperl;
+ use C::Blocks::PerlAPI;
  
  cshare {
      void say_hi() {

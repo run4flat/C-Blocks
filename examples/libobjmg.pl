@@ -3,7 +3,7 @@ use warnings;
 package C::Blocks::libobjmg;
 {
 	use C::Blocks;
-	use C::Blocks::libperl;  # for croak and memory stuff
+	use C::Blocks::PerlAPI;
 
 	cshare {
 		STATIC MGVTBL null_mg_vtbl = {
@@ -87,7 +87,7 @@ package C::Blocks::libobjmg;
 package My::Point;
 {
 	use C::Blocks;
-	use C::Blocks::libperl;
+	use C::Blocks::PerlAPI;
 	BEGIN { C::Blocks::libobjmg->import }
 
 	cshare {

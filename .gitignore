@@ -4,15 +4,9 @@ Build
 _build
 blib
 MYMETA*
-chain.h
-lib/C/Blocks/Chain.pm
 inc/Alien/TinyCC.pm
-tinycc/
-tinycc-src/
-lib/C/Blocks/libperl.xs
+lib/C/Blocks/PerlAPI.xs
 MANIFEST
 MANIFEST.SKIP.bak
 share/
-names.tested
 names.txt
-lib/C/Blocks/libperltemp.xs

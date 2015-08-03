@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use C::Blocks;
-use C::Blocks::libperl;
+use C::Blocks::PerlAPI;
 use PDL;
 
 # Build a sample dataset

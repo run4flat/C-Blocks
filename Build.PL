@@ -4,11 +4,6 @@ use warnings;
 use Module::Build;
 use Alien::TinyCCx;
 
-#### --( Make sure we have ppport.h )-- ####
-
-#use Devel::PPPort;
-#Devel::PPPort::WriteFile();
-
 #### --( Make the builder )-- ####
 
 my $build = Module::Build->new(
@@ -16,17 +11,24 @@ my $build = Module::Build->new(
 	license  => 'perl',
 	dist_author         => q{David Mertens <dcmertens.perl@gmail.com>},
 	configure_requires => {
-		'Devel::PPPort' => 0,
 		'Alien::TinyCCx' => '0.06',
 		# meta_merge was added in v 0.28:
 		'Module::Build' => 0.28,
 	},
 	build_requires => {
 		'Test::More' => 0.88,
+		# For configuration, path to tcc, etc
 		'Alien::TinyCCx' => '0.06',
+		# For PerlAPI
+		'ExtUtils::Embed' => 0,
+		'Devel::CheckLib' => 0,
+		'File::Temp' => 0,
+		'File::Spec' => 0,
 	},
 	requires => {
 		'Alien::TinyCCx' => '0.06',
+		'File::ShareDir' => 0,
+		'File::Spec' => 0,
 	},
 	needs_compiler => 1,
 	dynamic_config => 1,

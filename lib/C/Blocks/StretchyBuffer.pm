@@ -2,7 +2,7 @@ use strict;
 use warnings;
 package C::Blocks::StretchyBuffer;
 use C::Blocks;
-use C::Blocks::libperl;  # for croak and memory stuff
+use C::Blocks::PerlAPI;
 
 cshare {
 	#define sbfree(a)         ((a) ? Safefree(stb__sbraw(a)),0 : 0)
