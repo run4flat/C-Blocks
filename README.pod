@@ -158,12 +158,12 @@ in getting this done, so it is a welcome contribution.
 
 =head1 SEE ALSO
 
-This module uses the Tiny C Compiler. It will eventually use an Alien 
-package provided as L<Alien::TinyCCx>; for related work that is 
-currently available on CPAN, see L<Alien::TinyCC>. To see that project 
-directly, see L<https://github.com/run4flat/tinycc>. To learn more 
+This module uses a special fork of the Tiny C Compiler. The fork is 
+located at L<https://github.com/run4flat/tinycc>, and is distributed 
+through the Alien package provided by L<Alien::TinyCCx>. To learn more 
 about the Tiny C Compiler, see L<http://bellard.org/tcc/> and 
-L<http://savannah.nongnu.org/projects/tinycc>.
+L<http://savannah.nongnu.org/projects/tinycc>. The fork is a major 
+extension to the compiler that provides extended symbol table support.
 
 For other ways of compiling C code in your Perl scripts, check out
 L<Inline::C>, L<FFI::TinyCC>, L<C::TinyCompiler>, and L<XS::TCC>.

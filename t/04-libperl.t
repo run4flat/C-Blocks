@@ -71,9 +71,14 @@ eval q{
 	my $lexical = 5;
 
 	cblock {
-			sv_setiv($lexical, 15);
+		sv_setiv($lexical, 15);
 	}
 	is($lexical, 15, 'Sigil substitution');
+	
+	cblock {
+		sv_setpv($lexical, "fun times");
+	}
+	is($lexical, 'fun times', 'More sigil substitution');
 } or do {
 	if ($^V lt v5.18.0) {
 		# We expected a croak. Make sure the message is correct

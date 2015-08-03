@@ -93,14 +93,7 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
      print_location(2);
  }
  
- # Finally, we can declare xsubs inline with this:
- csub my_xsub {
-     /* This one really needs quite a bit more work... */
-     
-     /* shift off args? Allow for $_[0] syntax? */
- }
- 
- my_xsub('called from perl!');
+ # NOTE: csub does not yet work, for some odd reason
  
  package My::Fastlib;
  cshare {
@@ -124,23 +117,29 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
 
 =head1 ALPHA
 
-This project is currently in alpha. It does not fully implement some of the
-key features; it does not support multiple threads.
+This project is currently in alpha. The C<csub> keyword does not work
+yet due to bewildering tcc-level symbol table lookup issues.
 
 =head1 DESCRIPTION
 
-This module has a number of goals. First, it provides a way to write and execute
-blocks of C code directly in your Perl code. Second, it provides a mechanism for
-defining C functions and global variables, callable from your blocks of C code,
-that are I<lexically> scoped, i.e. they become inaccessible when you leave the
-Perl scope in which they were declared. Third, it provides a mechanism for
-defining C functions and global variables that can be I<lexically exported>, and
-used in the C blocks of the calling package.
+Perl is great, but sometimes I find myself reaching for C to do some of 
+my computational heavy lifting. There are many tools that help you 
+interface Perl and C. This module differs from most others out there by 
+providing a way of inserting your C code directly where you want it 
+called, rather than hooking up a function to C code written elsewhere. 
+This module was also designed from the outset with an emphasis on 
+easily sharing C functions and data structures spread across various 
+packages and source files. Most importantly, the C code you see in your 
+script and your modules is the C code that gets executed when your run 
+your script. It gets compiled by the extremely fast Tiny C Compiler 
+I<at script runtime>.
 
-C<C::Blocks> achieves all of these goals by providing new keywords that
-demarcate blocks of C code. There are essentially two types of blocks: those
-that indicate a procedural block of C code that should be run, and those that
-declare C functions, variables, etc., that are used by other blocks.
+C<C::Blocks> achieves all of this by providing new keywords that 
+demarcate blocks of C code. There are essentially three types of 
+blocks: those that indicate a procedural chunk of C code that should be 
+run, those that declare C functions, variables, etc., that are used by 
+other blocks, and those which produce XS functions that get hooked into 
+the presently compiling package.
 
 =head2 Procedural Blocks
 
@@ -161,14 +160,16 @@ This produces the output
  2
  3
 
-Code in C<cblock>s have access to declarations contained in any C<clex> or
-C<cshare> blocks that precede it. These blocks are discussed next.
+Code in C<cblock>s have access to declarations contained in any C<clex> 
+or C<cshare> blocks that precede it. These blocks are discussed next.
 
-If you use a Perl variable in your C<cblock>, it automatically pull in
-L<C::Blocks::PerlAPI>, and the reference to the variable will be replaced with
-the C<SV*>, C<AV*>, or C<HV*> that refers to the variable by the same name:
+If you have Perl v5.18, you can use a Perl variable in your C<cblock>
+and it will automatically reference the lexically scopred SV by the
+same name. (Bear in mind, though, that you will need to use
+L<C::Blocks::PerlAPI>.)
 
  use C::Blocks;
+ use C::Blocks::PerlAPI;
  my $message = 'Greetings!';
  
  cblock {
@@ -179,54 +180,50 @@ the C<SV*>, C<AV*>, or C<HV*> that refers to the variable by the same name:
  
  print "After the cblock, message is [$message]\n";
 
-This produces the output (rather it should, but does not yet)
+This produces the output
 
  The message variable contains: [Greetings!]
  After the clobkc, message is [5.938]
 
 Any method in L<Perl's C API|perlapi> is available.
 
-=over
+C<C::Blocks> is currently implemented using the Tiny C Compiler, a 
+compiler written to I<compile> fast, but not necessarily produce 
+blazingly fast machine code. As such, the above code block is not going 
+to run as quickly as the equivalent XS code compiled using C<gcc -O3>. 
+What's more, Perl's core has been pretty highly optimized. 
+Micro-optimizations that replace a handful of Perl statements with 
+their C-API equivalents may give performance gains, but that is not
+where you will truly see the difference.
 
-XXX back this up with benchmarks:
+Where are you likely to see the most gains? The performance boost will 
+be best when you have multiple tightly nested for-loops, where 
+operations within the for loops are based on the indices. For example, 
+you will see major improvements if you replace a naive prime number 
+calculator written in Perl can be replaced with a prime number 
+calculator written using C::Blocks.
 
-C<C::Blocks> is currently implemented using the Tiny C Compiler, a compiler
-written to I<compile> fast, but not necessarily produce blazingly fast machine
-code. As such, the above code block is not likely to run much faster than the
-equivalent Perl code. In general, micro-optimizations that replace a handful of
-Perl statements with their C-API equivalents are not likely to lead to
-performance gains.
-
-Eventually I plan for C<C::Blocks> to be a front-end to multiple back-ends, one
-of which would be L<Inline::C>, another of which would be an author tool that
-extracts the blocks and builds an XS file and PMC file. Both of these would use
-the system's optimized compiler (i.e. gcc) to produce much faster machine code.
-In that case, such micro-optimizations are likely to lead to better performance
-gains.
-
-XXX really need to back this up with benchmarks
-
-Rather than focus on micro-optimizations of Perl operations on Perl structures,
-you should instead use C<C::Blocks> to write code that performs C operations on
-C structures. But then how do you declare your C data structures? And more
-importantly, how do you package those structures into a library in order to
-share those structures with others? That's what I discuss next.
-
-=back
+To get the best performance, however, you should use C<C::Blocks> to 
+write code that performs C operations on C structures. But then how do 
+you declare your C data structures? And more importantly, how do you 
+package those structures into a library in order to share those 
+structures with others? That's what I discuss next.
 
 =head2 Private C Declarations
 
-A great deal of C's power lies in your ability to define compact data structures
-and reusable chunks of code. When you wish to declare such data structures or
-functions, use a C<clex> block. (If you wish to write a module full of functions
-and data structures for I<others> to use, you will use a C<cshare> block, which
-I'll explain shortly.) The declarations in such a block are available to any
-other C<cblock>s, C<clex>s, and C<cshare>s that share the same lexical scope as
-the C<clex> block.
+A great deal of C's power lies in your ability to define compact data 
+structures and reusable chunks of code. When you wish to declare such 
+data structures or functions, use a C<clex> block. (If you wish to 
+write a module full of functions and data structures for I<others> to 
+use, you will use a C<cshare> block, which I'll explain shortly.) The 
+declarations in such a block are available to any other C<cblock>s, 
+C<clex>s, C<cshare>s, and C<csub>s that appaer later in the same 
+lexical scope as the C<clex> block.
 
 Such a block might look like this:
 
- use C::Blocks::libs qw(perl math); # libmath does not exist yet!!!
+ use C::Blocks;
+ use C::Blocks::PerlAPI;
  
  clex {
      typedef struct _point_t {
@@ -244,14 +241,17 @@ Such a block might look like this:
      }
  }
 
-Notice that I need to include C<PerlAPI> because I use structs and functions
-defined in the Perl C API (C<SV*> and C<SvPVbyte_nolen>). I need to include
-C<libmath> because I use C<sqrt>. The Perl C API, in particular, is not
-included automatically. It is only included automatically if a C<cblock>
-contains sigil'ed variables.
+Notice that I need to include C<PerlAPI> because I use structs and 
+functions defined in the Perl C API (C<SV*> and C<SvPVbyte_nolen>). The
+function C<sqrt> is defined in libmath, but that gets brought along
+with the Perl API, so we don't need to explicitly include it.
 
-Later in your file, you could make use of the functions in a C<cblock> such as:
+Later in your file, you could make use of the functions in a C<cblock> 
+such as:
 
+ NOTE THIS EXAMPLE SEEMS TO BE GIVING TROUBLE AT THE
+ TIME OF RELEASE. NEEDS INVESTIGATION. SORRY.
+ 
  # Assume pairs is ($x1, $y1, $x2, $y2, $x3, $y3, ...)
  # Create a C array of doubles, which is equivalent to an
  # array of points with half as many array elements
@@ -357,7 +357,7 @@ import behavior. You fix that by providing your own C<import> method:
      my ($package, @args) = @_;
      C::Blocks::libloader::import($package);
      my $method = Parent::Package->can('import');
-     goto $method;  # XXX check this
+     goto &$method;
  }
 
 =head1 KEYWORDS
@@ -382,32 +382,27 @@ declarations are not allowed. Also, variable declarations and preprocessor
 definitions are confined to the C<cblock> and will not be present in later
 C<cblock>s. For that sort of behavior, see C<clex>.
 
-Variables with sigils are interpreted as referring to the C<SV*>, C<AV*>, or
-C<HV*> representing the variable in the current lexical scope. If C<use strict
-'vars'> is in effect, then these can only refer to lexical variables; otherwise
-they can also refer to package variables.
+Variables with C<$> sigils are interpreted as referring to the C<SV*>
+representing the variable in the current lexical scope.
 
 Note: If you need to leave a C<cblock> early, you should use a C<return>
 statement without any arguments.
 
 =item clex { code }
 
-C<clex> blocks contain function, variable, struct, enum, union, and preprocessor
-declarations that you want to use in other C<cblock>, C<clex>, and C<cshare>
-blocks that follow. It is important to note that these are strictly
-I<declarations> that are compiled at Perl's compile time and shared with other
-blocks.
+C<clex> blocks contain function, variable, struct, enum, union, and 
+preprocessor declarations that you want to use in other C<cblock>, 
+C<clex>, C<cshare>, and C<csub> blocks that follow. It is important to 
+note that these are strictly I<declarations> and I<definitions> that 
+are compiled at Perl's compile time and shared with other blocks.
 
-Sigil variables in C<clex> blocks are not currently allowed. How these might
-work is yet to be determined.
+Sigil variables in C<clex> blocks are currently ignored.
 
 =item cshare { code }
 
-C<cshare> blocks are just like C<clex> blocks except that the declarations can
-be shared with other modules when the C<use> the current module.
-
-Note: discuss how the import mechanism works, how it can be broken, and how to
-fix it.
+C<cshare> blocks are just like C<clex> blocks except that the 
+declarations can be shared with other modules when they C<use> the 
+current module.
 
 =item csub name { code }
 
@@ -415,44 +410,31 @@ C code contained in a csub block is wrapped into an xsub function definition.
 This means that after this code is compiled, it is accessible just like any
 other xsub.
 
-Interpolation of sigils is open to discussion. Sigils such as C<$_[0]> could
-be very useful for manipulating the stack, for example.
-
-=back
-
-=head1 GOALS
-
-My three major goals for this project are:
-
-=over
-
-=item Make C<$var> in C blocks do something useful in C<clex>
-
-=item Write a library like XS::Object::Magic
-
-=item Threadsafe
-
-The Tiny C Compiler uses lots of global variables and is therefore not
-threadsafe. I would like to contribute back to the project by
-encapsulating all of that global state into the compiler state object,
-where it belongs. Others in the tcc community have expressed interest in
-getting this done, so it is a welcome contribution.
-
-=item Inline::C and Module::Compile backends
-
-I would like to be able to use Inline::C or Module::Compile as back-ends to
-C<C::Blocks>, rather than being restricted to the Tiny C Compiler.
+Currently, C<csub> does not work.
 
 =back
 
 =head1 SEE ALSO
 
-This module uses the Tiny C Compiler through the Alien package provided
-by L<Alien::TinyCCx>. To learn more about the Tiny C Compiler, see
-L<http://bellard.org/tcc/> and L<http://savannah.nongnu.org/projects/tinycc>.
+This module uses a special fork of the Tiny C Compiler. The fork is 
+located at L<https://github.com/run4flat/tinycc>, and is distributed 
+through the Alien package provided by L<Alien::TinyCCx>. To learn more 
+about the Tiny C Compiler, see L<http://bellard.org/tcc/> and 
+L<http://savannah.nongnu.org/projects/tinycc>. The fork is a major 
+extension to the compiler that provides extended symbol table support.
 
 For other ways of compiling C code in your Perl scripts, check out
-L<Inline::C>, L<C::TinyCompiler>, and L<XS::TCC>.
+L<Inline::C>, L<FFI::TinyCC>, L<C::TinyCompiler>, and L<XS::TCC>.
+
+For mechanisms for calling C code from Perl, see L<FFI::Platypus> and
+L<FFI::Raw>.
+
+If you just want to mess with C struct data from Perl, see 
+L<Convert::Binary::C>.
+
+If you're just looking to write fast code with compact data structures, 
+L<http://rperl.org/> may be just the ticket. It produces highly 
+optmized code from a subset of the Perl language itself.
 
 =head1 AUTHOR
 
@@ -460,8 +442,8 @@ David Mertens (dcmertens.perl@gmail.com)
 
 =head1 BUGS
 
-Please report any bugs or feature requests for the Alien bindings at the
-project's main github page:
+Please report any bugs or feature requests for the Alien bindings at 
+the project's main github page: 
 L<http://github.com/run4flat/C-Blocks/issues>.
 
 =head1 SUPPORT
