@@ -55,6 +55,14 @@ writing lots of tests of Perl's own C API. Additional tests for things
 like scoping and memory duration could stand to be expanded as well. 
 Once I feel the test suite is robust, I move on to v0.5, beta.
 
+The single most important failing component is csub. New
+just-before-alpha testing indicates that this functionality does not
+work at all because I seem unable to obtain the expected function
+pointer! This seems to be due to an error in tcc's symbol lookup, but I
+have a very hard time believing that is actually the root of the
+problem. Tests need to be added and this needs to be sorted out during
+the Alpha stage. I also need to document how to write a csub.
+
 The API for tweaking the compiler will still be considered in flux, so 
 substantial library development is discouraged during Alpha.
 
