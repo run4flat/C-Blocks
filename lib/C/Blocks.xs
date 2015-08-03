@@ -321,6 +321,7 @@ typedef struct c_blocks_data {
 	SV * error_msg_sv;
 	int N_newlines;
 	int keep_curly_brackets;
+//	int has_loaded_perlapi;
 } c_blocks_data;
 
 void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
@@ -328,6 +329,7 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->xsub_name = 0;
 	data->add_test_SV = 0;
 	data->keep_curly_brackets = 1;
+//	data->has_loaded_perlapi = 0;
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
@@ -354,12 +356,32 @@ void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	Safefree(data->xsub_name);
 }
 
+#if 0
+void add_perlapi(pTHX_ c_blocks_data * data) {
+	if (data->has_loaded_perlapi) return;
+	/* Load libperl and append to *just* *this* exsymtab list */
+	SV * perlapi = newSVpvn("C::Blocks::PerlAPI", 18);
+	load_module(PERL_LOADMOD_NOIMPORT, perlapi, NULL);
+	sv_2mortal(perlapi);
+	
+	/* Get the contents and append to the exsymtabs */
+	SV * perlapi_symtab = get_sv("C::Blocks::PerlAPI::__cblocks_extended_symtab_list",
+			GV_ADDMULTI);
+	SV * new_exsymtabs = newSVsv(data->exsymtabs);
+	sv_2mortal(new_exsymtabs);
+	sv_catpvn(new_exsymtabs, SvPVbyte_nolen(perlapi_symtab), sizeof(available_extended_symtab));
+	data->exsymtabs = new_exsymtabs;
+	
+	data->has_loaded_perlapi = 1;
+	
+	data->my_perl_type = "PerlInterpreter";
+}
+#endif
+
 void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
 	data->end = PL_bufptr;
-	/* Load libperl if it's not already loaded */
-	if (0) {
-		/* load libperl, add to this context */
-	}
+//	add_perlapi(aTHX_ data);
+	
 	/* extract the function name */
 	while (1) {
 		ENSURE_LEX_BUFFER(data->end,
@@ -466,8 +488,7 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 					}
 					
 					/* XXX fix this so that I don't need the ifdef/else */
-//					/* Make sure my_perl has the correct type. */
-//					data->my_perl_type = "PerlInterpreter";
+					//add_perlapi(aTHX_ data);
 
 					#ifdef PERL_IMPLICIT_CONTEXT
 						sv_catpvf(data->predeclarations, "SV * %s = "
