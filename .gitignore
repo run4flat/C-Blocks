@@ -6,7 +6,6 @@ blib
 MYMETA*
 inc/Alien/TinyCC.pm
 lib/C/Blocks/PerlAPI.xs
-MANIFEST
 MANIFEST.SKIP.bak
 share/
 names.txt
