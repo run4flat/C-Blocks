@@ -588,6 +588,8 @@ OP * build_op(pTHX_ TCCState * state, int keyword_type) {
 void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
 	/* Extract the xsub */
 	XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data->xsub_name);
+	if (xsub_fcn_ptr == NULL)
+		croak("C::Blocks internal error: Unable to get pointer to csub %s\n", data->xsub_name);
 	
 	/* Add the xsub to the package's symbol table */
 	char * filename = CopFILE(PL_curcop);
@@ -704,7 +706,7 @@ int my_keyword_plugin(pTHX_
 	 * at the end of the Perl program's execution. */
 	AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
 	SV * machine_code_SV = newSV(tcc_relocate(state, 0));
-	tcc_relocate(state, SvPVX(machine_code_SV));
+	int relocate_returned = tcc_relocate(state, SvPVX(machine_code_SV));
 	if (SvPOK(data.error_msg_sv)) {
 		/* Look for errors and croak */
 		if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
@@ -712,6 +714,9 @@ int my_keyword_plugin(pTHX_
 		}
 		/* Otherwise report warnings */
 		warn("C::Blocks linker warning:\n%s", SvPV_nolen(data.error_msg_sv));
+	}
+	if (relocate_returned < 0) {
+		croak("C::Blocks linker error: unable to relocate\n");
 	}
 	av_push(machine_code_cache, machine_code_SV);
 	
