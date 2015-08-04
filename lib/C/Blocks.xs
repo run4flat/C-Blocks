@@ -6,6 +6,22 @@
 #include "ppport.h"
 #include "libtcc.h"
 
+/* ---- Zephram's book of preprocessor hacks ---- */
+#define PERL_VERSION_DECIMAL(r,v,s) (r*1000000 + v*1000 + s)
+#define PERL_DECIMAL_VERSION \
+        PERL_VERSION_DECIMAL(PERL_REVISION,PERL_VERSION,PERL_SUBVERSION)
+#define PERL_VERSION_GE(r,v,s) \
+        (PERL_DECIMAL_VERSION >= PERL_VERSION_DECIMAL(r,v,s))
+
+/* ---- pad_findmy_pv ---- */
+#ifndef pad_findmy_pv
+# if PERL_VERSION_GE(5,11,2)
+#  define pad_findmy_pv(name, flags) pad_findmy(name, strlen(name), flags)
+# else /* <5.11.2 */
+#  define pad_findmy_pv(name, flags) pad_findmy(name)
+# endif /* <5.11.2 */
+#endif /* !pad_findmy_pv */
+
 int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 
 typedef void (*my_void_func)(pTHX);
@@ -467,11 +483,6 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 				perl_varname_start = 0;
 			}
 			else {
-				#if PERL_VERSION < 18
-					CopLINE(PL_curcop) += data->N_newlines;
-					croak("You must use Perl 5.18 or newer for variable interpolation");
-				#endif
-				
 				/* We just identified the character that is one past the end of
 				 * our Perl variable name. Ensure it is available. */
 				char backup = *data->end;
