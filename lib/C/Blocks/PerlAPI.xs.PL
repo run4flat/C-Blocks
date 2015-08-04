@@ -60,6 +60,8 @@ HEADER_CONTENTS
 	$compiler_args =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
 	# Scrub all linker (-Wl,...) options
 	$compiler_args =~ s/-Wl,[^\s]+//g;
+	# tcc does not like the -arch compiler option
+	$compiler_args =~ s/-arch\s+\w+//g;
 
 	# Add arguments to produce the identifier list and serialization
 	mkdir 'share';
