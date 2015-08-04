@@ -18,6 +18,8 @@ for my $log_n (1, 1.5, 2, 2.5, 3) {
 		perl_math => \&perl_math,
 		CBlocks_math => \&c_blocks_math,
 	});
+	print "Perl version returned ", perl_math(), " and C::Blocks version returned ",
+		c_blocks_math(), "\n";
 }
 
 sub perl_math {
