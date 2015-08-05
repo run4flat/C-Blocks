@@ -488,7 +488,28 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 				 * available. */
 				char backup = *data->end;
 				*data->end = '\0';
-				char * long_name = savepv(form("_PERL_LEXICAL_SCALAR_%s", perl_varname_start + 1));
+				char * type;
+				char * long_name;
+				if (*perl_varname_start == '$') {
+					type = "SV";
+					long_name = savepv(form("_PERL_LEXICAL_SCALAR_%s", 
+						perl_varname_start + 1));
+				}
+				else if (*perl_varname_start == '@') {
+					type = "AV";
+					long_name = savepv(form("_PERL_LEXICAL_ARRAY_%s", 
+						perl_varname_start + 1));
+				}
+				else if (*perl_varname_start == '%') {
+					type = "HV";
+					long_name = savepv(form("_PERL_LEXICAL_HASH_%s", 
+						perl_varname_start + 1));
+				}
+				else {
+					/* should never happen */
+					croak("C::Blocks internal error: unknown sigil %c\n",
+						*perl_varname_start);
+				}
 				if (strstr(SvPVbyte_nolen(data->predeclarations), long_name) == NULL) {
 					/* Add a new declaration for it */
 					/* NOTE: pad_findmy_pv expects the sigil!! */
@@ -504,12 +525,12 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 					//add_perlapi(aTHX_ data);
 
 					#ifdef PERL_IMPLICIT_CONTEXT
-						sv_catpvf(data->predeclarations, "SV * %s = "
-							"(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
-							long_name, var_offset);
+						sv_catpvf(data->predeclarations, "%s * %s = "
+							"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
+							type, long_name, type, var_offset);
 					#else
-						sv_catpvf(data->predeclarations, "SV * %s = PAD_SV(%d); ",
-							long_name, var_offset);
+						sv_catpvf(data->predeclarations, "%s * %s = (%s*)PAD_SV(%d); ",
+							type, long_name, type, var_offset);
 					#endif
 				}
 				
@@ -540,7 +561,8 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 				Safefree(long_name);
 			}
 		}
-		if ((keyword_type == IS_CBLOCK) && (*data->end == '$')) {
+		if ((keyword_type == IS_CBLOCK) && (*data->end == '$'
+			|| *data->end == '@' || *data->end == '%')) {
 			perl_varname_start = data->end;
 		}
 		else if (*data->end == '{') nest_count++;

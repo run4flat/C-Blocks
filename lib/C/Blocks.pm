@@ -165,31 +165,36 @@ or C<cshare> blocks that precede it. These blocks are discussed in the
 next section.
 
 You can also use sigiled variable names in your C<cblock>s, and they 
-will be mapped directly to the correct lexically scoped scalar. (Bear 
-in mind, though, that you will need to use L<C::Blocks::PerlAPI>. I 
-plan to have this auto-load when it detects sigils, but it isn't smart 
-enough yet.)
+will be mapped directly to the correct lexically scoped variables. 
+(Bear in mind, though, that you will need to use L<C::Blocks::PerlAPI>. 
+I plan to have this auto-load when it detects sigils, but it isn't 
+smart enough yet.)
 
  use C::Blocks;
  use C::Blocks::PerlAPI;
  my $message = 'Greetings!';
+ my @array;
  
  cblock {
-     printf("The message variable contains: [%s]\n",
+     printf("The message variable contains: [%""s]\n",
          SvPVbyte_nolen($message));
      sv_setnv($message, 5.938);
+     av_push(@array, newSViv(7));
  }
  
  print "After the cblock, message is [$message]\n";
+ print "and array contains @array\n";
 
 This produces the output
 
  The message variable contains: [Greetings!]
  After the cblock, message is [5.938]
+ and array contains 7
 
-An important low-level detail is that the actual SV * in your C code is 
-based on the original scalar name with some gentle mangling. This lets 
-you use C-side variables with the "same" name (sans the sigil):
+An important low-level detail is that the actual SV*, AV*, or HV* in 
+your C code is based on the original variable name with some gentle 
+mangling. This lets you use C-side variables with the "same" name (sans 
+the sigil):
 
  my $N = 100;
  my $result;

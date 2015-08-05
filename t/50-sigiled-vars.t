@@ -55,4 +55,33 @@ eval q{
 	diag($@);
 };
 
+# lexical arrays are properly interpreted
+eval q{
+	my @array = (1, 3, 5);
+
+	cblock {
+		/* Append another element to the array */
+		av_push(@array, newSViv(7));
+	}
+	is(0+@array, 4, 'Array was appended to') and
+	is($array[-1], 7, 'Correct value was placed onto the array');
+} or do {
+	fail('Lexical arrays are properly interpreted');
+	diag($@);
+};
+
+# lexical hashes are properly interpreted
+eval q{
+	my %hash = (one => 1, two => 2);
+
+	cblock {
+		/* delete the "second" entry */
+		hv_delete(%hash, "two", 3, G_DISCARD);
+	}
+	ok((not exists $hash{two}), "Hash member was removed");
+} or do {
+	fail('Lexical hashes are properly interpreted');
+	diag($@);
+};
+
 done_testing;
