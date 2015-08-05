@@ -29,12 +29,12 @@ sub c_blocks_euclid {
 	my $to_return;
 	cblock {
 		double accum = 0;
-		int i, N_data;
+		int i, N;
 		double * data;
 		
 		data = (double*)(SvPVbyte_nolen($packed_data));
-		N_data = SvIV($N);
-		for (i = 0; i < N_data; i++) {
+		N = SvIV($N);
+		for (i = 0; i < N; i++) {
 			accum += data[i] * data[i];
 		}
 		sv_setnv($to_return, sqrt(accum));

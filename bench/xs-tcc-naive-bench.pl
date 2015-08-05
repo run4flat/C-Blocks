@@ -36,11 +36,11 @@ sub c_blocks_math {
 	my $to_return;
 	cblock {
 		int i, j;
-		int n = SvIV($N);
+		int N = SvIV($N);
 		double ans;
 		
-		for (i = 0; i < n; i++) {
-			for (j = 0; j < n; j++) {
+		for (i = 0; i < N; i++) {
+			for (j = 0; j < N; j++) {
 				ans += i / (double)(j == 0 ? 1 : j);
 			}
 		}

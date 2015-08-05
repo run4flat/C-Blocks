@@ -161,12 +161,14 @@ This produces the output
  3
 
 Code in C<cblock>s have access to declarations contained in any C<clex> 
-or C<cshare> blocks that precede it. These blocks are discussed next.
+or C<cshare> blocks that precede it. These blocks are discussed in the 
+next section.
 
-If you have Perl v5.18, you can use a Perl variable in your C<cblock>
-and it will automatically reference the lexically scopred SV by the
-same name. (Bear in mind, though, that you will need to use
-L<C::Blocks::PerlAPI>.)
+You can also use sigiled variable names in your C<cblock>s, and they 
+will be mapped directly to the correct lexically scoped scalar. (Bear 
+in mind, though, that you will need to use L<C::Blocks::PerlAPI>. I 
+plan to have this auto-load when it detects sigils, but it isn't smart 
+enough yet.)
 
  use C::Blocks;
  use C::Blocks::PerlAPI;
@@ -183,31 +185,23 @@ L<C::Blocks::PerlAPI>.)
 This produces the output
 
  The message variable contains: [Greetings!]
- After the clobkc, message is [5.938]
+ After the cblock, message is [5.938]
 
-Any method in L<Perl's C API|perlapi> is available.
+An important low-level detail is that the actual SV * in your C code is 
+based on the original scalar name with some gentle mangling. This lets 
+you use C-side variables with the "same" name (sans the sigil):
 
-C<C::Blocks> is currently implemented using the Tiny C Compiler, a 
-compiler written to I<compile> fast, but not necessarily produce 
-blazingly fast machine code. As such, the above code block is not going 
-to run as quickly as the equivalent XS code compiled using C<gcc -O3>. 
-What's more, Perl's core has been pretty highly optimized. 
-Micro-optimizations that replace a handful of Perl statements with 
-their C-API equivalents may give performance gains, but that is not
-where you will truly see the difference.
-
-Where are you likely to see the most gains? The performance boost will 
-be best when you have multiple tightly nested for-loops, where 
-operations within the for loops are based on the indices. For example, 
-you will see major improvements if you replace a naive prime number 
-calculator written in Perl can be replaced with a prime number 
-calculator written using C::Blocks.
-
-To get the best performance, however, you should use C<C::Blocks> to 
-write code that performs C operations on C structures. But then how do 
-you declare your C data structures? And more importantly, how do you 
-package those structures into a library in order to share those 
-structures with others? That's what I discuss next.
+ my $N = 100;
+ my $result;
+ cblock {
+     int i;
+     int result = 0;
+     int N = SvIV($N); /* notice "same" name N */
+     for (i = 1; i < N; i++) result += i;
+     sv_setiv($result, result);
+ }
+ print "The brute-force sum from 1 to 100 is $result\n";
+ print "Gauss would have said ", $N * ($N - 1) / 2, "\n";
 
 =head2 Private C Declarations
 
@@ -353,12 +347,37 @@ You could also experience this problem the other way around: you expect your
 module to use an inherited C<import> method, but you only get C<libloader>'s
 import behavior. You fix that by providing your own C<import> method:
 
+ # NOTE: NEEDS TO BE TESTED
  sub import {
      my ($package, @args) = @_;
      C::Blocks::libloader::import($package);
      my $method = Parent::Package->can('import');
      goto &$method;
  }
+
+=head2 Performance
+
+C<C::Blocks> is currently implemented using the Tiny C Compiler, a 
+compiler written to I<compile> fast, but not necessarily produce 
+blazingly fast machine code. As such, the above code block is not going 
+to run as quickly as the equivalent XS code compiled using C<gcc -O3>. 
+What's more, Perl's core has been pretty highly optimized. 
+Micro-optimizations that replace a handful of Perl statements with 
+their C-API equivalents may give performance gains, but they are likely
+to be incremental.
+
+Where are you likely to see the most gains? The performance boost will 
+be best when you have multiple tightly nested for-loops, where 
+operations within the for loops are based on the indices. For example, 
+you will see major improvements if you replace a naive prime number 
+calculator written in Perl can be replaced with a prime number 
+calculator written using C::Blocks.
+
+To get the best performance, however, you should use C<C::Blocks> to 
+write code that performs C operations on C structures. But then how do 
+you declare your C data structures? And more importantly, how do you 
+package those structures into a library in order to share those 
+structures with others? That's what I discuss next.
 
 =head1 KEYWORDS
 

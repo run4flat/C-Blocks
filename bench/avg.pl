@@ -29,15 +29,15 @@ sub c_blocks_avg {
 	my $to_return;
 	cblock {
 		double accum = 0;
-		int i, N_data;
+		int i, N;
 		double * data;
 		
 		data = (double*)(SvPVbyte_nolen($packed_data));
-		N_data = SvIV($N);
-		for (i = 0; i < N_data; i++) {
+		N = SvIV($N);
+		for (i = 0; i < N; i++) {
 			accum += data[i];
 		}
-		sv_setnv($to_return, accum / N_data);
+		sv_setnv($to_return, accum / N);
 	}
 	return $to_return;
 }

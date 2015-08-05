@@ -67,43 +67,5 @@ for (1..3) {
 	};
 }
 
-eval q{
-	my $lexical = 5;
-
-	cblock {
-		sv_setiv($lexical, 15);
-	}
-	is($lexical, 15, 'Sigil substitution');
-	
-	cblock {
-		sv_setpv($lexical, "fun times");
-	}
-	is($lexical, 'fun times', 'More sigil substitution');
-} or do {
-	if ($^V lt v5.18.0) {
-		# We expected a croak. Make sure the message is correct
-		like ($@, qr/You must use Perl 5\.18 or newer for variable interpolation/,
-			'Sigil substitution croaks for perls before 5.18');
-	}
-	else {
-		fail('Unexpected croak during sigil substitution');
-		diag($@);
-	}
-};
-
-# Dollar-signs can be carefully wrapped
-eval q{
-	$shuttle = undef;
-	cblock {
-		sv_setpv(get_sv("shuttle", 0), "$""money");
-	}
-	BEGIN{ pass 'Can carefully wrap dollar signs in C code' }
-	is($shuttle, '$money', 'Successfully set string with dollar sign in it');
-	1;
-} or do {
-	fail 'Can carefully wrap dollar signs in C code';
-	diag($@);
-};
-
 
 done_testing;

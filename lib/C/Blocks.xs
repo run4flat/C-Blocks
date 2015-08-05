@@ -479,22 +479,24 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 		
 		if (perl_varname_start && !_is_id_cont(*data->end)) {
 			if (data->end == perl_varname_start + 1) {
-				/* Skip dolar signs followed by non-id characters */
+				/* Skip sigils signs followed by non-id characters */
 				perl_varname_start = 0;
 			}
 			else {
 				/* We just identified the character that is one past the end of
-				 * our Perl variable name. Ensure it is available. */
+				 * our Perl variable name. Ensure the lexical Perl variable is
+				 * available. */
 				char backup = *data->end;
 				*data->end = '\0';
-				char * to_find = form("SV * %s ", perl_varname_start + 1);
-				if (strstr(SvPVbyte_nolen(data->predeclarations), to_find) == NULL) {
+				char * long_name = savepv(form("_PERL_LEXICAL_SCALAR_%s", perl_varname_start + 1));
+				if (strstr(SvPVbyte_nolen(data->predeclarations), long_name) == NULL) {
 					/* Add a new declaration for it */
+					/* NOTE: pad_findmy_pv expects the sigil!! */
 					int var_offset = (int)pad_findmy_pv(perl_varname_start, 0);
 					/* Ensure that the variable exists in the pad */
 					if (var_offset == NOT_IN_PAD) {
 						CopLINE(PL_curcop) += data->N_newlines;
-						croak("Global symbol \"%s\" requires explicit package name",
+						croak("Could not find lexically scoped \"%s\"",
 							perl_varname_start);
 					}
 					
@@ -504,17 +506,38 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 					#ifdef PERL_IMPLICIT_CONTEXT
 						sv_catpvf(data->predeclarations, "SV * %s = "
 							"(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
-							perl_varname_start + 1, var_offset);
+							long_name, var_offset);
 					#else
 						sv_catpvf(data->predeclarations, "SV * %s = PAD_SV(%d); ",
-							perl_varname_start + 1, var_offset);
+							long_name, var_offset);
 					#endif
 				}
-				/* Replace the dollar-sign with white space */
-				*perl_varname_start = ' ';
-				/* Reset the varname detection logic and buffer contents */
-				perl_varname_start = NULL;
+				
+				/* Reset the character just following the var name */
 				*data->end = backup;
+				
+				/* Replace the sigiled expression with the long name. We
+				 * need to be tricky here and temporarily change what the
+				 * lexer thinks of as the "start" of the buffer. This
+				 * should be safe because lex_unstuff does not allocate
+				 * new memory, it just moves stuff around */
+				int buffptr_relative_to_varname_start
+					= perl_varname_start - PL_bufptr;
+				PL_bufptr = perl_varname_start;
+				
+				/* Get rid of sigiled varname and replace with the long
+				 * name */
+				lex_unstuff(data->end);
+				lex_stuff_pv(long_name, 0);
+				
+				/* Reset the buffer pointers */
+				data->end = PL_bufptr + 1;
+				PL_bufptr -= buffptr_relative_to_varname_start;
+				
+				/* Reset the varname detection logic */
+				perl_varname_start = NULL;
+				
+				Safefree(long_name);
 			}
 		}
 		if ((keyword_type == IS_CBLOCK) && (*data->end == '$')) {

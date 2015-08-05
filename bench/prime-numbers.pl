@@ -47,10 +47,10 @@ sub c_blocks_primes {
 	my $to_return;
 	cblock {
 		/* Set up variables */
-		int n = SvIV($N);
+		int N = SvIV($N);
 		int i, j, candidate, sqrt_candidate, N_found;
 		int * prime_list;
-		Newx(prime_list, n, int);
+		Newx(prime_list, N, int);
 		
 		/* Always start with 2 */
 		prime_list[0] = 2;
@@ -58,7 +58,7 @@ sub c_blocks_primes {
 		N_found = 1;
 		
 		/* mostly equivalent to Perl code above */
-		NEXT_CANDIDATE: while(N_found < n) {
+		NEXT_CANDIDATE: while(N_found < N) {
 			candidate += 2;
 			sqrt_candidate = sqrt(candidate);
 			for (j = 0; j < N_found; j++) {
@@ -81,7 +81,7 @@ sub c_blocks_primes {
 		
 		if (SvIV($printout)) {
 			printf("C::Blocks primes: ");
-			for (i = 0; i < n-1; i++) printf("%d ", prime_list[i]);
+			for (i = 0; i < N-1; i++) printf("%d ", prime_list[i]);
 			printf("%d\n", candidate);
 		}
 		
