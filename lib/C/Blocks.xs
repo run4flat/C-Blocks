@@ -473,6 +473,7 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 	 * and clean sigiled variables as well. */
 	char * perl_varname_start = NULL;
 	int nest_count = 0;
+	int is_in_string = 0;
 	data->end = PL_bufptr;
 	while (1) {
 		ENSURE_LEX_BUFFER(data->end, "C::Blocks expected closing curly brace but did not find it");
@@ -561,8 +562,9 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 				Safefree(long_name);
 			}
 		}
-		if ((keyword_type == IS_CBLOCK) && (*data->end == '$'
-			|| *data->end == '@' || *data->end == '%')) {
+		if ((keyword_type == IS_CBLOCK) && !is_in_string
+			&& (*data->end == '$' || *data->end == '@' || *data->end == '%')
+		) {
 			perl_varname_start = data->end;
 		}
 		else if (*data->end == '{') nest_count++;
@@ -572,6 +574,12 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 		}
 		else if (*data->end == '\n') {
 			data->N_newlines++;
+		}
+		else if (is_in_string && *data->end == '"' && data->end[-1] != '\\') {
+			is_in_string = 0;
+		}
+		else if (*data->end == '"' && data->end[-1] != '\'') {
+			is_in_string = 1;
 		}
 		
 		data->end++;

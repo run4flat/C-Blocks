@@ -176,7 +176,7 @@ smart enough yet.)
  my @array;
  
  cblock {
-     printf("The message variable contains: [%""s]\n",
+     printf("The message variable contains: [%s]\n",
          SvPVbyte_nolen($message));
      sv_setnv($message, 5.938);
      av_push(@array, newSViv(7));

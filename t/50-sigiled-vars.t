@@ -27,17 +27,17 @@ eval q{
 	diag($@);
 };
 
-# Dollar-signs can be carefully wrapped
+# sigils need not be carefully wrapped
 eval q{
-	my $shuttle = undef;
+	my $shuttle;
 	cblock {
-		sv_setpv($shuttle, "$""money");
+		sv_setpv($shuttle, "$money");
 	}
-	BEGIN{ pass 'Can carefully wrap dollar signs in C code' }
+	BEGIN{ pass 'Sigils need not be carefully wrapped' }
 	is($shuttle, '$money', 'Successfully set string with dollar sign in it');
 	1;
 } or do {
-	fail 'Can carefully wrap dollar signs in C code';
+	fail 'Sigils need not be carefully wrapped';
 	diag($@);
 };
 
