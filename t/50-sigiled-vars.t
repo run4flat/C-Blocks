@@ -84,4 +84,27 @@ eval q{
 	diag($@);
 };
 
+TODO: {
+	local $TODO = 'Sigil/double-quote detection needs to be refined';
+	
+	eval q{
+		my $lexical = 5;
+
+		cblock {
+			sv_setpvf($lexical, "Integer is %d", 8);
+		}
+		is($lexical, 'Integer is 8', 'printf-style stuff usually works');
+		
+		cblock {
+			/* Throw off the parser with this double-quote: " */
+			sv_setpvf($lexical, "Integer is %d", 10);
+		}
+		is($lexical, 'Integer is 8', 'Errant double-quotes do not mess things up');
+	} or do {
+		fail('Proper double-quote and sigil interactions failed to compile');
+		diag($@);
+	};
+	
+};
+
 done_testing;
