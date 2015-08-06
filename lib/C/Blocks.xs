@@ -724,7 +724,6 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 		tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
 	}
 	
-//printf("About to compile:\n-----\n%.*s\n-----\n", data->end - PL_bufptr, PL_bufptr);
 	/* compile the code */
 	tcc_compile_string_ex(state, PL_bufptr + 1 - data->keep_curly_brackets,
 		data->end - PL_bufptr - 2 + 2*data->keep_curly_brackets, CopFILE(PL_curcop),
