@@ -1,4 +1,5 @@
 bench/avg.pl
+bench/c-blocks-vs-inline.pl
 bench/euclidean-distance.pl
 bench/prime-numbers.pl
 bench/set-av.pl
@@ -23,7 +24,8 @@ README.pod
 t/01-basics.t
 t/02-use-and-no.t
 t/03-error-reporting.t
-t/04-libperl.t
+t/04-PerlAPI.t
+t/05-brace-counting.t
 t/10-clex.t
 t/11-clex-series.t
 t/12-clex-struct.t
@@ -33,6 +35,7 @@ t/16-clex-scoping.t
 t/17-clex-define-undefine-series.t
 t/18-clex-global-vars.t
 t/20-cshare.t
+t/50-sigiled-vars.t
 t/80-StretchyBuffer.t
 t/99-stdio-fails.t
 META.yml
