@@ -23,25 +23,24 @@ use C::Blocks::PerlAPI;
 
  # Generate some synthetic data;
  my @pairs = map { rand() } 1 .. 10;
- print "Pars are @pairs\n";
+ print "Pairs are @pairs\n";
 
  # Assume pairs is ($x1, $y1, $x2, $y2, $x3, $y3, ...)
  # Create a C array of doubles, which is equivalent to an
  # array of points with half as many array elements
  my $points = pack 'd*', @pairs;
- my $N_points = @pairs / 2;
  
  # Calculate the average distance to the origin:
  my $avg_distance;
  cblock {
-     point * points_data = point_from_SV($points);
-     int n_points = SvIV($N_points);
+     point * points = point_from_SV($points);
+     int N_points = av_len(@pairs) / 2 + 0.5;
      int i;
      double length_sum = 0;
-     for (i = 0; i < n_points; i++) {
+     for (i = 0; i < N_points; i++) {
          length_sum += point_distance_from_origin(points + i);
      }
-     sv_setnv($avg_distance, length_sum / n_points);
+     sv_setnv($avg_distance, length_sum / N_points);
  }
  
  print "Average distance to origin is $avg_distance\n";

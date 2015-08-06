@@ -132,7 +132,7 @@ easily sharing C functions and data structures spread across various
 packages and source files. Most importantly, the C code you see in your 
 script and your modules is the C code that gets executed when your run 
 your script. It gets compiled by the extremely fast Tiny C Compiler 
-I<at script runtime>.
+I<at script parse time>.
 
 C<C::Blocks> achieves all of this by providing new keywords that 
 demarcate blocks of C code. There are essentially three types of 
@@ -191,10 +191,10 @@ This produces the output
  After the cblock, message is [5.938]
  and array contains 7
 
-An important low-level detail is that the actual SV*, AV*, or HV* in 
-your C code is based on the original variable name with some gentle 
-mangling. This lets you use C-side variables with the "same" name (sans 
-the sigil):
+An important low-level detail is that the actual variable name for the 
+SV*, AV*, or HV* in your C code is based on the original variable name 
+with some gentle mangling. This lets you use C-side variables with the 
+"same" name (sans the sigil):
 
  my $N = 100;
  my $result;
@@ -231,13 +231,16 @@ Such a block might look like this:
      } point;
      
      double point_distance_from_origin (point * loc) {
+         /* Uncomment for debugging */
+         // printf("x is %f, y is %f\n", loc->x, loc->y);
          return sqrt(loc->x * loc->x + loc->y * loc->y);
      }
      
      /* Assume they have an SV packed with a point struct */
-     point * point_from_SV(SV * point_SV) {
-         return (point*)SvPVbyte_nolen(point_SV);
+     point * _point_from_SV(pTHX_ SV * point_SV) {
+         return (point*)SvPV_nolen(point_SV);
      }
+	 #define point_from_SV(point_sv) _point_from_SV(aTHX_ point_sv)
  }
 
 Notice that I need to include C<PerlAPI> because I use structs and 
@@ -251,6 +254,11 @@ such as:
  NOTE THIS EXAMPLE SEEMS TO BE GIVING TROUBLE AT THE
  TIME OF RELEASE. NEEDS INVESTIGATION. SORRY.
  
+ # Generate some synthetic data;
+ my @pairs = map { rand() } 1 .. 10;
+ # Uncomment for debugging:
+ #print "Pairs are @pairs\n";
+ 
  # Assume pairs is ($x1, $y1, $x2, $y2, $x3, $y3, ...)
  # Create a C array of doubles, which is equivalent to an
  # array of points with half as many array elements
@@ -259,8 +267,9 @@ such as:
  # Calculate the average distance to the origin:
  my $avg_distance;
  cblock {
-     point * points = point_from_SV(*point_SV_p);
+     point * points = point_from_SV($points);
      int N_points = av_len(@pairs) / 2 + 0.5;
+     int i;
      double length_sum = 0;
      for (i = 0; i < N_points; i++) {
          length_sum += point_distance_from_origin(points + i);
@@ -284,12 +293,13 @@ C<cshare>.
 
 =head2 Shared C Declarations
 
-I mentioned that the symbol tables of C<clex> blocks are copied and a lexically
-scoped reference is made to the copy. The same is true of C<cshare> blocks, but
-a reference is also stored in the current package. Later, when somebody C<use>es
-the module (or otherwise calls the package's C<import> method), the references
-to all C<cshare> symbol tables are copied into the caller's lexically scoped set
-of symbol tables.
+I mentioned that the symbol tables of C<clex> blocks are copied and a 
+lexically scoped reference is made to the copy. The same is true of 
+C<cshare> blocks, but a reference is also stored in the current 
+package. Later, when somebody C<use>es the module (or otherwise calls 
+the package's C<import> method in a C<BEGIN> block), the references to 
+all C<cshare> symbol tables are copied into the caller's lexically 
+scoped set of symbol tables.
 
 For example, if the C<clex> block given in the L<private declarations
 example|/Private C Declarations> were a C<cshare> block in a module called
