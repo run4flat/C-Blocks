@@ -1,0 +1,26 @@
+Put changes under the appropriate header. Headers can include API CHANGES,
+DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
+OTHER. Entries should be in chronological order, i.e. oldest at the top
+
+
+0.01_01  Thu, Aug 6, 2015
+
+  [ENHANCEMENTS]
+  
+  * Sigil variable incorporation works for much older Perls
+  
+  * Can now incorporate sigiled variables with @ and % sigils
+  
+  * Gentle name mangling means C variables can have the same name as
+    Perl variables
+  
+  * Much more robust handling of sigil characters and braces in quoted
+    strings, as well as braces in comments
+  
+  [BUG FIXES]
+  
+  * Revised 
+
+0.01  Mon, Aug 3, 2015
+
+  Initial release!
