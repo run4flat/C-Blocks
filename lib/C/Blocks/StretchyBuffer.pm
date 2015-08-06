@@ -3,7 +3,7 @@ use warnings;
 package C::Blocks::StretchyBuffer;
 use C::Blocks;
 use C::Blocks::PerlAPI;
-our $VERSION = '0.01_01';
+our $VERSION = '0.02';
 
 cshare {
 	#define sbfree(a)         ((a) ? Safefree(stb__sbraw(a)),0 : 0)
