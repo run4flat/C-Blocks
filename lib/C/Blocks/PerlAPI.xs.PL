@@ -2,7 +2,8 @@ use strict;
 use warnings;
 use ExtUtils::Embed;
 use Alien::TinyCCx;
-use Devel::CheckLib;
+use ExtUtils::CBuilder;
+use Capture::Tiny qw(capture_merged);
 use Config;
 use File::Temp ();
 use File::Spec;
@@ -228,31 +229,13 @@ TEST_CONTENTS
 			#ifdef $identifier
 			#undef $identifier
 			#endif
-			printf(\"%p\\r                        \\r\", &$identifier);
+			printf(\"%p\\n\", &$identifier);
 CHECK_IDENTIFIER
 	}
 	print $ch "\treturn 0;\n}";
 	close $ch;
 	
-	# Build output filenames
-	my $ofile = $cfile;
-	$ofile =~ s/\.c$/$Config{_o}/;
-	my $exefile = File::Temp::mktemp( 'func_test_XXXXXXXX' ) . $Config{_exe};
-	
-	# Build the system command arguments
-	my $sys_cmd;
-	if ( $Config{cc} eq 'cl' ) {                 # Microsoft compiler
-		$sys_cmd = join(' ' , $Config{cc}, ccopts, $cfile, "/Fe$exefile", "/link", ldopts);
-	}
-	elsif($Config{cc} =~ /bcc32(\.exe)?/) {    # Borland
-		$sys_cmd = join(' ' , $Config{cc}, ccopts, ldopts, "-o$exefile", $cfile);
-	}
-	else {                                     # Unix-ish
-		$sys_cmd = join(' ' , $Config{cc}, ccopts, $cfile, "-o", $exefile, ldopts);
-	}
-	$sys_cmd =~ s/\n+//g;
-	
-	return ($cfile, $ofile, $exefile, $sys_cmd);
+	return $cfile;
 }
 
 ######################
@@ -271,15 +254,30 @@ sub screen_identifiers {
 	# deprecated symbols.
 	while(1) {
 		# Create the test file
-		my ($cfile, $ofile, $exefile, $sys_cmd) = build_test_program(@identifiers);
+		my $cfile = build_test_program(@identifiers);
 		
-		# compile and link, capturing all output
-		my @failures = `$sys_cmd 2>&1`;
-		
-		# Clean up files
-		unlink $exefile;
-		unlink $ofile;
+		# Get the compiler output when invoked with ExtUtils::CBuilder
+		my ($merged_output) = capture_merged {
+			my $builder = ExtUtils::CBuilder->new;
+			
+			# Primary diagnostics come from the compiler output, not
+			# death notes. Eval and discard.
+			my $ofile = eval { $builder->compile(source => $cfile,
+				extra_compiler_flags => ccopts) };
+			return if $@;
+			
+			# Next try to link and see if we have trouble
+			my (@exec_files) = eval { $builder->link_executable(objects => $ofile,
+				extra_linker_flags => ldopts) };
+			unlink $ofile;
+			return if $@;
+			
+			# Cleanup and return success
+			unlink $_ foreach @exec_files;
+		};
 		unlink $cfile;
+		
+		my @failures = split /\n/, $merged_output;
 		
 		# Pick out the failures and scrub them from the list of identifiers
 		@failures = map {
@@ -318,22 +316,38 @@ sub screen_identifiers {
 # This function is similar to the screening process, but it actually runs
 # the generated C file to make sure everything is accessible at runtime.
 sub check_identifier {
-	my ($cfile, $ofile, $exefile, $sys_cmd) = build_test_program(@_);
+	my $cfile = build_test_program(@_);
 	
-	# Compile it
-	my $compile_rv = Devel::CheckLib::_quiet_system($sys_cmd);
-	my $success = 1 if $compile_rv == 0 and -x $exefile;
-	if ($success) {
-		# Run it
-		my $absexefile = File::Spec->rel2abs($exefile);
+	# Get the compiler output when invoked with ExtUtils::CBuilder
+	my ($merged_output, $is_success) = capture_merged {
+		my $builder = ExtUtils::CBuilder->new;
+		
+		# Primary diagnostics come from the compiler output, not
+		# death notes. Eval and stop if exceptions were thrown.
+		my $ofile = eval { $builder->compile(source => $cfile,
+			extra_compiler_flags => ccopts) };
+		return if $@;
+		
+		# Try to link, using same incantation as above
+		my (@exec_files) = eval { $builder->link_executable(objects => $ofile,
+			extra_linker_flags => ldopts) };
+		unlink $ofile;
+		return if $@;
+		
+		# Finally, does it run?
+		my $is_success = 1;
+		my $absexefile = File::Spec->rel2abs($exec_files[0]);
 		$absexefile = '"'.$absexefile.'"' if $absexefile =~ m/\s/;
-		$success = 0 if system($absexefile) != 0;
-	}
+		$is_success = 0 if system($absexefile) != 0;
+		
+		# Cleanup and return result
+		unlink $_ foreach @exec_files;
+		return $is_success;
+	};
+	unlink $cfile;
 	
 	# Clean up
-	Devel::CheckLib::_cleanup_exe($exefile);
-	unlink $cfile;
-	return $success;
+	return $is_success;
 }
 
 

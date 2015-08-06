@@ -21,7 +21,8 @@ my $build = Module::Build->new(
 		'Alien::TinyCCx' => '0.06',
 		# For PerlAPI
 		'ExtUtils::Embed' => 0,
-		'Devel::CheckLib' => 0,
+		'ExtUtils::CBuilder' => 0,
+		'Capture::Tiny' => 0,
 		'File::Temp' => 0,
 		'File::Spec' => 0,
 	},
