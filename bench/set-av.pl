@@ -38,17 +38,15 @@ sub perl_alloc {
 
 sub c_blocks_alloc {
 	my @array;
-	my $array_ref = \@array;
 	cblock {
 		int i;
 		int N = SvIV($N);
 		
 		/* Dereference to get the original array */
-		AV * my_array = (AV*)SvRV($array_ref);
-		av_extend(my_array, N);
+		av_extend(@array, N);
 		
 		for (i = 0; i < N; i++) {
-			sv_setiv(*(av_fetch(my_array, i, 1)), 0);
+			sv_setiv(*(av_fetch(@array, i, 1)), 0);
 		}
 	}
 }
