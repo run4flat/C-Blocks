@@ -8,28 +8,26 @@ use Test::More;
 # Load cblocks
 use C::Blocks;
 
-local $TODO = 'Brace counting needs to be improved';
-
 eval q{
 	cblock {
 		/* } { */
 	}
 };
-is($@, undef, 'Braces are ignored in C-style blocks');
+is($@, '', 'Braces are ignored in C-style blocks');
 
 eval q{
 	cblock {
 		char * foo = " } { ";
 	}
 };
-is($@, undef, 'Braces are ignored in double-quoted strings');
+is($@, '', 'Braces are ignored in double-quoted strings');
 
 eval q{
 	cblock {
 		// } {
 	}
 };
-is($@, undef, 'Braces are ignored in C++ comments');
+is($@, '', 'Braces are ignored in C++ comments');
 
 eval q{
 	cblock {
@@ -37,7 +35,7 @@ eval q{
 		{
 	}
 };
-is($@, undef, 'Braces are ignored in pathological C++ comments');
+is($@, '', 'Braces are ignored in pathological C++ comments');
 
 
 eval q{
@@ -46,6 +44,6 @@ eval q{
 		char b = '{';
 	}
 };
-is($@, undef, 'Braces are ignored in single-quoted strings');
+is($@, '', 'Braces are ignored in single-quoted strings');
 
 done_testing;
