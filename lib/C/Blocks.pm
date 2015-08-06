@@ -68,6 +68,7 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  use strict;
  use warnings;
  use C::Blocks;
+ use C::Blocks::PerlAPI; # for printf
  
  print "Before block\n";
  
@@ -75,7 +76,8 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
      /* This is bare C code! */
      printf("From C block\n");
      int foo = 1;
-     printf("foo = %d, which is %s\n", foo, (foo % 2 == 1 ? "odd" : "even"));
+     printf("foo = %d, which is %s\n", foo,
+         (foo % 2 == 1 ? "odd (but not weird)" : "even"));
  }
  
  print "After first block\n";
@@ -95,7 +97,11 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  # NOTE: csub does not yet work, for some odd reason
  
+ ### In file My/Fastlib.pm
+ 
  package My::Fastlib;
+ use C::Blocks;
+ use C::Blocks::PerlAPI;
  cshare {
      /* This function can be imported into other lexical scopes. */
      void say_hi() {
@@ -103,13 +109,14 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
      }
  }
  
- package main;
+ 1;
+ 
+ ### Back in your main Perl script
  
  # Pull say_hi into this scope
  use My::Fastlib;
  
  cblock {
-     print_location(3);
      say_hi();
  }
  
@@ -251,9 +258,6 @@ with the Perl API, so we don't need to explicitly include it.
 Later in your file, you could make use of the functions in a C<cblock> 
 such as:
 
- NOTE THIS EXAMPLE SEEMS TO BE GIVING TROUBLE AT THE
- TIME OF RELEASE. NEEDS INVESTIGATION. SORRY.
- 
  # Generate some synthetic data;
  my @pairs = map { rand() } 1 .. 10;
  # Uncomment for debugging:
