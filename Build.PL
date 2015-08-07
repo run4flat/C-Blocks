@@ -20,9 +20,11 @@ my $build = Module::Build->new(
 		# For configuration, path to tcc, etc
 		'Alien::TinyCCx' => '0.06',
 		# For PerlAPI
-		'ExtUtils::Embed' => 0,
-		'ExtUtils::CBuilder' => 0,
 		'Capture::Tiny' => 0,
+		'ExtUtils::CBuilder' => 0,
+		'ExtUtils::Config' => 0,
+		'ExtUtils::Embed' => 0,
+		'File::Basename' => 0,
 		'File::Temp' => 0,
 		'File::Spec' => 0,
 	},
