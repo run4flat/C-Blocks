@@ -108,6 +108,7 @@ sub build_identifiers_list {
 ########################
 # Generate the XS file #
 ########################
+print "Creating C/Blocks/PerlAPI.xs\n";
 
 serialize_perl_h;
 my @identifiers = build_identifiers_list;
