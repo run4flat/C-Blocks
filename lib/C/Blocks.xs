@@ -616,14 +616,14 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 		/* XXX fix this so that I don't need the ifdef/else */
 		//add_perlapi(aTHX_ data);
 
-		#ifdef PERL_IMPLICIT_CONTEXT
-			sv_catpvf(pstate->data->predeclarations, "%s * %s = "
-				"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
-				type, long_name, type, var_offset);
-		#else
+//		#ifdef PERL_IMPLICIT_CONTEXT
+//			sv_catpvf(pstate->data->predeclarations, "%s * %s = "
+//				"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
+//				type, long_name, type, var_offset);
+//		#else
 			sv_catpvf(pstate->data->predeclarations, "%s * %s = (%s*)PAD_SV(%d); ",
 				type, long_name, type, var_offset);
-		#endif
+//		#endif
 	}
 	
 	/* Reset the character just following the var name */

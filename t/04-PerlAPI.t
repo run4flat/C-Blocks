@@ -17,8 +17,8 @@ use C::Blocks::PerlAPI;
 our $shuttle;
 
 cblock {
-	SV * shuttle = Perl_get_sv(my_perl, "shuttle", 0);
-	Perl_sv_setiv(my_perl, shuttle, 5);
+	SV * shuttle = Perl_get_sv(aTHX_ "shuttle", 0);
+	Perl_sv_setiv(aTHX_ shuttle, 5);
 }
 BEGIN { pass 'cblock using basic Perl functions compiles fine' }
 is($shuttle, 5, 'Can set Perl data in a cblock using direct function calls');

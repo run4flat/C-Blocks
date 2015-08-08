@@ -20,9 +20,9 @@ cshare {
 
 	#define stb__sbneedgrow(a,n)  ((a)==0 || stb__N_used(a)+n >= stb__N_items(a))
 	#define stb__sbmaybegrow(a,n) (stb__sbneedgrow(a,(n)) ? stb__sbgrow(a,n) : 0)
-	#define stb__sbgrow(a,n)  stb__sbgrowf(my_perl, (void **) &(a), (n), sizeof(*(a)))
+	#define stb__sbgrow(a,n)  stb__sbgrowf(aTHX_ (void **) &(a), (n), sizeof(*(a)))
 
-	static void stb__sbgrowf(void * my_perl, void **arr, int increment, int itemsize)
+	static void stb__sbgrowf(pTHX_ void **arr, int increment, int itemsize)
 	{
 		int N_items;
 		int * p;
