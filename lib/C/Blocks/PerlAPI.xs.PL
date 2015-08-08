@@ -9,6 +9,7 @@ use ExtUtils::Embed;
 use File::Basename;
 use File::Spec;
 use File::Temp ();
+use Module::Build;
 
 my $tempdir = File::Temp::tempdir(CLEANUP => 1);
 my $xs_counter = 1;
@@ -82,6 +83,8 @@ HEADER_CONTENTS
 	system("tcc $compiler_args") == 0
 		or die "Unable to serialize the header file\n";
 	unlink $perl_h_file;
+	Module::Build->current->add_to_cleanup($share_file_location);
+	Module::Build->current->add_to_cleanup('names.txt');
 }
 
 ################################################
