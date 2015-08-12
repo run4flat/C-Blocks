@@ -2,6 +2,18 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in chronological order, i.e. oldest at the top
 
+0.02_01  Wed, Aug 12, 2015
+
+  [DEPENDENCIES]
+  
+  * Added explicit dependency on ExtUtils::ParseXS v3.0. With prior
+    versions, if you had multiple .xs files, the boot sections would
+    collide in very, very strange ways. The default EU::PXS for v5.14
+    (on perlbrew at least) is old, so this ensures correctness.
+  
+  [BUG FIXES]
+  
+  * Revised symbol detection and building logic for Linux systems
 
 0.02  Thu, Aug 6, 2015
 
@@ -16,10 +28,6 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   
   * Much more robust handling of sigil characters and braces in quoted
     strings, as well as braces in comments
-  
-  [BUG FIXES]
-  
-  * Revised 
 
 0.01  Mon, Aug 3, 2015
 
