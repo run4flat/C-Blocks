@@ -24,6 +24,7 @@ my $build = Module::Build->new(
 		'ExtUtils::CBuilder' => 0,
 		'ExtUtils::Config' => 0,
 		'ExtUtils::Embed' => 0,
+		'ExtUtils::ParseXS' => 3.0,
 		'File::Basename' => 0,
 		'File::Temp' => 0,
 		'File::Spec' => 0,
