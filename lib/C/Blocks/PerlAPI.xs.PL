@@ -362,6 +362,7 @@ sub executable_screen {
 	my @identifiers = @_;
 	
 	while(1) {
+		print "Using executable screen to check ", 0+@identifiers, " identifiers\n";
 		# Create the test file
 		my $cfile = executable_source_code(@identifiers);
 		
@@ -487,6 +488,7 @@ TEST_CONTENTS
 # This is used by both the xs_screen and the brute_force screen.
 sub xs_screen_once {
 	my (@identifiers) = @_;
+	print "Using DynaLoader screen to check ", 0+@identifiers, " identifiers\n";
 	my $config = ExtUtils::Config->new;
 	
 	my $shortname = '_Loadable' . $xs_counter++;
@@ -581,8 +583,16 @@ sub xs_screen {
 		my %is_bad = create_is_bad_hash(@failures);
 		return @identifiers if keys (%is_bad) == 0;
 		
+		my $N_identifiers = 0+@identifiers;
+		
 		# Screen out the bad ones and try again
 		@identifiers = grep { !$is_bad{$_} } @identifiers;
+		
+		if (@identifiers == $N_identifiers) {
+			print "Reportedly bad identifier(s) ", join(', ', keys(%is_bad)),
+				" were not find them in identifier list\n";
+			return @identifiers;
+		}
 	}
 }
 
@@ -593,6 +603,7 @@ sub xs_screen {
 # All of the above screening mechanisms are 
 sub brute_force_screen {
 	my @identifiers = @_;
+	print "Beginning brute-force screening\n";
 	
 	# This brute-force screening process is based on xs_screening, but
 	# uses binary search to remove offending identifiers regardless of
