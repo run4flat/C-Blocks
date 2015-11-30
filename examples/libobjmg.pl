@@ -91,7 +91,7 @@ package My::Point;
 	BEGIN { C::Blocks::libobjmg->import }
 
 	cshare {
-		typedef struct {
+		typedef struct point {
 			double x;
 			double y; /* ;;; */
 		} point;
