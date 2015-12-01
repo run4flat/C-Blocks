@@ -43,13 +43,12 @@ eval q{
 
 # C variable names can be identical to Perl variable names
 eval q{
-	my ($N, $N_times_2);
-	$N = int(rand(50));
+	my $N;
 	cblock {
-		int N = SvIV($N);
-		sv_setiv($N_times_2, 2 * N);
+		int N = 12;
+		sv_setiv($N, N);
 	}
-	is($N_times_2, 2 * $N, 'C variable names can be identical to Perl variable names')
+	is($N, 12, 'C variable names can be identical to Perl variable names')
 } or do {
 	fail 'C variable names can be identical to Perl variable names';
 	diag($@);
