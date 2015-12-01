@@ -14,6 +14,7 @@ use Module::Build;
 my $tempdir = File::Temp::tempdir(CLEANUP => 1);
 my $xs_counter = 1;
 my %prelinking = map { $_ => 1 } qw/MSWin32 VMS aix/;
+my @path = File::Spec->path;
 
 # With static libperls, I cannot look up symbol names on the fly.
 # In order to work on all Perls, these libperl bindings build a
@@ -219,7 +220,6 @@ close $out_fh;
 # identifier can be found in one of them. This is a little more aggressive than
 # I would like, but I know of no other method to avoid the pop-ups.
 
-my @path = File::Spec->path;
 # Searches all folders in the path for the given dll, returning the full path
 # if found, and croaking otherwise.
 sub find_dll {
