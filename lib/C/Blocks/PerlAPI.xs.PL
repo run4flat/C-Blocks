@@ -79,6 +79,9 @@ HEADER_CONTENTS
 	# not the greatest solution, but it seems like it gets things to
 	# work.
 	$compiler_args =~ s/\s*-DDEBUGGING//;
+	# System perl on Debian includes the -DDEBIAN, which causes a
+	# similar issue:
+	$compiler_args =~ s/\s*-DDEBIAN//;
 
 	# Add arguments to produce the identifier list and serialization
 	mkdir 'share';
