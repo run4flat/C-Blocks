@@ -365,7 +365,9 @@ sub create_is_bad_hash {
 #####################
 # Given a list of identifiers, puts all of them in a C file and
 # processes the output of compiler and linker errors to remove obvious
-# bad ones.
+# bad ones. This fails to link on Debian systems unless the system has
+# libperl-dev, or this is being installed on a custom perl (or perlbrew)
+# environment. Brute-force will work, but is much slower.
 sub executable_screen {
 	my @identifiers = @_;
 	
