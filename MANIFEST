@@ -35,6 +35,7 @@ t/16-clex-scoping.t
 t/17-clex-define-undefine-series.t
 t/18-clex-global-vars.t
 t/20-cshare.t
+t/30-API-SV.t
 t/50-sigiled-vars.t
 t/80-StretchyBuffer.t
 t/99-stdio-fails.t
