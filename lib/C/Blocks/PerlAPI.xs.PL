@@ -71,6 +71,14 @@ HEADER_CONTENTS
 	$compiler_args =~ s/-Wl,[^\s]+//g;
 	# tcc does not like the -arch compiler option
 	$compiler_args =~ s/-arch\s+\w+//g;
+	
+	# GCC Statement Expressions (also called brace groups) give tcc
+	# trouble. I should be able to turn those off by defining
+#	$compiler_args .= ' -DPERL_GCC_BRACE_GROUPS_FORBIDDEN';  # doesn't work... why?
+	# but that doesn't work. So instead I just turn off debugging. It's
+	# not the greatest solution, but it seems like it gets things to
+	# work.
+	$compiler_args =~ s/\s*-DDEBUGGING//;
 
 	# Add arguments to produce the identifier list and serialization
 	mkdir 'share';
