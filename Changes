@@ -2,7 +2,7 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in chronological order, i.e. oldest at the top
 
-0.02_01  Wed, Aug 12, 2015
+0.03  Fri, Dec 4, 2015
 
   [DEPENDENCIES]
   
@@ -14,7 +14,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   [BUG FIXES]
   
   * Revised symbol detection and building logic for Linux systems
-
+  
+  * Scrubbed various command-line preprocessor defines which sometimes
+    caused trouble on Debian systems. Similar corrections will surely be
+    needed for other flavors of linux.
+  
 0.02  Thu, Aug 6, 2015
 
   [ENHANCEMENTS]

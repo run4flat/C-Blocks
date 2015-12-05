@@ -9,7 +9,7 @@ use XSLoader;
 # Use David Golden's version numbering suggestions. Note that we have to call
 # the XSLoader before evaling the version string because XS modules check the
 # version *string*, not the version *number*, at boot time.
-our $VERSION = "0.02_01";
+our $VERSION = "0.03";
 XSLoader::load('C::Blocks', $VERSION);
 $VERSION = eval $VERSION;
 
