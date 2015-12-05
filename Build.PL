@@ -11,14 +11,14 @@ my $build = Module::Build->new(
 	license  => 'perl',
 	dist_author         => q{David Mertens <dcmertens.perl@gmail.com>},
 	configure_requires => {
-		'Alien::TinyCCx' => '0.06',
+		'Alien::TinyCCx' => '0.07',
 		# meta_merge was added in v 0.28:
 		'Module::Build' => 0.28,
 	},
 	build_requires => {
 		'Test::More' => 0.88,
 		# For configuration, path to tcc, etc
-		'Alien::TinyCCx' => '0.06',
+		'Alien::TinyCCx' => '0.07',
 		# For PerlAPI
 		'Capture::Tiny' => 0,
 		'ExtUtils::CBuilder' => 0,
@@ -30,7 +30,7 @@ my $build = Module::Build->new(
 		'File::Spec' => 0,
 	},
 	requires => {
-		'Alien::TinyCCx' => '0.06',
+		'Alien::TinyCCx' => '0.07',
 		'File::ShareDir' => 0,
 		'File::Spec' => 0,
 	},
