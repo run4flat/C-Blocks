@@ -32,6 +32,14 @@ testing module. That said, it may be spun off into its own module by
 the time C<C::Blocks> v1.0 is released, so you should not rely on its 
 presence in the base distribution.
 
+=head1 BUILD NOTES
+
+On Debian systems using system Perl (C<local::lib> or otherwise), the
+bad-symbol auto-detection runs much, much faster if you have
+C<libperl-dev> installed. This is strongly recommended, if possible. If
+you use Perlbrew, it will not matter because your local Perl will have
+libperl available.
+
 =head1 GOALS AND MILESTONES
 
 I have a number of goals I would like to accomplish for this project.
