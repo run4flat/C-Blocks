@@ -4,6 +4,10 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
 
 0.04  Ddd, Mth #, 201#
 
+  [ENHANCEMENTS]
+  
+  * Added interpolation blocks!
+
 0.03  Fri, Dec 4, 2015
 
   [DEPENDENCIES]
