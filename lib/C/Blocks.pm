@@ -120,6 +120,18 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
      say_hi();
  }
  
+ ### Use Perl to generate code at compile time
+ 
+ # Create a preprocessor string with the full
+ # path to our configuration file
+ use File::HomeDir;
+ use File::Spec;
+ clex {
+     #define CONF_FILE_NAME ${ '"' .
+         File::Spec->catfile(File::HomeDir->my_home, 'myconf.txt')
+          . '"' }
+ }
+ 
  print "All done!\n"; 
 
 =head1 ALPHA
@@ -373,6 +385,38 @@ import behavior. You fix that by providing your own C<import> method:
      my $method = Parent::Package->can('import');
      goto &$method;
  }
+
+=head2 Generating C Code
+
+Because C<C::Blocks> hooks on keywords, it is naturally invoked in
+C<cblock>, C<cshare>, and C<clex> blocks which are themselves contained
+within a string eval. However, string evals compile at runtime. Although
+it would be easy to generate C code using Perl, writing useful C<clex>
+and C<cshare> blocks is tricky.
+
+For this reason, C<C::Blocks> provides a bit of notation for an
+"interpolation block." An interpolation block is a block of Perl code
+that is run as soon as it is extracted (i.e. during script compile time).
+The return value is then inserted directly into the text that gets
+compiled. Thus, these two C<cblock>s end up doing the same thing:
+
+ cblock {
+     printf("Hello!\n");
+ }
+ 
+ cblock {
+     ${ 'printf' } ("Hello!\n");
+ }
+
+The example given in the L</SYNOPSIS> is probably more meaningful. It
+also illustrates that the value returned by the Perl code has to be
+literal C code, including the left and right double quotes for strings.
+This arises because sigils (and interpolation blocks by extension, as
+they are delimited by a sigil) are ignored within strings and C comments.
+
+Note: The current implementation is unpolished. In particular, it does
+not intelligently handle exceptions thrown during the evaluation of the
+Perl code. (Indeed, at the moment it suppresses them.)
 
 =head2 Performance
 
