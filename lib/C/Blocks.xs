@@ -296,6 +296,8 @@ int _is_id_cont (char to_check) {
 #define PL_bufptr (PL_parser->bufptr)
 #define PL_bufend (PL_parser->bufend)
 
+/* XXX contents should be added to code_main here, rather than copied
+ * with LEX_KEEP_PREVIOUS. That's a relic of a previous approach. */
 #define ENSURE_LEX_BUFFER(end, croak_message)                   \
 	if (end == PL_bufend) {                                     \
 		int length_so_far = end - PL_bufptr;                    \
@@ -310,22 +312,6 @@ int _is_id_cont (char to_check) {
 	}
 
 
-void add_predeclaration_macros_to_block(pTHX) {
-	/* Add a preprocessor macro that we can define with variable
-	 * predeclarations *after* having extracted the code to compile. */
-	lex_unstuff(PL_bufptr + 1);
-	lex_stuff_pv("{C_BLOCK_PREDECLARATIONS ", 0);
-	
-	/* Add the function declaration. The type is a macro that will default
-	 * to "void", but may be changed to PerlInterpreter later during the
-	 * compilation. */
-	#ifdef PERL_IMPLICIT_CONTEXT
-		lex_stuff_pv("void op_func(MY_PERL_TYPE * my_perl)", 0);
-	#else
-		lex_stuff_pv("void op_func()", 0);
-	#endif
-}
-
 typedef struct c_blocks_data {
 	char * my_perl_type;
 	char * end;
@@ -333,7 +319,9 @@ typedef struct c_blocks_data {
 	COPHH* hints_hash;
 	SV * exsymtabs;
 	SV * add_test_SV;
-	SV * predeclarations;
+	SV * code_top;
+	SV * code_main;
+	SV * code_bottom;
 	SV * error_msg_sv;
 	int N_newlines;
 	int keep_curly_brackets;
@@ -349,7 +337,9 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
-	data->predeclarations = newSVpvn(" ", 1);
+	data->code_top = newSVpvn("", 0);
+	data->code_main = newSVpvn("", 0);
+	data->code_bottom = newSVpvn("", 0);
 	data->error_msg_sv = newSV(0);
 	
 	/* This is called after we have cleared out whitespace, so just assign */
@@ -365,9 +355,25 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->exsymtabs = cophh_fetch_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", 0);
 }
 
+void add_predeclaration_macros_to_block(pTHX_ c_blocks_data* data) {
+	/* Add the function declaration. The type is a macro that will default
+	 * to "void", but may be changed to PerlInterpreter later during the
+	 * compilation. */
+
+	#ifdef PERL_IMPLICIT_CONTEXT
+		sv_catpv_nomg(data->code_top, "void op_func(MY_PERL_TYPE * my_perl) {");
+	#else
+		sv_catpv_nomg(data->code_top, "void op_func() {");
+	#endif
+}
+
 void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
-	SvREFCNT_dec(data->predeclarations);
 	SvREFCNT_dec(data->error_msg_sv);
+	SvREFCNT_dec(data->code_top);
+	SvREFCNT_dec(data->code_main);
+	SvREFCNT_dec(data->code_bottom);
+	/* Bottom and top, if they were even used, should have been
+	 * de-allocated already. */
 	//if (SvPOK(data->exsymtabs)) SvREFCNT_dec(data->exsymtabs);
 	Safefree(data->xsub_name);
 }
@@ -423,32 +429,22 @@ void fixup_xsub_name(pTHX_ c_blocks_data * data) {
 	/* Find where the name ends, copy it, and replace it with the correct
 	 * declaration */
 	
-	/* Find and copy */
+	/* Find and copy into the main code container */
 	find_end_of_xsub_name(aTHX_ data);
-	data->xsub_name = savepvn(PL_bufptr, data->end - PL_bufptr);
+	sv_catpvf(data->code_main, "XS_INTERNAL(%.*s) {", data->end - PL_bufptr,
+		PL_bufptr);
 	
 	/* remove the name from the buffer */
 	lex_unstuff(data->end);
-	
-	/* re-add what we want in reverse order (LIFO) */
-	lex_stuff_pv(")", 0);
-	lex_stuff_pv(data->xsub_name, 0);
-	lex_stuff_pv("XS_INTERNAL(", 0);
 }
 
 /* Add testing functions if requested */
 void add_msg_function_decl(pTHX_ c_blocks_data * data) {
 	if (SvOK(data->add_test_SV)) {
-		/* The stuff position depends on whether we are going to get rid of the
-		 * first curly bracket or not. */
-		if (!data->keep_curly_brackets) lex_unstuff(PL_bufptr + 1);
-		
-		lex_stuff_pv("void c_blocks_send_msg(char * msg);"
+		sv_catpv(data->code_top, "void c_blocks_send_msg(char * msg);"
 			"void c_blocks_send_bytes(void * msg, int bytes);"
 			"char * c_blocks_get_msg();"
-			, 0);
-		
-		if (!data->keep_curly_brackets) lex_stuff_pv("{", 0);
+		);
 	}
 }
 
@@ -508,6 +504,11 @@ int process_next_char_no_sigils (pTHX_ parse_state * pstate) {
 	switch (pstate->data->end[0]) {
 		case '{':
 			pstate->bracket_count++;
+			if (pstate->bracket_count == 1) {
+				/* First bracket; unstuff if we're not holding on to them */
+				lex_unstuff(pstate->data->end + 1);
+				pstate->data->end = PL_bufptr - 1;
+			}
 			return 2;
 		case '}':
 			pstate->bracket_count--;
@@ -535,7 +536,13 @@ int process_next_char_no_sigils (pTHX_ parse_state * pstate) {
 		case '$':
 			/* No processing if we're extracting an interpolation block */
 			if (pstate->interpolation_bracket_count_start) return 2;
-			/* Otherwise setup post-sigil handling */
+			/* Otherwise setup post-sigil handling. Clear out the
+			 * lexical buffer up to but not including this character
+			 * and set up the parser. */
+			sv_catpvn(pstate->data->code_main, PL_bufptr,
+				pstate->data->end - PL_bufptr);
+			lex_unstuff(pstate->data->end);
+			pstate->data->end = PL_bufptr;
 			pstate->process_next_char = process_next_char_post_sigil;
 			pstate->sigil_start = pstate->data->end;
 			return 2;
@@ -576,7 +583,11 @@ int execute_Perl_interpolate_block(pTHX_ parse_state * pstate) {
 	 * everything work, permanently replace final closing brace with
 	 * whitespace. */
 	*pstate->data->end = ' ';
-	replace_sigil_thing(aTHX_ pstate, SvPVbyte_nolen(returned));
+	/* Add the long name to the main code block in place of the sigiled
+	 * expression, and remove the sigiled varname from the buffer. */
+	sv_catpv_nomg(pstate->data->code_main, SvPVbyte_nolen(returned));
+	lex_unstuff(pstate->data->end);
+	pstate->data->end = PL_bufptr;
 //	SvREFCNT_dec(returned); // XXX is this correct?
 	
 	/* XXX working here - add #line to make sure tcc correctly indicates
@@ -598,6 +609,13 @@ int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate) {
 	int no_sigils_result = process_next_char_no_sigils(aTHX_ pstate);
 	if (no_sigils_result != 1) return no_sigils_result;
 	if (*pstate->data->end == '@' || *pstate->data->end == '%') {
+		/* Clear out the lexical buffer up to but not including this
+		 * character. */
+		sv_catpvn(pstate->data->code_main, PL_bufptr,
+			pstate->data->end - PL_bufptr);
+		lex_unstuff(pstate->data->end);
+		pstate->data->end = PL_bufptr;
+		
 		/* Set up the variable name extractor */
 		pstate->process_next_char = process_next_char_post_sigil;
 		pstate->sigil_start = pstate->data->end;
@@ -689,9 +707,13 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 	}
 	
 	/* Check if we need to add a declaration for the C-side variable */
-	if (strstr(SvPVbyte_nolen(pstate->data->predeclarations), long_name) == NULL) {
+	if (strstr(SvPVbyte_nolen(pstate->data->code_top), long_name) == NULL) {
 		/* Add a new declaration for it */
 		/* NOTE: pad_findmy_pv expects the sigil!! */
+		
+		/*** XXX working here - add support for cisa XXX ***/
+		/* including adding cleanup code to the bottom */
+		
 		int var_offset = (int)pad_findmy_pv(pstate->sigil_start, 0);
 		/* Ensure that the variable exists in the pad */
 		if (var_offset == NOT_IN_PAD) {
@@ -705,11 +727,11 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 		//add_perlapi(aTHX_ data);
 
 		#ifdef PERL_IMPLICIT_CONTEXT
-			sv_catpvf(pstate->data->predeclarations, "%s * %s = "
+			sv_catpvf(pstate->data->code_top, "%s * %s = "
 				"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
 				type, long_name, type, var_offset);
 		#else
-			sv_catpvf(pstate->data->predeclarations, "%s * %s = (%s*)PAD_SV(%d); ",
+			sv_catpvf(pstate->data->code_top, "%s * %s = (%s*)PAD_SV(%d); ",
 				type, long_name, type, var_offset);
 		#endif
 	}
@@ -717,8 +739,11 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 	/* Reset the character just following the var name */
 	*pstate->data->end = backup;
 	
-	/* Replace the sigiled var name with long name */
-	replace_sigil_thing(aTHX_ pstate, long_name);
+	/* Add the long name to the main code block in place of the sigiled
+	 * expression, and remove the sigiled varname from the buffer. */
+	sv_catpv_nomg(pstate->data->code_main, long_name);
+	lex_unstuff(pstate->data->end);
+	pstate->data->end = PL_bufptr;
 	
 	/* Cleanup memory */
 	Safefree(long_name);
@@ -730,9 +755,9 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 }
 
 void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
-	/* expand the buffer until we encounter the matching closing bracket,
-	 * accounting for brackets that may occur in comments and strings.
-	 * Process sigiled variables as well. */
+	/* copy data out of the buffer until we encounter the matching
+	 * closing bracket, accounting for brackets that may occur in
+	 * comments and strings. Process sigiled variables as well. */
 	
 	/* Set up the parser state */
 	parse_state my_parse_state;
@@ -762,6 +787,17 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 		}
 		data->end++;
 	} while (still_working);
+	
+	/* Finish by moving the (remaining) contents of the lexical buffer
+	 * into the main code container. Don't copy the final bracket, so
+	 * that bottom's code can be appended later. */
+	sv_catpvn(data->code_main, PL_bufptr, data->end - PL_bufptr - 1);
+	/* end points to the first character after the closing bracket, so
+	 * don't copy (or unstuff) that. */
+	lex_unstuff(data->end);
+	data->end = PL_bufptr;
+	/* Add the closing bracket to the end, if appropriate */
+	if (data->keep_curly_brackets) sv_catpvn(data->code_bottom, "}", 1);
 }
 
 void setup_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
@@ -797,15 +833,17 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	
 	/* set the predeclarations */
 	if (keyword_type == IS_CBLOCK) {
-		tcc_define_symbol(state, "C_BLOCK_PREDECLARATIONS",
-			SvPVbyte_nolen(data->predeclarations));
 		tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
 	}
 	
 	/* compile the code */
-	tcc_compile_string_ex(state, PL_bufptr + 1 - data->keep_curly_brackets,
-		data->end - PL_bufptr - 2 + 2*data->keep_curly_brackets, CopFILE(PL_curcop),
-		CopLINE(PL_curcop));
+	int tlen, mlen, blen;
+	char * top = SvPVbyte(data->code_top, tlen);
+	char * main = SvPVbyte(data->code_main, mlen);
+	char * bot = SvPVbyte(data->code_bottom, blen);
+	char * to_compile = form("%s%s%s", top, main, bot);
+	tcc_compile_string_ex(state, to_compile, tlen + mlen + blen,
+		CopFILE(PL_curcop), CopLINE(PL_curcop));
 	
 	/* Handle any compilation errors */
 	if (SvPOK(data->error_msg_sv)) {
@@ -928,12 +966,12 @@ int my_keyword_plugin(pTHX_
 	c_blocks_data data;
 	initialize_c_blocks_data(aTHX_ &data);
 	
-	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX);
+	add_msg_function_decl(aTHX_ &data);
+	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX_ &data);
 	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ &data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		data.keep_curly_brackets = 0;
 	}
-	add_msg_function_decl(aTHX_ &data);
 	
 	/************************/
 	/* Extract and compile! */
@@ -997,10 +1035,8 @@ int my_keyword_plugin(pTHX_
 	tcc_delete(state);
 	
 	/* insert a semicolon to make the parser happy */
-	data.end--;
-	*data.end = ';';
-
-	lex_unstuff(data.end);
+	lex_stuff_pvn(";", 1, 0);
+	
 	/* Make the parser count the number of lines correctly */
 	int i;
 	for (i = 0; i < data.N_newlines; i++) lex_stuff_pv("\n", 0);
