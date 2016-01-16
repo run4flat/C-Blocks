@@ -583,14 +583,10 @@ int execute_Perl_interpolate_block(pTHX_ parse_state * pstate) {
 	 * For now, croak on error (and leak). */
 	SV * returned = eval_pv(pstate->sigil_start + 2, 1);
 	
-	/* Replace the interpolation block with contents of eval. To make
-	 * everything work, permanently replace final closing brace with
-	 * whitespace. */
-	*pstate->data->end = ' ';
-	/* Add the long name to the main code block in place of the sigiled
-	 * expression, and remove the sigiled varname from the buffer. */
+	/* Replace the interpolation block with contents of eval. Be sure
+	 * to get rid of the null character added above. */
 	sv_catpv_nomg(pstate->data->code_main, SvPVbyte_nolen(returned));
-	lex_unstuff(pstate->data->end);
+	lex_unstuff(pstate->data->end + 1);
 	pstate->data->end = PL_bufptr;
 //	SvREFCNT_dec(returned); // XXX is this correct?
 	
