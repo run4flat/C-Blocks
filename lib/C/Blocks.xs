@@ -234,7 +234,7 @@ void my_tcc_error_func (void * message_ptr, const char * msg ) {
 /**** Keyword Identification ****/
 /********************************/
 
-enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB } keyword_type_list;
+enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB, IS_CISA } keyword_type_list;
 
 /* Functions to quickly identify our keywords, assuming that the first letter has
  * already been checked and found to be 'c' */
@@ -248,6 +248,10 @@ int identify_keyword (char * keyword_ptr, STRLEN keyword_len) {
 		if (	keyword_ptr[1] == 'l'
 			&&	keyword_ptr[2] == 'e'
 			&&	keyword_ptr[3] == 'x') return IS_CLEX;
+		
+		if (	keyword_ptr[1] == 'i'
+			&&	keyword_ptr[2] == 's'
+			&&	keyword_ptr[3] == 'a') return IS_CISA;
 		
 		return 0;
 	}
@@ -711,9 +715,6 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 		/* Add a new declaration for it */
 		/* NOTE: pad_findmy_pv expects the sigil!! */
 		
-		/*** XXX working here - add support for cisa XXX ***/
-		/* including adding cleanup code to the bottom */
-		
 		int var_offset = (int)pad_findmy_pv(pstate->sigil_start, 0);
 		/* Ensure that the variable exists in the pad */
 		if (var_offset == NOT_IN_PAD) {
@@ -723,17 +724,46 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 				pstate->sigil_start);
 		}
 		
+		/* support for cisa type declarations */
+		/* including adding cleanup code to the bottom */
+		SV * fancy_type = cophh_fetch_pv(pstate->data->hints_hash,
+			form("C::Blocks/TYPE%s", pstate->sigil_start), 0, 0);
+		if (fancy_type != &PL_sv_placeholder) type = SvPVbyte_nolen(fancy_type);
+		
+		/* Add the type declaration and long variable name */
+		sv_catpvf(pstate->data->code_top, "%s * %s = ", type, long_name);
+		
+		/* use initialization code, if available */
+		SV * fancy_init = cophh_fetch_pv(pstate->data->hints_hash,
+			form("C::Blocks/INIT%s", pstate->sigil_start), 0, 0);
+		if (fancy_init != &PL_sv_placeholder) {
+			sv_catpvf(pstate->data->code_top, "%s(",
+				SvPVbyte_nolen(fancy_init));
+		}
+		
 		/* XXX fix this so that I don't need the ifdef/else */
 		//add_perlapi(aTHX_ data);
 
 		#ifdef PERL_IMPLICIT_CONTEXT
-			sv_catpvf(pstate->data->code_top, "%s * %s = "
-				"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
-				type, long_name, type, var_offset);
+			sv_catpvf(pstate->data->code_top, 
+				"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]",
+				type, var_offset);
 		#else
-			sv_catpvf(pstate->data->code_top, "%s * %s = (%s*)PAD_SV(%d); ",
-				type, long_name, type, var_offset);
+			sv_catpvf(pstate->data->code_top, "%s * %s = (%s*)PAD_SV(%d)",
+				type, var_offset);
 		#endif
+		
+		if (fancy_init != &PL_sv_placeholder) sv_catpvs(pstate->data->code_top, ")");
+		sv_catpvs(pstate->data->code_top, "; ");
+		
+		/* Finally, add any cleanup code */
+		SV * fancy_cleanup = cophh_fetch_pv(pstate->data->hints_hash,
+			form("C::Blocks/CLEANUP%s", pstate->sigil_start), 0, 0);
+		if (fancy_cleanup != &PL_sv_placeholder) {
+			sv_catpvf(pstate->data->code_bottom, "%s(%s); ",
+				SvPVbyte_nolen(fancy_cleanup), long_name);
+		}
+		
 	}
 	
 	/* Reset the character just following the var name */
@@ -946,6 +976,69 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	}
 }
 
+void parse_c_isa(pTHX) {
+	/* clear out leading whitespace */
+	lex_read_space(0);
+	
+	/* get the type package name */
+	char * end = PL_bufptr;
+	while (1) {
+		ENSURE_LEX_BUFFER(end,
+			"C::Blocks encountered the end of the file before seeing the type package name"
+		);
+		if (end == PL_bufptr) {
+			if(!isIDFIRST(*end)) croak("C::Blocks expects a package name after cisa");
+		}
+		else if (_is_whitespace_char(*end)) {
+			break;
+		}
+		else if (!(_is_id_cont(*end) || *end == ':')){
+			croak("C::Blocks cisa found '%c' where it was looking for a package name", *end);
+		}
+		
+		end++;
+	}
+	
+	/* Get the SVs with the different pieces of information */
+	char * package_name = savepvn(PL_bufptr, end - PL_bufptr);
+	SV * type = get_sv(form("%s::TYPE", package_name), 0);
+	if (type == 0) warn("C::Blocks cisa could not find TYPE information for package %s", package_name);
+	SV * init = get_sv(form("%s::INIT", package_name), 0);
+	if (type == 0) warn("C::Blocks cisa could not find INIT information for package %s", package_name);
+	SV * cleanup = get_sv(form("%s::CLEANUP", package_name), 0);
+	Safefree(package_name);
+	
+	COPHH * curr_hh = CopHINTHASH_get(PL_curcop);
+	/* Run through the variables that follow and associate this
+	 * information with them in the hints hash. */
+	do {
+		lex_read_space(0);
+		end = PL_bufptr;
+		ENSURE_LEX_BUFFER(end,
+			"C::Blocks cisa expected semicolon, found end-of-file"
+		);
+		if (end == PL_bufptr) {
+			if(*end != '$') croak("C::Blocks cisa expects dollar-sign variables");
+		}
+		else if (_is_whitespace_char(*end) || *end == ',' || *end == ';') {
+			/* End of the variable is at character before end pointer */
+			if (end == PL_bufptr + 1) croak("C::Blocks cisa expects dollar-sign variables");
+			char * varname = savepvn(PL_bufptr, end - PL_bufptr);
+			if (type) curr_hh = cophh_store_pv(curr_hh,
+				form("C::Blocks/TYPE%s", varname), 0, type, 0);
+			if (init) curr_hh = cophh_store_pv(curr_hh,
+				form("C::Blocks/INIT%s", varname), 0, init, 0);
+			if (cleanup) curr_hh = cophh_store_pv(curr_hh,
+				form("C::Blocks/CLEANUP%s", varname), 0, cleanup, 0);
+			Safefree(varname);
+		}
+	} while (*end != ';');
+	CopHINTHASH_set(PL_curcop, curr_hh);
+	
+	/* clear out, but save the semicolon to make the parser happy */
+	lex_unstuff(end - 1);
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -953,6 +1046,12 @@ int my_keyword_plugin(pTHX_
 	int keyword_type = identify_keyword(keyword_ptr, keyword_len);
 	if (!keyword_type)
 		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
+	
+	/* cisa handline is unique */
+	if (keyword_type == IS_CISA) {
+		parse_c_isa(aTHX);
+		return KEYWORD_PLUGIN_STMT;
+	}
 	
 	/**********************/
 	/*   Initialization   */
