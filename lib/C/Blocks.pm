@@ -27,6 +27,7 @@ sub import {
 	*{$caller.'::csub'} = sub () {};
 	*{$caller.'::cshare'} = sub () {};
 	*{$caller.'::clex'} = sub () {};
+	*{$caller.'::cisa'} = sub () {};
 	_import();
 }
 
