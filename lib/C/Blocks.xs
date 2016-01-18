@@ -1003,7 +1003,7 @@ void parse_c_isa(pTHX) {
 	 * lexing buffer */
 	int package_name_len = end - PL_bufptr;
 	char * package_name = savepvn(PL_bufptr, package_name_len);
-	SV * buffer = newSVpvf("; %s->check_var_types(", package_name);
+	SV * buffer = newSVpvf(", %s->check_var_types(", package_name);
 	lex_unstuff(end);
 	end = PL_bufptr;
 	int N_vars = 0;
@@ -1039,13 +1039,12 @@ void parse_c_isa(pTHX) {
 		}
 		/* expecting whitespace, a comma, or a semi-colon... */
 		else if (curr_parse_state == 1) {
-			if (*end == ';') break;
-			else if (*end == ',') {
+			if (*end == ',') {
 				// end of post-var, switch to pre-var state
 				curr_parse_state = -1;
 			}
 			else if (!_is_whitespace_char(*end)) {
-				croak("C::Blocks cisa expected ',' or ';' but found '%c'", *end);
+				break;
 			}
 		}
 		/* expecting a variable name character (or the whitespace, comma,
@@ -1105,7 +1104,7 @@ int my_keyword_plugin(pTHX_
 	if (keyword_type == IS_CISA) {
 		parse_c_isa(aTHX);
 		*op_ptr = newOP(OP_NULL, 0);
-		return KEYWORD_PLUGIN_STMT;
+		return KEYWORD_PLUGIN_EXPR;
 	}
 	
 	/**********************/
