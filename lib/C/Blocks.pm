@@ -1,4 +1,6 @@
-package C::Blocks;
+########################################################################
+                       package C::Blocks;
+########################################################################
 
 use strict;
 use warnings;
@@ -56,7 +58,9 @@ END {
 	_cleanup();
 }
 
-package C::Blocks::Type::NV;
+########################################################################
+                   package C::Blocks::Type::NV;
+########################################################################
 use Scalar::Util;
 use Carp;
 
@@ -81,6 +85,33 @@ sub check_var_types {
 	return 0;
 }
 
+########################################################################
+               package C::Blocks::Type::double;
+########################################################################
+our $TYPE = 'double';
+our $INIT = 'SvNV';
+our $CLEANUP = 'sv_setnv';
+*check_var_types = \&C::Blocks::Type::NV::check_var_types;
+
+########################################################################
+               package C::Blocks::Type::float;
+########################################################################
+our $TYPE = 'float';
+our $INIT = 'SvNV';
+our $CLEANUP = 'sv_setnv';
+*check_var_types = \&C::Blocks::Type::NV::check_var_types;
+
+########################################################################
+               package C::Blocks::Type::int;
+########################################################################
+our $TYPE = 'int';
+our $INIT = 'SvIV';
+our $CLEANUP = 'sv_setiv';
+*check_var_types = \&C::Blocks::Type::NV::check_var_types;
+
+# Other types:
+# int2ptr
+# uint2ptr
 
 1;
 
@@ -477,6 +508,10 @@ precede a block of C code encapsulated in curly brackets. Because these use the
 Perl keyword API, they parse the C code during Perl's parse stage, so any code
 errors in your C code will be caught during parse time, not during run time.
 
+In addition to these keywords, C<C::Blocks> lets you indicate types and
+type conversion with C<cisa>. Unlike the other keywords, this keyword is
+not followed by a block of code, but the type and a list of variables.
+
 =over
 
 =item cblock { code }
@@ -492,10 +527,13 @@ definitions are confined to the C<cblock> and will not be present in later
 C<cblock>s. For that sort of behavior, see C<clex>.
 
 Variables with C<$> sigils are interpreted as referring to the C<SV*>
-representing the variable in the current lexical scope.
+representing the variable in the current lexical scope, unless otherwise
+specified with a C<cisa> statement.
 
 Note: If you need to leave a C<cblock> early, you should use a C<return>
-statement without any arguments.
+statement without any arguments. This will also bypass the data repacking
+provided by C<cisa> types.
+
 
 =item clex { code }
 
@@ -520,6 +558,37 @@ This means that after this code is compiled, it is accessible just like any
 other xsub.
 
 Currently, C<csub> does not work.
+
+=item cisa type, variable-list
+
+If you include sigil variables in your C<cblock> blocks (not C<clex>,
+C<cshare>, or C<csub>, just C<cblock>), they will normally be resolved
+to the underlying SV data structure for that variable. Under many
+circumstances, you do not need to manipulate the SV itself, but merely
+need the data contained in the SV (or the object pointed to by the SV).
+A C<cisa> statement tells C::Blocks that certain variables should be
+represented by a C data structure other than an SV. The package used for
+the type (must) have package constants that indicate the C type to use,
+and how to marshall the data at the beginning and end of your block.
+
+C<cisa> statements also have the runtime responsibility of validating
+the data in the variables. Failed validations should probably throw
+exceptions indicating which variables did not satisfy validation, and
+why they failed. Your validation code can make as much or as little
+noise as you deem appropriate, from quietly setting C<$@> to warning to
+throwing exceptions. Note that you could include validation code in the
+initialization function, but C<cisa> validation is only called once per
+C<cisa> statement, whereas the variable initialization code is called
+at the beginning of each C<cblock> that uses the variable.
+
+Packages that represent types must include the package variables
+C<$TYPE> and C<$INIT>. The first indicates the C type while the second
+indicates a C macro or function that accepts an SV and returns the
+data of type C<$TYPE>. C<$CLEANUP> is an optional macro or function that
+takes the original SV and the (presumably revised) data, and updates the
+contents of the SV. Runtime type checking is performed by the package
+method C<check_var_types>, which gets key/value pairs of the variable
+name and the variable.
 
 =back
 

@@ -1012,7 +1012,7 @@ void parse_c_isa(pTHX) {
 	SV * type = get_sv(form("%s::TYPE", package_name), 0);
 	if (type == 0) warn("C::Blocks cisa could not find TYPE information for package %s", package_name);
 	SV * init = get_sv(form("%s::INIT", package_name), 0);
-	if (type == 0) warn("C::Blocks cisa could not find INIT information for package %s", package_name);
+	if (init == 0) warn("C::Blocks cisa could not find INIT information for package %s", package_name);
 	SV * cleanup = get_sv(form("%s::CLEANUP", package_name), 0);
 	Safefree(package_name);
 	
