@@ -559,7 +559,7 @@ other xsub.
 
 Currently, C<csub> does not work.
 
-=item cisa type, variable-list
+=item cisa type variable-list
 
 If you include sigil variables in your C<cblock> blocks (not C<clex>,
 C<cshare>, or C<csub>, just C<cblock>), they will normally be resolved

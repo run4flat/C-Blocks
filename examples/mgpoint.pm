@@ -5,15 +5,21 @@ package mgpoint;
 {
 	use C::Blocks;
 	use C::Blocks::PerlAPI;
-	use libobjmg;
+	use C::Blocks::Object::Magic;
 	use Scalar::Util;
+	use Carp qw(croak);
 	
 	cshare {
+		/* Define a simple x/y data pint using a struct */
 		typedef struct point {
 			double x;
-			double y; /* ;;; */
+			double y; /* ;;; syntax hilite :-( */
 		} point;
 		
+		/* C-side constructor allocates memory and initializes
+		 * the data to point to the origin. Note the macro
+		 * wrapper, which makes working with threaded perls a
+		 * little bit cleaner. */
 		point * new_point(pTHX) {
 			#define new_point() new_point(aTHX)
 			point * to_return;
@@ -23,12 +29,16 @@ package mgpoint;
 			return to_return;
 		}
 		
+		/* C-side function that retrieves and properly casts
+		 * the struct from the Perl-side SV. */
 		point * data_from_SV(pTHX_ SV * perl_side) {
 			#define data_from_SV(perl_side) data_from_SV(aTHX_ perl_side)
 			return xs_object_magic_get_struct_rv(aTHX_ perl_side);
 		}
 	}
-
+	
+	# Perl-side constructor. Build an empty hash and attach the
+	# point struct to it.
 	sub new {
 		my $class = shift;
 		my $self = bless {}, $class;
@@ -41,6 +51,7 @@ package mgpoint;
 		return $self;
 	}
 	
+	# Perl-side accessor for setting the point's coordinate.
 	sub set {
 		my ($self, $x, $y) = @_;
 		cblock {
@@ -50,6 +61,7 @@ package mgpoint;
 		}
 	}
 	
+	# Perl-side method for computing the distance.
 	sub distance {
 		my $self = shift;
 		my $to_return;
@@ -60,6 +72,15 @@ package mgpoint;
 		return $to_return;
 	}
 	
+	# Perl-side accessor/method with no counterpart in C
+	# (illustrating that this really is a hashref-backed object).
+	sub name {
+		my $self = shift;
+		return $self->{name} || 'no-name' if @_ == 0;
+		$self->{name} = $_[0];
+	}
+	
+	# Destructor should clean up the allocated struct memory.
 	sub DESTROY {
 		my $self = shift;
 		cblock {
@@ -67,26 +88,27 @@ package mgpoint;
 		}
 	}
 	
-	# So this can be used as a type
+	# So this can be used as a cisa type
 	our $TYPE = 'point *';
 	our $INIT = 'data_from_SV';
 	sub check_var_types {
 		my $class = shift @_;
-		$@ = '';
+		my $message = '';
 		while (@_) {
 			my ($arg_name, $arg) = splice @_, 0, 2;
-			$@ .= "$arg_name is not defined\n" and next if not defined $arg;
-			$@ .= "$arg_name is not a reference\n" and next if not ref($arg);
-			$@ .= "$arg_name is not blessed\n" and next
+			$message .= "$arg_name is not defined\n" and next if not defined $arg;
+			$message .= "$arg_name is not a reference\n" and next if not ref($arg);
+			$message .= "$arg_name is not blessed\n" and next
 				if not Scalar::Util::blessed($arg);
-			$@ .= "$arg_name is not a mgpoint\n" and next
+			$message .= "$arg_name is not a mgpoint\n" and next
 				unless $arg->isa('mgpoint');
 		}
-		if ($@ eq '') {
+		if ($message eq '') {
 			undef $@;
 			return 1;
 		}
-		return 0;
+		chomp $message;
+		croak($message);
 	}
 }
 
