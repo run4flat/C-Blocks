@@ -17,8 +17,13 @@ is($@, undef, 'cisa reset works ok');
 cblock { $var = 15.25; }
 is($var, 15.25, 'Type::double works');
 
+cisa C::Blocks::Type::uint $var;
+is($@, undef, 'cisa reset double -> unsigned int works ok');
+cblock { $var = 5; }
+is($var, 5, 'Type::uint works');
+
 cisa C::Blocks::Type::int $var;
-is($@, undef, 'cisa reset double->int works ok');
+is($@, undef, 'cisa reset unsigned int -> int works ok');
 cblock { $var = -5; }
 is($var, -5, 'Type::int works');
 

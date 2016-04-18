@@ -109,6 +109,15 @@ our $INIT = 'SvIV';
 our $CLEANUP = 'sv_setiv';
 *check_var_types = \&C::Blocks::Type::NV::check_var_types;
 
+########################################################################
+               package C::Blocks::Type::uint;
+########################################################################
+our $TYPE = 'unsigned int';
+our $INIT = 'SvUV';
+our $CLEANUP = 'sv_setuv';
+# Should check sign, too
+*check_var_types = \&C::Blocks::Type::NV::check_var_types;
+
 # Other types:
 # int2ptr
 # uint2ptr
