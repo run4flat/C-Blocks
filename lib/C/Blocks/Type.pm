@@ -24,52 +24,43 @@ $C::Blocks::Type::double_no_init::CLEANUP = 'sv_setnv';
 	= \&C::Blocks::Type::NV::check_var_types;
 
 ########################################################################
-               package C::Blocks::Type::float_local;
+                           # float #
 ########################################################################
-our $TYPE = 'float';
-our $INIT = 'SvNV';
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
+$C::Blocks::Type::float_no_init::TYPE
+	= $C::Blocks::Type::float_local::TYPE
+	= 'float';
+$C::Blocks::Type::float_local::INIT = 'SvNV';
+$C::Blocks::Type::float_no_init::INIT = 'just_gimme_zero';
+$C::Blocks::Type::float_no_init::CLEANUP = 'sv_setnv';
+*C::Blocks::Type::float_local::check_var_types
+	= *C::Blocks::Type::float_no_init::check_var_types
+	= \&C::Blocks::Type::NV::check_var_types;
 
 ########################################################################
-               package C::Blocks::Type::float_no_init;
+                           # int #
 ########################################################################
-our $TYPE = 'float';
-our $INIT = 'just_gimme_zero';
-our $CLEANUP = 'sv_setnv';
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
+$C::Blocks::Type::int_no_init::TYPE
+	= $C::Blocks::Type::int_local::TYPE
+	= 'int';
+$C::Blocks::Type::int_local::INIT = 'SvIV';
+$C::Blocks::Type::int_no_init::INIT = 'just_gimme_zero';
+$C::Blocks::Type::int_no_init::CLEANUP = 'sv_setiv';
+*C::Blocks::Type::int_local::check_var_types
+	= *C::Blocks::Type::int_no_init::check_var_types
+	= \&C::Blocks::Type::NV::check_var_types;
 
 ########################################################################
-               package C::Blocks::Type::int_local;
+                           # unsigned int #
 ########################################################################
-our $TYPE = 'int';
-our $INIT = 'SvIV';
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
-########################################################################
-               package C::Blocks::Type::int_no_init;
-########################################################################
-our $TYPE = 'int';
-our $INIT = 'just_gimme_zero';
-our $CLEANUP = 'sv_setiv';
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
-########################################################################
-               package C::Blocks::Type::uint_local;
-########################################################################
-our $TYPE = 'unsigned int';
-our $INIT = 'SvUV';
-# Should check sign, too
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
-########################################################################
-               package C::Blocks::Type::uint_no_init;
-########################################################################
-our $TYPE = 'unsigned int';
-our $INIT = 'just_gimme_zero';
-our $CLEANUP = 'sv_setuv';
-# Should check sign, too
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
+$C::Blocks::Type::uint_no_init::TYPE
+	= $C::Blocks::Type::uint_local::TYPE
+	= 'unsigned int';
+$C::Blocks::Type::uint_local::INIT = 'SvUV';
+$C::Blocks::Type::uint_no_init::INIT = 'just_gimme_zero';
+$C::Blocks::Type::uint_no_init::CLEANUP = 'sv_setuv';
+*C::Blocks::Type::uint_local::check_var_types
+	= *C::Blocks::Type::uint_no_init::check_var_types
+	= \&C::Blocks::Type::NV::check_var_types;
 
 
 
