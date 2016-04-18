@@ -1010,9 +1010,9 @@ void parse_c_isa(pTHX) {
 	
 	/* Get the SVs with the different pieces of information */
 	SV * type = get_sv(form("%s::TYPE", package_name), 0);
-	if (type == 0) warn("C::Blocks cisa could not find TYPE information for package %s", package_name);
+	if (type == 0) croak("C::Blocks cisa could not find TYPE information for package %s", package_name);
 	SV * init = get_sv(form("%s::INIT", package_name), 0);
-	if (init == 0) warn("C::Blocks cisa could not find INIT information for package %s", package_name);
+	if (init == 0) croak("C::Blocks cisa could not find INIT information for package %s", package_name);
 	SV * cleanup = get_sv(form("%s::CLEANUP", package_name), 0);
 	Safefree(package_name);
 	
@@ -1065,6 +1065,8 @@ void parse_c_isa(pTHX) {
 					form("C::Blocks/INIT%s", varname), 0, init, 0);
 				if (cleanup) curr_hh = cophh_store_pv(curr_hh,
 					form("C::Blocks/CLEANUP%s", varname), 0, cleanup, 0);
+				else curr_hh = cophh_delete_pv(curr_hh,
+					form("C::Blocks/CLEANUP%s", varname), 0, 0);
 				sv_catpvf(buffer, "%s'%s', %s", N_vars ? ", " : "",
 					varname, varname);
 				N_vars++;
