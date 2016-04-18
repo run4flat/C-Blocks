@@ -24,10 +24,16 @@ sub test_API {
 	my ($func_name, $code, $expr, $expected, $explanation, $report_compile) = @_;
 	undef ($result);
 	eval qq{
-		cblock {
-			get_vars;
-			$code;
-			sv_setiv(result, $expr);
+		# Hide undefined warnings
+		my \$stderr = '';
+		{
+			local *STDERR;
+			open STDERR, '>', \\\$stderr;
+			cblock {
+				get_vars;
+				$code;
+				sv_setiv(result, $expr);
+			}
 		}
 		1;
 	} and do {
