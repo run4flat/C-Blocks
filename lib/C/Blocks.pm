@@ -162,7 +162,31 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
      print_location(2);
  }
  
- # NOTE: csub does not yet work, for some odd reason
+ # A function that sums all of the arguments
+ csub csum {
+     /* get "items" variable, and stack pointer
+      * variables used by ST() */
+     dXSARGS;
+ 
+     int i;
+     double sum = 0.;
+     
+     /* Sum the given numeric values. */
+     for (i = 0; i < items; ++i) sum += SvNV( ST(i) );
+     
+     /* Prepare stack to receive return values. */
+     XSprePUSH;
+     /* Push the sum onto the return stack */
+     mXPUSHn(sum);
+     /* Indicate we're returning a single value
+      * on the stack. */
+     XSRETURN(1);
+ }
+ 
+ my $limit = shift || 5;
+ my $return = csum(1 .. $limit);
+ print "sum of 1 to $limit is $return\n";
+ 
  
  ### In file My/Fastlib.pm
  
@@ -453,13 +477,27 @@ import behavior. You fix that by providing your own C<import> method:
      goto &$method;
  }
 
+=head2 XSUBs
+
+Since the advent of Perl 5, the XS toolchain has made it possible to
+write C functions that can be called directly by Perl code. Such
+functions are referred to as XSUBs. C::Blocks provides similar
+functionality via the C<csub> keyword. Just like Perl's C<sub> keyword,
+this keyword takes the name of the function and a code block, and
+produces a function in the current package with the given name.
+
+Writing a functional XSUB requires knowing a fair bit about the Perl
+argument stack and manipulation macros, so it will have to be discussed
+at greater depth somewhere else. For now, it may be best to refer to
+L<perlapi> and L<http://blog.booking.com/native-extensions-for-perl-without-smoke-and-mirrors.html>.
+
 =head2 Generating C Code
 
 Because C<C::Blocks> hooks on keywords, it is naturally invoked in
-C<cblock>, C<cshare>, and C<clex> blocks which are themselves contained
-within a string eval. However, string evals compile at runtime. Although
-it would be easy to generate C code using Perl, writing useful C<clex>
-and C<cshare> blocks is tricky.
+C<cblock>, C<cshare>, C<clex>, and C<csub> blocks which are themselves
+contained within a string eval. However, string evals compile at
+runtime, not script parse time. Although it would be easy to generate C
+code using Perl, writing useful C<clex> and C<cshare> blocks is tricky.
 
 For this reason, C<C::Blocks> provides a bit of notation for an
 "interpolation block." An interpolation block is a block of Perl code

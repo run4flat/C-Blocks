@@ -3,15 +3,25 @@ use warnings;
 use C::Blocks;
 use C::Blocks::PerlAPI;
 
-csub foobar {
-	/* declare the mark and argument stacks */
-	dVAR;
-	dXSARGS;
-	printf("You sent %d arguments\n", items);
+csub csum {
+  /* get "items" variable, and stack pointer variables used by ST() */
+  dXSARGS;
+
+  int i;
+  double sum = 0.;
+  
+  /* Sum the given numeric values. */
+  for (i = 0; i < items; ++i) sum += SvNV( ST(i) );
+  
+  /* Prepare stack to receive return values. */
+  XSprePUSH;
+  /* Push the sum onto the return stack */
+  mXPUSHn(sum);
+  /* Indicate we're returning a single value on the stack. */
+  XSRETURN(1);
 }
 
-foobar(1, 2);
-print "Should have gotten two\n";
+my $limit = shift || 5;
 
-foobar(qw(a b c d e));
-print "Should have gotten five\n";
+my $return = csum(1 .. $limit);
+print "sum of 1 to $limit is $return\n";
