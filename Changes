@@ -4,9 +4,23 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
 
 0.04  Ddd, Mth #, 201#
 
-  [ENHANCEMENTS]
+  [DEPENDENCIES]
   
-  * Added interpolation blocks!
+  * Bumped Alien::TinyCCx dependency to v0.07.
+  
+  [BUG FIXES]
+  
+  * csub works!
+  
+  [NEW FEATURES]
+  
+  * Added interpolation blocks! It is now possible to use Perl to
+    produce C code. They're kinda like fancy C macros, sorta.
+  
+  * Added cisa, providing a system akin to typemaps.
+  
+  * Added C::Blocks::Object::Magic, a port of XS::Object::Magic. This
+    makes it much easier to safely attach C structs to Perl variables.
 
 0.03  Fri, Dec 4, 2015
 
