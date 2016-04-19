@@ -433,10 +433,14 @@ void fixup_xsub_name(pTHX_ c_blocks_data * data) {
 	/* Find where the name ends, copy it, and replace it with the correct
 	 * declaration */
 	
-	/* Find and copy into the main code container */
+	/* Find and copy the name */
 	find_end_of_xsub_name(aTHX_ data);
-	sv_catpvf(data->code_main, "XS_INTERNAL(%.*s) {", data->end - PL_bufptr,
-		PL_bufptr);
+	int n_chars = data->end - PL_bufptr;
+	Newx(data->xsub_name, n_chars + 1, char);
+	my_strlcpy(data->xsub_name, PL_bufptr, n_chars + 1);
+	
+	/* copy also into the main code container */
+	sv_catpvf(data->code_main, "XSPROTO(%.*s) {", n_chars, PL_bufptr);
 	
 	/* remove the name from the buffer */
 	lex_unstuff(data->end);
