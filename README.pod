@@ -2,14 +2,34 @@
 
 C::Blocks - embeding a fast C compiler directly into your Perl parser
 
-=head1 ALPHA
+=head1 STATUS
 
-This project is in Alpha. That means that it seems to mostly work on 
-most machines. The present goal is to find and fix all the ways that 
-C::Blocks can break. Not only can you expect some segmentation faults 
-on at least a few operating system, but you can expect the current 
-compiler setup API to change once the distribution has reached a 
-greater level of stability. (The API will settle during Beta.)
+Pre-Beta
+
+=over
+
+=item Interpolation blocks on Windows
+
+These are currently failing on my Windows machine.
+
+=item Better representation on CPAN Testers
+
+Very few machines report this module as working on CPAN testers,
+including nothing for a number of key platforms.
+
+=back
+
+This project is currently pre-Beta. That means that I have nearly
+managed to get it working on at least one Linux, Mac, and Windows
+machine (The "nearly" business is that interpolation blocks do not seem
+to work on my Windows machine), and I have implemented the functionality
+and tests I had hoped to implement in the Alpha stage. The present goal
+is to find and fix all the ways that C::Blocks can break, i.e. expand
+the test suite and get it to run it on as many platforms as
+possible. Not only can you expect some segmentation faults on at least a
+few operating system, but you can expect the current compiler setup API
+to change once the distribution has reached a greater level of
+stability. (The API will be ironed out during Beta.)
 
 =head1 DESCRIPTION
 
@@ -17,7 +37,8 @@ This distribution contains C<C::Blocks>, a module that adds a few
 lexically scoped keywords to your Perl parser. These keywords delimit C 
 code blocks, and (in the current implementation) the code within them 
 is compiled during Perl's bytecode compilation phase. The keywords 
-including C<cblock>, C<clex>, C<cshare>, and C<csub>.
+including C<cblock>, C<clex>, C<cshare>, and C<csub>. The keyword
+C<cisa> provides a simple typemap-like system.
 
 In addition, this distribution contains C<C::Blocks::PerlAPI>, which 
 loads Perl's C API. I may eventually include similar modules for all 
@@ -25,11 +46,15 @@ standard C libraries, such as libstdio, libmath, etc. Since libperl is
 itself compiled with these libraries, I suspect that most of them will 
 be redundant for most people.
 
-Finally, this distribution presently includes 
-C<C::Blocks::StretchyBuffer>, which provides a rudimentary vector type. 
-It is not only useful as a library, but serves an important role as a 
-testing module. That said, it may be spun off into its own module by 
-the time C<C::Blocks> v1.0 is released, so you should not rely on its 
+It can be difficult to safely attach C structs to Perl variables. This
+problem was solved for XS authors with the module L<XS::Object::Magic>.
+This distribution provides a port of that module called
+C<C::Blocks::Object::Magic>.
+
+This distribution presently includes C<C::Blocks::StretchyBuffer>, which
+provides a rudimentary vector type. It serves an important role as a
+testing module. It will almost certainly be spun off into its own module
+by the time C<C::Blocks> v1.0 is released, so you should not rely on its
 presence in the base distribution.
 
 =head1 BUILD NOTES
@@ -62,14 +87,6 @@ make sure that everything works properly. For the most part, this means
 writing lots of tests of Perl's own C API. Additional tests for things 
 like scoping and memory duration could stand to be expanded as well. 
 Once I feel the test suite is robust, I move on to v0.5, beta.
-
-The single most important failing component is csub. New
-just-before-alpha testing indicates that this functionality does not
-work at all because I seem unable to obtain the expected function
-pointer! This seems to be due to an error in tcc's symbol lookup, but I
-have a very hard time believing that is actually the root of the
-problem. Tests need to be added and this needs to be sorted out during
-the Alpha stage. I also need to document how to write a csub.
 
 The API for tweaking the compiler will still be considered in flux, so 
 substantial library development is discouraged during Alpha.
