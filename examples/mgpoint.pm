@@ -80,11 +80,9 @@ package mgpoint;
 	}
 	
 	# Destructor should clean up the allocated struct memory.
-	sub DESTROY {
-		my $self = shift;
-		cblock {
-			Safefree(data_from_SV($self));
-		}
+	csub DESTROY {
+		dXSARGS;
+		Safefree(data_from_SV(ST(0)));
 	}
 	
 	# So this can be used as a cisa type
