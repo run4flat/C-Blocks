@@ -6,8 +6,34 @@ package mgpoint;
 	use C::Blocks;
 	use C::Blocks::PerlAPI;
 	use C::Blocks::Object::Magic;
+	use C::Blocks::Type;
 	use Scalar::Util;
 	use Carp qw(croak);
+	
+	# So this can be used as a cisa type
+	BEGIN {
+		our $TYPE = 'point *';
+		our $INIT = 'data_from_SV';
+		sub check_var_types {
+			my $class = shift @_;
+			my $message = '';
+			while (@_) {
+				my ($arg_name, $arg) = splice @_, 0, 2;
+				$message .= "$arg_name is not defined\n" and next if not defined $arg;
+				$message .= "$arg_name is not a reference\n" and next if not ref($arg);
+				$message .= "$arg_name is not blessed\n" and next
+					if not Scalar::Util::blessed($arg);
+				$message .= "$arg_name is not a mgpoint\n" and next
+					unless $arg->isa('mgpoint');
+			}
+			if ($message eq '') {
+				undef $@;
+				return 1;
+			}
+			chomp $message;
+			croak($message);
+		}
+	}
 	
 	cshare {
 		/* Define a simple x/y data pint using a struct */
@@ -60,8 +86,30 @@ package mgpoint;
 		data->y = SvNV(ST(2));
 	}
 	
-	# Perl-side method for computing the distance.
-	sub distance {
+	# Different versions of Perl-side methods for computing the distance.
+	
+	# csub, i.e. pure C
+	csub distance_1 {
+		dXSARGS;
+		if (items != 1) croak("distance method does not take any arguments");
+		point * data = data_from_SV(ST(0));
+		XSprePUSH;
+		mXPUSHn(sqrt(data->x*data->x + data->y*data->y));
+		XSRETURN(1);
+	}
+	# Perl-side with cisa
+	sub distance_2 {
+		my $self = shift;
+		my $to_return;
+		cisa mgpoint $self;
+		cisa C::Blocks::Type::double_no_init $to_return;
+		cblock {
+			$to_return = sqrt($self->x*$self->x + $self->y*$self->y);
+		}
+		return $to_return;
+	}
+	# Perl-side without cisa
+	sub distance_3 {
 		my $self = shift;
 		my $to_return;
 		cblock {
@@ -83,29 +131,6 @@ package mgpoint;
 	csub DESTROY {
 		dXSARGS;
 		Safefree(data_from_SV(ST(0)));
-	}
-	
-	# So this can be used as a cisa type
-	our $TYPE = 'point *';
-	our $INIT = 'data_from_SV';
-	sub check_var_types {
-		my $class = shift @_;
-		my $message = '';
-		while (@_) {
-			my ($arg_name, $arg) = splice @_, 0, 2;
-			$message .= "$arg_name is not defined\n" and next if not defined $arg;
-			$message .= "$arg_name is not a reference\n" and next if not ref($arg);
-			$message .= "$arg_name is not blessed\n" and next
-				if not Scalar::Util::blessed($arg);
-			$message .= "$arg_name is not a mgpoint\n" and next
-				unless $arg->isa('mgpoint');
-		}
-		if ($message eq '') {
-			undef $@;
-			return 1;
-		}
-		chomp $message;
-		croak($message);
 	}
 }
 
