@@ -52,13 +52,12 @@ package mgpoint;
 	}
 	
 	# Perl-side accessor for setting the point's coordinate.
-	sub set {
-		my ($self, $x, $y) = @_;
-		cblock {
-			point * data = data_from_SV($self);
-			data->x = SvNV($x);
-			data->y = SvNV($y);
-		}
+	csub set {
+		dXSARGS;
+		if (items != 3) croak("set method expects both x and y values");
+		point * data = data_from_SV(ST(0));
+		data->x = SvNV(ST(1));
+		data->y = SvNV(ST(2));
 	}
 	
 	# Perl-side method for computing the distance.
