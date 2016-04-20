@@ -319,6 +319,8 @@ int _is_id_cont (char to_check) {
 typedef struct c_blocks_data {
 	char * my_perl_type;
 	char * end;
+	char * xs_c_name;
+	char * xs_perl_name;
 	char * xsub_name;
 	COPHH* hints_hash;
 	SV * exsymtabs;
@@ -334,6 +336,8 @@ typedef struct c_blocks_data {
 
 void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->N_newlines = 0;
+	data->xs_c_name = 0;
+	data->xs_perl_name = 0;
 	data->xsub_name = 0;
 	data->add_test_SV = 0;
 	data->keep_curly_brackets = 1;
@@ -379,6 +383,8 @@ void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	/* Bottom and top, if they were even used, should have been
 	 * de-allocated already. */
 	//if (SvPOK(data->exsymtabs)) SvREFCNT_dec(data->exsymtabs);
+	Safefree(data->xs_c_name);
+	Safefree(data->xs_perl_name);
 	Safefree(data->xsub_name);
 }
 
@@ -433,14 +439,31 @@ void fixup_xsub_name(pTHX_ c_blocks_data * data) {
 	/* Find where the name ends, copy it, and replace it with the correct
 	 * declaration */
 	
-	/* Find and copy the name */
+	/* Find the name */
 	find_end_of_xsub_name(aTHX_ data);
-	int n_chars = data->end - PL_bufptr;
-	Newx(data->xsub_name, n_chars + 1, char);
-	my_strlcpy(data->xsub_name, PL_bufptr, n_chars + 1);
+	data->xsub_name = savepvn(PL_bufptr, data->end - PL_bufptr);
+	
+	/* create the package name */
+	char * name_buffer = form("%s::%s", SvPVbyte_nolen(PL_curstname),
+		data->xsub_name);
+	data->xs_perl_name = savepv(name_buffer);
+	int perl_name_length = strlen(name_buffer);
+	
+	/* create the related, munged c function name. */
+	Newx(data->xs_c_name, perl_name_length + 4, char);
+	data->xs_c_name[0] = 'x';
+	data->xs_c_name[1] = 's';
+	data->xs_c_name[2] = '_';
+	int i;
+	for (i = 0; i <= perl_name_length; i++) {
+		if (data->xs_perl_name[i] == ':')
+			data->xs_c_name[i+3] = '_';
+		else
+			data->xs_c_name[i+3] = data->xs_perl_name[i];
+	}
 	
 	/* copy also into the main code container */
-	sv_catpvf(data->code_main, "XSPROTO(%.*s) {", n_chars, PL_bufptr);
+	sv_catpvf(data->code_main, "XSPROTO(%s) {", data->xs_c_name);
 	
 	/* remove the name from the buffer */
 	lex_unstuff(data->end);
@@ -921,14 +944,13 @@ OP * build_op(pTHX_ TCCState * state, int keyword_type) {
 
 void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
 	/* Extract the xsub */
-	XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data->xsub_name);
+	XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data->xs_c_name);
 	if (xsub_fcn_ptr == NULL)
 		croak("C::Blocks internal error: Unable to get pointer to csub %s\n", data->xsub_name);
 	
 	/* Add the xsub to the package's symbol table */
 	char * filename = CopFILE(PL_curcop);
-	char * full_func_name = form("%s::%s", SvPVbyte_nolen(PL_curstname), data->xsub_name);
-	newXS(full_func_name, xsub_fcn_ptr, filename);
+	newXS(data->xs_perl_name, xsub_fcn_ptr, filename);
 }
 
 void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int keyword_type) {
