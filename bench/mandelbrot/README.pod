@@ -1,0 +1,222 @@
+=head1 DESCRIPTION
+
+This directory contains various impelentations of the Mandelbrot
+benchmark, popularized at http://benchmarksgame.alioth.debian.org/.
+
+mandelbrot.perl - original multi-threaded Perl version written by Mykola
+Zubach, taken directly from benchmarksgame
+
+mandelbrot.cpl - single-threaded C::Blocks implementation based largely
+on the mandelbrot.gcc-2.gcc from benchmarksgame
+
+mandelbrot2.cpl - multi-threaded variation of mandelbrot.perl which
+implements the iterative portion of the code using C::Blocks
+
+mandelbrot.pdl - overly simple single-threaded PDL implementation that
+performs 50 iterations on all locations
+
+mandelbrot2.pdl - more sophisticated single-threaded PDL implementation
+that only performs iterations on locations that have not converged
+
+To test and time these, you should run them like so:
+
+  /usr/bin/time perl mandelbrot.perl 3200 > test.perl.pbm
+  /usr/bin/time perl mandelbrot.cpl 3200 > test.cpl.pbm
+  /usr/bin/time perl mandelbrot2.cpl 3200 > test2.cpl.pbm
+
+You can diff the PBM files to ensure that they are identical. Then comes
+the fun part: the benchmark timings.
+
+=head1 RESULTS
+
+=head2 200x200
+
+	$ /usr/bin/time perl mandelbrot.perl 200 > test.perl.pbm
+	1.12user 0.02system 0:00.45elapsed 252%CPU (0avgtext+0avgdata 7708maxresident)k
+	0inputs+16outputs (0major+874minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.pdl 200 > test.pdl.pbm
+	1.03user 0.02system 0:01.06elapsed 98%CPU (0avgtext+0avgdata 18808maxresident)k
+	8inputs+24outputs (1major+5810minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.pdl 200 > test2.pdl.pbm
+	0.59user 0.05system 0:00.64elapsed 99%CPU (0avgtext+0avgdata 20604maxresident)k
+	0inputs+24outputs (0major+32277minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.cpl 200 > test.cpl.pbm
+	0.06user 0.00system 0:00.07elapsed 91%CPU (0avgtext+0avgdata 10560maxresident)k
+	0inputs+16outputs (0major+1438minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.cpl 200 > test2.cpl.pbm
+	0.13user 0.00system 0:00.12elapsed 112%CPU (0avgtext+0avgdata 14064maxresident)k
+	0inputs+16outputs (0major+2324minor)pagefaults 0swaps
+
+=head2 400x400
+
+	$ /usr/bin/time perl mandelbrot.perl 400 > test.perl.pbm
+	4.44user 0.00system 0:01.55elapsed 286%CPU (0avgtext+0avgdata 7908maxresident)k
+	0inputs+40outputs (0major+891minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.pdl 400 > test.pdl.pbm
+	3.59user 0.21system 0:03.81elapsed 99%CPU (0avgtext+0avgdata 25384maxresident)k
+	8inputs+48outputs (1major+116548minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.pdl 400 > test2.pdl.pbm
+	1.54user 0.65system 0:02.22elapsed 98%CPU (0avgtext+0avgdata 33584maxresident)k
+	168inputs+48outputs (2major+357873minor)pagefaults 0swaps
+
+	$ /usr/bin/time perl mandelbrot.cpl 400 > test.cpl.pbm
+	0.12user 0.00system 0:00.12elapsed 99%CPU (0avgtext+0avgdata 10656maxresident)k
+	0inputs+40outputs (0major+1441minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.cpl 400 > test2.cpl.pbm
+	0.16user 0.01system 0:00.13elapsed 124%CPU (0avgtext+0avgdata 14140maxresident)k
+	0inputs+40outputs (0major+2340minor)pagefaults 0swaps
+
+=head2 800x800
+
+	$ /usr/bin/time perl mandelbrot.perl 800 > test.perl.pbm
+	17.75user 0.00system 0:06.14elapsed 288%CPU (0avgtext+0avgdata 8056maxresident)k
+	0inputs+160outputs (0major+920minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.pdl 800 > test.pdl.pbm
+	12.74user 1.41system 0:14.18elapsed 99%CPU (0avgtext+0avgdata 53092maxresident)k
+	0inputs+200outputs (0major+451935minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.pdl 800 > test2.pdl.pbm
+	5.45user 3.49system 0:08.96elapsed 99%CPU (0avgtext+0avgdata 86236maxresident)k
+	0inputs+168outputs (0major+1682211minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.cpl 800 > test.cpl.pbm
+	0.24user 0.01system 0:00.25elapsed 99%CPU (0avgtext+0avgdata 10512maxresident)k
+	0inputs+160outputs (0major+1438minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.cpl 800 > test2.cpl.pbm
+	0.40user 0.00system 0:00.20elapsed 198%CPU (0avgtext+0avgdata 14148maxresident)k
+	0inputs+160outputs (0major+2371minor)pagefaults 0swaps
+
+=head2 1600x1600
+
+	$ /usr/bin/time perl mandelbrot.perl 1600 > test.perl.pbm
+	71.51user 0.04system 0:23.71elapsed 301%CPU (0avgtext+0avgdata 8352maxresident)k
+	0inputs+632outputs (0major+1011minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.pdl 1600 > test.pdl.pbm
+	50.92user 3.20system 0:54.19elapsed 99%CPU (0avgtext+0avgdata 162596maxresident)k
+	0inputs+712outputs (0major+852024minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.pdl 1600 > test2.pdl.pbm
+	21.05user 17.11system 0:38.25elapsed 99%CPU (0avgtext+0avgdata 296432maxresident)k
+	0inputs+640outputs (0major+6397302minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.cpl 1600 > test.cpl.pbm
+	0.88user 0.00system 0:00.88elapsed 99%CPU (0avgtext+0avgdata 10548maxresident)k
+	0inputs+632outputs (0major+1441minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.cpl 1600 > test2.cpl.pbm
+	1.24user 0.00system 0:00.49elapsed 254%CPU (0avgtext+0avgdata 14716maxresident)k
+	0inputs+632outputs (0major+2461minor)pagefaults 0swaps
+
+=head2 3200x3200
+
+	$ /usr/bin/time perl mandelbrot.perl 3200 > test.perl.pbm
+	286.66user 0.32system 1:38.23elapsed 292%CPU (0avgtext+0avgdata 9552maxresident)k
+	0inputs+2504outputs (0major+1315minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.pdl 3200 > test.pdl.pbm
+	203.68user 18.85system 3:43.33elapsed 99%CPU (0avgtext+0avgdata 602260maxresident)k
+	0inputs+2704outputs (0major+5057097minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.pdl 3200 > test2.pdl.pbm
+	87.30user 34.40system 2:01.99elapsed 99%CPU (0avgtext+0avgdata 1136244maxresident)k
+	280inputs+2584outputs (3major+6815679minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot.cpl 3200 > test.cpl.pbm
+	3.20user 0.00system 0:03.22elapsed 99%CPU (0avgtext+0avgdata 10552maxresident)k
+	944inputs+2504outputs (6major+1432minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot2.cpl 3200 > test2.cpl.pbm
+	4.66user 0.00system 0:01.65elapsed 281%CPU (0avgtext+0avgdata 15700maxresident)k
+	400inputs+2504outputs (3major+2761minor)pagefaults 0swaps
+
+=head1 ANALYSIS
+
+=head2 Lines of Code
+
+The program lengths, sorted from shortest to longest, are:
+
+ naive PDL : 39 lines
+ smart PDL : 43 lines
+ simple C  : 61 lines
+ pure-Perl : 75 lines
+ threaded C: 99 lines
+
+We can see that PDL wins in brevity. Of course, the pure-Perl
+implementation uses a few more lines than in really has to, so it could
+be shortened, especiallyl if we were to write a single-threaded
+implementation. The pure-Perl vs threaded C make for a clean comparison,
+and we can see that using C::Blocks can significantly increase the
+number of lines of code.
+
+=head2 Timing
+
+The slowest implementation, measured by wall-clock time, is consistently
+the naive PDL implementation. This tells us that most of the points
+converge early. For good performance with this problem, we should only
+iterate on the unconverged points.
+
+The PDL implementation that only focuses on unconverged points beats the
+pure-Perl implementation by a factor of about 2.5. Since the threaded
+pure-Perl implementation is able to tap three cores, it consistently
+finishes in less wall-clock time!
+
+The two C implementations are surprisingly comparable. For small sizes,
+most of the time in the multi-threaded code is spent in a single thread.
+Benchmarks of the simple C code indicate that it takes about 0.06s to
+compile C code, so when the total execution time is 0.5s or less, the
+single-threaded compilation is a significant chunk. For larger sizes,
+the utility of multiple cores becomes clear, with the multi-threaded
+version winning by nearly a factor of 2 in wall-clock time.
+
+Shockingly, both of the C::Blocks versions beat the other version by
+over an order of magnitude. (The smallest size is an exception, where
+the pure-Perl version is only 4x slower than the threaded C::Blocks
+version, and 6.5x slower than the single-threaded C::Blocks version.)
+
+Notice that for large sizes, a good fraction of the PDL scripts' time is
+spent on C<system> time. What is this? Almost certainly it is time spent
+in memory allocations.
+
+=head2 Memory
+
+There is a wide variety of memory usage trends across implementations.
+
+In terms of memory consumption as the system size grows, the pure-Perl
+and C::Blocks implementations consume between 8 and 15MB of memory and
+grow slowly with increased system size. The PDL implementations start at
+roughly 20MB, and their memory neads increase proportional to system
+size. The smart PDL version takes over 1GB of memory for the 3200x3200
+case.
+
+=head2 Page Faults
+
+Page faults occur when the system had to shuffle executable instructions
+in memory. Major page faults (usually?) involve disk reads and/or
+writes. Since these do not come up often in these benchmarks, I will
+focus on minor page faults.
+
+The pure-Perl implementation has the fewest minor page faults. The
+number grows slowly with system size, however, probably becauase the
+process runs long enough to begin competing with other processs.
+
+The simple C implementation has an essentially constant number of minor
+page faults, while the threaded implementation has a slowly increasing
+amounts of page faults. However, the number of minor page faults for
+both is no more than a factor of 2 larger than the pure-Perl version.
+
+The PDL implementations are a different story altogether. The number of
+page faults they exhibit appear to grow with system size.
+
+Minor page faults are supposed to be fairy cheap, but it can't be good
+for it to grows with system size.
+

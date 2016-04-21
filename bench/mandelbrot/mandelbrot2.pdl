@@ -1,0 +1,44 @@
+use strict;
+use warnings;
+use PDL;
+
+my $w = my $h = shift || 200;
+my $limit = 4;
+
+# Allocate working memory:
+my $Cr = (zeros($w, $h)->xvals * 2 / $w - 1.5)->flat;
+my $Ci = (zeros($w, $h)->yvals * 2 / $h - 1)->flat;
+# Complex numbers to which the sequence converges:
+my $Zr = zeros($w * $h);
+my $Zi = $Zr->copy;
+# Temporary complex numbers used in the calculation:
+my $Tr = zeros($w, $h);
+my $Ti = $Tr->copy;
+# bitmap of the locations where we are still working:
+my $not_converged = ones($w, $h);
+
+# Perform 50 iterations
+for (1 .. 50) {
+	$Zi .= 2 * $Zr * $Zi + $Ci;
+	$Zr .= $Tr->where($not_converged) - $Ti->where($not_converged) + $Cr;
+	$Tr->where($not_converged) .= $Zr * $Zr;
+	$Ti->where($not_converged) .= $Zi * $Zi;
+	
+	my $still_not_converged = (($Tr->where($not_converged) + $Ti->where($not_converged)) <= $limit);
+	$not_converged->where($not_converged) .= $still_not_converged;
+	$Zi = $Zi->where($still_not_converged)->sever;
+	$Zr = $Zr->where($still_not_converged)->sever;
+	$Ci = $Ci->where($still_not_converged)->sever;
+	$Cr = $Cr->where($still_not_converged)->sever;
+}
+
+# Collapse the bitmap into one bit per pixel
+my $bytes_per_line = $w / 8;
+my $to_save = zeros(byte, $bytes_per_line, $h);
+for my $bit (0 .. 7) {
+	$to_save |= $not_converged->slice([$bit, -1, 8], [0,-1]) << 7 - $bit;
+}
+
+print "P4\n$w $h\n"; # PBM image header
+print ${$to_save->get_dataref};
+

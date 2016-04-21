@@ -1,0 +1,40 @@
+use strict;
+use warnings;
+use PDL;
+
+my $w = my $h = shift || 200;
+my $limit = 4;
+
+# Allocate working memory. Real and imaginary values for the locations:
+my $Cr = sequence($w) * 2 / $w - 1.5;
+my $Ci = sequence($h)->transpose * 2 / $h - 1;
+# Complex numbers to which the sequence converges:
+my $Zr = zeros($w, $h);
+my $Zi = $Zr->copy;
+# Temporary complex numbers used in the calculation:
+my $Tr = $Zr->copy;
+my $Ti = $Zr->copy;
+
+# Perform 50 iterations
+for (1 .. 50) {
+	$Zi = 2 * $Zr * $Zi + $Ci;
+	$Zr = $Tr - $Ti + $Cr;
+	$Tr = $Zr * $Zr;
+	$Ti = $Zi * $Zi;
+}
+
+# identify the locations that did not converge
+my $to_compress = zeros(byte, $w, $h);
+$to_compress->where(($Tr + $Ti) <= $limit) .= 1;
+
+# Collapse the bitmap into one bit per pixel
+my $bytes_per_line = $w / 8;
+my $to_save = zeros(byte, $bytes_per_line, $h);
+for my $bit (0 .. 7) {
+	$to_save |= $to_compress->slice([$bit, -1, 8], [0,-1]) << 7 - $bit;
+}
+
+# Save the result
+print "P4\n$w $h\n"; # PBM image header
+print ${$to_save->get_dataref};
+

@@ -9,3 +9,4 @@ lib/C/Blocks/PerlAPI.xs
 MANIFEST.SKIP.bak
 share/
 names.txt
+bench/mandelbrot/mandelbrot.perl
