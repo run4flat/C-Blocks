@@ -2,21 +2,55 @@
 
 This directory contains various impelentations of the Mandelbrot
 benchmark, popularized at http://benchmarksgame.alioth.debian.org/.
+This document gives benchmark results and discusses numerous aspects of
+the performance of the various implementations.
 
-mandelbrot.perl - original multi-threaded Perl version written by Mykola
-Zubach, taken directly from benchmarksgame
+The scripts include
 
-mandelbrot.cpl - single-threaded C::Blocks implementation based largely
+=over
+
+=item mandelbrot.perl
+
+The original multi-threaded Perl version written by Mykola
+Zubach, taken directly from benchmarksgame. I do not include this in
+the distribution, but it can be easily obtained from the benchmarks game
+web site.
+
+=item mandelbrot.cpl
+
+A single-threaded C::Blocks implementation based largely
 on the mandelbrot.gcc-2.gcc from benchmarksgame
 
-mandelbrot2.cpl - multi-threaded variation of mandelbrot.perl which
-implements the iterative portion of the code using C::Blocks
+=item mandelbrot2.cpl
 
-mandelbrot.pdl - overly simple single-threaded PDL implementation that
-performs 50 iterations on all locations
+A variation of the multi-threaded mandelbrot.perl, using C::Blocks to
+implement the iterative portion of the calculation.
 
-mandelbrot2.pdl - more sophisticated single-threaded PDL implementation
-that only performs iterations on locations that have not converged
+=item mandelbrot.pdl
+
+An overly simple single-threaded PDL implementation that
+performs 50 iterations on all locations.
+
+=item mandelbrot2.pdl
+
+A more sophisticated single-threaded PDL implementation
+that only performs iterations on locations that have not converged.
+
+=item mandelbrot3.pdl
+
+A single-threaded PDL implementation that performs the calculations on
+lines, rather than on the set as a whole. Like the second PDL
+implementation, this performs iterations only on the unconverged
+locations.
+
+=item mandelbrot4.pdl
+
+A tiled variation of the third PDL implementation. This script is
+included in the distribution, but results are not shown or discussed
+below. In particular, there is no code to handle the case where the tile
+size is incomensurate with the specified side length.
+
+=back
 
 To test and time these, you should run them like so:
 
@@ -24,10 +58,12 @@ To test and time these, you should run them like so:
   /usr/bin/time perl mandelbrot.cpl 3200 > test.cpl.pbm
   /usr/bin/time perl mandelbrot2.cpl 3200 > test2.cpl.pbm
 
-You can diff the PBM files to ensure that they are identical. Then comes
-the fun part: the benchmark timings.
+You can diff the PBM files from different implementations to ensure that
+they are identical. Then comes the fun part: discussing the measurements.
 
 =head1 RESULTS
+
+Here are the outputs for these scripts, run on my laptop.
 
 =head2 200x200
 
@@ -42,6 +78,10 @@ the fun part: the benchmark timings.
 	$ /usr/bin/time perl mandelbrot2.pdl 200 > test2.pdl.pbm
 	0.59user 0.05system 0:00.64elapsed 99%CPU (0avgtext+0avgdata 20604maxresident)k
 	0inputs+24outputs (0major+32277minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot3.pdl 200 > test3.pdl.pbm
+	3.33user 0.01system 0:03.35elapsed 99%CPU (0avgtext+0avgdata 16772maxresident)k
+	0inputs+24outputs (0major+4640minor)pagefaults 0swaps
 	
 	$ /usr/bin/time perl mandelbrot.cpl 200 > test.cpl.pbm
 	0.06user 0.00system 0:00.07elapsed 91%CPU (0avgtext+0avgdata 10560maxresident)k
@@ -64,7 +104,11 @@ the fun part: the benchmark timings.
 	$ /usr/bin/time perl mandelbrot2.pdl 400 > test2.pdl.pbm
 	1.54user 0.65system 0:02.22elapsed 98%CPU (0avgtext+0avgdata 33584maxresident)k
 	168inputs+48outputs (2major+357873minor)pagefaults 0swaps
-
+	
+	$ /usr/bin/time perl mandelbrot3.pdl 400 > test3.pdl.pbm
+	6.23user 0.01system 0:06.26elapsed 99%CPU (0avgtext+0avgdata 16756maxresident)k
+	0inputs+48outputs (0major+4672minor)pagefaults 0swaps
+	
 	$ /usr/bin/time perl mandelbrot.cpl 400 > test.cpl.pbm
 	0.12user 0.00system 0:00.12elapsed 99%CPU (0avgtext+0avgdata 10656maxresident)k
 	0inputs+40outputs (0major+1441minor)pagefaults 0swaps
@@ -86,6 +130,10 @@ the fun part: the benchmark timings.
 	$ /usr/bin/time perl mandelbrot2.pdl 800 > test2.pdl.pbm
 	5.45user 3.49system 0:08.96elapsed 99%CPU (0avgtext+0avgdata 86236maxresident)k
 	0inputs+168outputs (0major+1682211minor)pagefaults 0swaps
+	
+	$ /usr/bin/time perl mandelbrot3.pdl 800 > test3.pdl.pbm
+	13.25user 0.00system 0:13.27elapsed 99%CPU (0avgtext+0avgdata 16612maxresident)k
+	0inputs+168outputs (0major+4658minor)pagefaults 0swaps
 	
 	$ /usr/bin/time perl mandelbrot.cpl 800 > test.cpl.pbm
 	0.24user 0.01system 0:00.25elapsed 99%CPU (0avgtext+0avgdata 10512maxresident)k
@@ -109,6 +157,10 @@ the fun part: the benchmark timings.
 	21.05user 17.11system 0:38.25elapsed 99%CPU (0avgtext+0avgdata 296432maxresident)k
 	0inputs+640outputs (0major+6397302minor)pagefaults 0swaps
 	
+	$ /usr/bin/time perl mandelbrot3.pdl 1600 > test3.pdl.pbm
+	29.74user 0.04system 0:29.83elapsed 99%CPU (0avgtext+0avgdata 16804maxresident)k
+	0inputs+640outputs (0major+4727minor)pagefaults 0swaps
+	
 	$ /usr/bin/time perl mandelbrot.cpl 1600 > test.cpl.pbm
 	0.88user 0.00system 0:00.88elapsed 99%CPU (0avgtext+0avgdata 10548maxresident)k
 	0inputs+632outputs (0major+1441minor)pagefaults 0swaps
@@ -131,6 +183,10 @@ the fun part: the benchmark timings.
 	87.30user 34.40system 2:01.99elapsed 99%CPU (0avgtext+0avgdata 1136244maxresident)k
 	280inputs+2584outputs (3major+6815679minor)pagefaults 0swaps
 	
+	$ /usr/bin/time perl mandelbrot3.pdl 3200 > test3.pdl.pbm
+	73.66user 0.35system 1:14.14elapsed 99%CPU (0avgtext+0avgdata 16988maxresident)k
+	0inputs+2512outputs (0major+103900minor)pagefaults 0swaps
+	
 	$ /usr/bin/time perl mandelbrot.cpl 3200 > test.cpl.pbm
 	3.20user 0.00system 0:03.22elapsed 99%CPU (0avgtext+0avgdata 10552maxresident)k
 	944inputs+2504outputs (6major+1432minor)pagefaults 0swaps
@@ -145,30 +201,41 @@ the fun part: the benchmark timings.
 
 The program lengths, sorted from shortest to longest, are:
 
- naive PDL : 39 lines
- smart PDL : 43 lines
- simple C  : 61 lines
- pure-Perl : 75 lines
- threaded C: 99 lines
+ PDL  #1 : 39 lines
+ PDL  #2 : 43 lines
+ PDL  #3 : 53 lines
+ C    #1 : 63 lines
+ Perl #1 : 75 lines
+ C    #2 : 99 lines
 
 We can see that PDL wins in brevity. Of course, the pure-Perl
-implementation uses a few more lines than in really has to, so it could
-be shortened, especiallyl if we were to write a single-threaded
-implementation. The pure-Perl vs threaded C make for a clean comparison,
-and we can see that using C::Blocks can significantly increase the
-number of lines of code.
+implementation uses a few more lines than it really has to, so it could
+be shortened, especially if we were to write a single-threaded
+implementation. The pure-Perl vs threaded C (#2) make for a clean
+line-count comparison, and we can see that using C::Blocks can
+significantly increase the number of lines of code.
 
 =head2 Timing
 
-The slowest implementation, measured by wall-clock time, is consistently
-the naive PDL implementation. This tells us that most of the points
-converge early. For good performance with this problem, we should only
+The slowest implementation, measured by wall-clock time, is either the
+naive PDL implementation or the row-based PDL implementation. The
+slowness of the first tells us that most of the points converge early.
+For good performance with this problem, we should only
 iterate on the unconverged points.
 
-The PDL implementation that only focuses on unconverged points beats the
-pure-Perl implementation by a factor of about 2.5. Since the threaded
-pure-Perl implementation is able to tap three cores, it consistently
-finishes in less wall-clock time!
+The slowness of the row-based PDL implementation is difficult to explain
+based on these benchmarks alone. Taken together with other benchmarks,
+my assessment is that the overhead for a single PDL operation is
+moderately expensive, and so PDL operations are sub-optimal
+for small sets of data. Since most points converge rapidly, most of the
+iterations in the single-row implementation involve PDL operations on
+small sets, where PDL is not very fast.
+
+The PDL implementation that operates on the entire set at once, but only
+focuses on unconverged points, beats the pure-Perl implementation by a
+factor of about 2.5. However, since the threaded pure-Perl
+implementation is able to tap three cores, it consistently finishes in
+less wall-clock time!
 
 The two C implementations are surprisingly comparable. For small sizes,
 most of the time in the multi-threaded code is spent in a single thread.
@@ -178,7 +245,7 @@ single-threaded compilation is a significant chunk. For larger sizes,
 the utility of multiple cores becomes clear, with the multi-threaded
 version winning by nearly a factor of 2 in wall-clock time.
 
-Shockingly, both of the C::Blocks versions beat the other version by
+Shockingly, both of the C::Blocks versions beat the other versions by
 over an order of magnitude. (The smallest size is an exception, where
 the pure-Perl version is only 4x slower than the threaded C::Blocks
 version, and 6.5x slower than the single-threaded C::Blocks version.)
@@ -193,10 +260,11 @@ There is a wide variety of memory usage trends across implementations.
 
 In terms of memory consumption as the system size grows, the pure-Perl
 and C::Blocks implementations consume between 8 and 15MB of memory and
-grow slowly with increased system size. The PDL implementations start at
-roughly 20MB, and their memory neads increase proportional to system
-size. The smart PDL version takes over 1GB of memory for the 3200x3200
-case.
+grow slowly with increased system size. The same is true for the third
+PDL implementation, which takes a line-oriented approach. The other PDL
+implementations start at roughly 20MB, and their memory neads increase
+proportional to system size. The second PDL implementation takes over
+1GB of memory for the 3200x3200 case.
 
 =head2 Page Faults
 
@@ -207,7 +275,7 @@ focus on minor page faults.
 
 The pure-Perl implementation has the fewest minor page faults. The
 number grows slowly with system size, however, probably becauase the
-process runs long enough to begin competing with other processs.
+process runs long enough to begin competing with other processes.
 
 The simple C implementation has an essentially constant number of minor
 page faults, while the threaded implementation has a slowly increasing
@@ -215,8 +283,51 @@ amounts of page faults. However, the number of minor page faults for
 both is no more than a factor of 2 larger than the pure-Perl version.
 
 The PDL implementations are a different story altogether. The number of
-page faults they exhibit appear to grow with system size.
+page faults they exhibit appear to grow with system size. The (third)
+line-oriented PDL implementation is an exception, with minor page fault
+counts that are comparable to the C implementations until we reach the
+3200x3200 size.
 
-Minor page faults are supposed to be fairy cheap, but it can't be good
-for it to grows with system size.
+Minor page faults are supposed to be fairly cheap, but they're not free.
+The Perl and C::Blocks implementations exhibit sub-linear dependence on
+side length, whereas the PDL implementations exhibit quadratic
+dependence. This does not speak well for PDL performance.
+
+=head1 DISCUSSION
+
+Nobody studies the Mandelbrot set directly. The purpose of these
+benchmarks is to examine how the different programming options perform
+for a numerically intensive task with potential early exits. Which of
+these is the best option?
+
+I would argue that the first C::Blocks implementation is the best
+choice. The code is relatively short and straight-forward. The
+memory consumption grows linearly with system side-length, meaning I
+could run this for side-lengths of 1 million and it would still fit
+within my RAM. The performance is second only to the more complicated
+multi-threaded C::Blocks version, and in the worse case only 3x slower.
+
+The multi-threaded pure-Perl implementation is more complicated and
+significantly slower.
+
+The PDL implementations require fewer lines of code but exhibit significant
+performance limitations compared with the C::Blocks implementations.
+Memory scaling for the simplest implementations make sizes much larger
+than 3200 impossible for my machine. The performance is not much better
+than the pure-Perl implementation, and so is significantly slower than
+the C::Blocks versions.
+
+One could argue that the poor performance for the PDL implementations is
+due to poorly implemented PDL scripts. After all, I worked with
+carefully crafted C and Perl versions from the benchmarksgame collection,
+so it is only fair to invest the time to write an optimized PDL version.
+There are two problems with this argument. First, the three PDL scripts
+benchmarked here show iterations of optimization; that is, I did try
+fairly hard to tune my PDL scripts. Second, the C implementation I chose
+is not the fastest available, but rather the shortest implementation.
+It's a smart implementation, but there isn't a great deal of
+cleverness involved. I could reasonably expect to write this sort of
+implementation on my first or second iteration after a first draft. I
+believe that we have here a rather fair comparison between the three
+different Perl-based programming options.
 

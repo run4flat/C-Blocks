@@ -1,0 +1,58 @@
+use strict;
+use warnings;
+use PDL;
+
+my $w = my $h = shift || 200;
+my $limit = 4;
+
+# PBM image header
+print "P4\n$w $h\n";
+
+my $tile = 40;
+
+# Loop through y, the imaginary component of the constant C
+for my $y (0 .. $h/$tile - 1) {
+
+	# Allocate working memory:
+	my $Cr = (zeros($w, $tile)->xvals * 2 / $w - 1.5)->flat;
+	my $Ci = ((zeros($w, $tile)->yvals + $tile * $y) * 2 / $h - 1)->flat;
+	# Complex numbers to which the sequence converges:
+	my $Zr = zeros($w * $tile);
+	my $Zi = $Zr->copy;
+	# Temporary complex numbers used in the calculation:
+	my $Tr = $Zr->copy;
+	my $Ti = $Zr->copy;
+	# bitmap of the locations where we are still working:
+	my $not_converged = $Zr->ones;
+	my $still_working = $not_converged; # shallow copy
+
+	
+	# Perform 50 iterations
+	for (1 .. 50) {
+		$Zi .= 2 * $Zr * $Zi + $Ci;
+		$Zr .= $Tr - $Ti + $Cr;
+		$Tr .= $Zr * $Zr;
+		$Ti .= $Zi * $Zi;
+		
+		my $still_not_converged = (($Tr + $Ti) <= $limit);
+		$still_working .= $still_not_converged;
+		last if $still_not_converged->sum == 0;
+		$Zi = $Zi->where($still_not_converged)->sever;
+		$Zr = $Zr->where($still_not_converged)->sever;
+		$Ci = $Ci->where($still_not_converged)->sever;
+		$Cr = $Cr->where($still_not_converged)->sever;
+		$Ti = $Ti->where($still_not_converged)->sever;
+		$Tr = $Tr->where($still_not_converged)->sever;
+		# preserve data-flow for still_working!
+		$still_working = $still_working->where($still_not_converged);
+	}
+
+	# Collapse the bitmap into one bit per pixel
+	my $bytes_per_line = $w / 8;
+	my $to_save = zeros(byte, $bytes_per_line * $tile);
+	for my $bit (0 .. 7) {
+		$to_save |= $not_converged->slice([$bit, -1, 8]) << 7 - $bit;
+	}
+
+	print ${$to_save->get_dataref};
+}

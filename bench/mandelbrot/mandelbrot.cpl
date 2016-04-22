@@ -13,7 +13,8 @@ use C::Blocks::PerlAPI;
 # Allocate the line contents so that we have something that we can
 # easily manipulate.
 my $line_contents;
-vec ($line_contents, $w / 8 - 1, 8) = 0;
+my $N_bytes = $w % 8 == 0 ? $w / 8 : int($w / 8) + 1;
+vec ($line_contents, $N_bytes - 1, 8) = 0;
 
 for my $y ( 0 .. $h-1) {
 	cisa C::Blocks::Type::int $y, $w, $h;
@@ -23,6 +24,7 @@ for my $y ( 0 .. $h-1) {
 		int i, iter = 50;
 		double x, limit = 2.0;
 		double Zr, Zi, Cr, Ci, Tr, Ti;
+		
 		char * line_contents = SvPVbyte_nolen($line_contents);
 		
         for(x=0; x < $w; ++x) {
