@@ -6,7 +6,7 @@ init:
   - git config --global core.autocrlf input
 
 install:
-  - cinst install strawberryperl
+  - cinst strawberryperl -version 5.20.1.1
   - SET PATH=C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin;%PATH%
   - cpanm Alien::TinyCCx
   - cpanm --installdeps --notest .
