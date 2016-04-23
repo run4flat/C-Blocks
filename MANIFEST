@@ -41,3 +41,4 @@ t/80-StretchyBuffer.t
 t/99-stdio-fails.t
 META.yml
 META.json
+Changes
