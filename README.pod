@@ -1,3 +1,5 @@
+L<https://travis-ci.org/run4flat/C-Blocks.svg?branch=master>
+
 =head1 NAME
 
 C::Blocks - embeding a fast C compiler directly into your Perl parser
