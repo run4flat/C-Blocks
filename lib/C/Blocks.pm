@@ -523,6 +523,15 @@ Note: The current implementation is unpolished. In particular, it does
 not intelligently handle exceptions thrown during the evaluation of the
 Perl code. (Indeed, at the moment it suppresses them.)
 
+For the most part, any side effects from the code contained in
+interpolation blocks behave exactly like side effects from BEGIN blocks.
+There is an exception, however, for Perls earlier than 5.18. In these
+older Perls, lexical variables become uninitialized after all interpolation
+blocks execute, but before any BEGIN blocks run. This only applies to
+lexically scoped variables, however. Changes to package-scoped variables
+(including lexically scoped names, i.e. C<our $package_var>) persist,
+as would be expected if these variables were set in BEGIN blocks.
+
 =head2 Performance
 
 C<C::Blocks> is currently implemented using the Tiny C Compiler, a 
