@@ -16,4 +16,4 @@ build_script:
   - Build
 
 test_script:
-  - Build test
+  - Build test verbose=1
