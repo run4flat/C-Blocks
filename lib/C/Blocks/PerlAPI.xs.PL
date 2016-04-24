@@ -74,8 +74,25 @@ HEADER_CONTENTS
 	
 	# Add the path to winsock2.h if MSWin, just to be safe. This is
 	# mostly an issue for testers, I think.
+print "Alien::TinyCCx is located at ", $INC{'Alien/TinyCCx.pm'}, "\n";
+	if ($^O =~ /MSWin/) {
+		my $dir = Alien::TinyCCx->path_to_tcc() . '\\';
+		print `dir $dir`;
+		print `dir $dir\\include`;
+		print `dir $dir\\include\\winapi`;
+		if (-f File::Spec->catdir(Alien::TinyCCx->path_to_tcc,
+			"include", "winapi", 'winsock2.h'))
+		{
+			print "winsock2.h exists\n";
+		}
+		else {
+			print "Could NOT find winsock2 where I expected it!\n"
+		}
+	}
 	$compiler_args .= ' -I' . File::Spec->catdir(Alien::TinyCCx->path_to_tcc,
 		"include", "winapi") if $^O =~ /MSWin/;
+
+print "Compiler arguments are currently [$compiler_args]\n";
 	
 	# GCC Statement Expressions (also called brace groups) give tcc
 	# trouble. I should be able to turn those off by defining
