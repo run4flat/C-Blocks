@@ -281,6 +281,12 @@ sub dll_screen {
 	# Figure out which identifiers can be located in one of our dlls
 	my @to_return;
 	IDENTIFIER: for my $identifier (@identifiers) {
+		if ($identifier =~ /^S_/) {
+			# Mark this as kept for now; it'll get screened out later
+			# if necessary.
+			push @to_return, $identifier;
+			next IDENTIFIER;
+		}
 		for my $lib (values %found_dlls) {
 			if (DynaLoader::dl_find_symbol($lib, $identifier)) {
 				push @to_return, $identifier;
