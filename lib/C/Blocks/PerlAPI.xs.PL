@@ -72,6 +72,11 @@ HEADER_CONTENTS
 	# tcc does not like the -arch compiler option
 	$compiler_args =~ s/-arch\s+\w+//g;
 	
+	# Add the path to winsock2.h if MSWin, just to be safe. This is
+	# mostly an issue for testers, I think.
+	$compiler_args .= ' -I' . File::Spec->catdir(Alien::TinyCCx->path_to_tcc,
+		"include", "winapi") if $^O =~ /MSWin/;
+	
 	# GCC Statement Expressions (also called brace groups) give tcc
 	# trouble. I should be able to turn those off by defining
 #	$compiler_args .= ' -DPERL_GCC_BRACE_GROUPS_FORBIDDEN';  # doesn't work... why?
