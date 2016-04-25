@@ -1,0 +1,45 @@
+use strict;
+use warnings;
+use C::Blocks;
+use C::Blocks::PerlAPI;
+
+sub load_data {
+	my ($filename, $data_ref) = @_;
+	open my $in_fh, '<', $filename or die "Unable to open $filename\n";
+	local $/;
+	$$data_ref = <$in_fh>;
+}
+
+# Load A and B
+my ($A, $B);
+load_data('A.bin', \$A);
+load_data('B.bin', \$B);
+
+# Check dimensions
+length($A) == length($B) or die "Sizes for A and B differ\n";
+my $dim_size = sqrt(length($A) / 8);
+$dim_size = int($dim_size) or die "A is not a square matrix\n";
+
+# Allocate room for the result
+vec (my $C, length($B) - 1, 8) = 0;
+
+# Load blas
+BEGIN {
+	$C::Blocks::library_to_link = 'libblas.so';
+}
+clex {
+	#include <cblas.h>
+}
+
+# Use a very simple implementation
+cisa C::Blocks::Type::int $dim_size;
+
+cblock {
+	int d = $dim_size;
+	double * A = (double*)SvPVbyte_nolen($A);
+	double * B = (double*)SvPVbyte_nolen($B);
+	double * C = (double*)SvPVbyte_nolen($C);
+	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, d, d, d, 1.0,
+		A, d, B, d, 0.0, C, d);
+}
+print $C;

@@ -1,0 +1,8 @@
+use strict;
+use warnings;
+use PDL;
+use PDL::IO::FastRaw;
+my $A = readfraw('A.bin');
+my $B = readfraw('B.bin');
+#print "A x B is ", $A x $B, "\n";
+print ${($A x $B)->get_dataref};
