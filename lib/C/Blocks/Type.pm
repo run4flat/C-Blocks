@@ -6,6 +6,20 @@ use warnings;
 
 use C::Blocks;
 
+sub is_defined {
+	my $package = shift @_;
+	$@ = '';
+	while (@_) {
+		my ($arg_name, $arg) = splice @_, 0, 2;
+		$@ .= "$arg_name is not defined\n" and next if not defined $arg;
+	}
+	if ($@ eq '') {
+		undef $@;
+		return 1;
+	}
+	croak($@);
+}
+
 cshare {
 	#define just_gimme_zero(arg) 0
 }
@@ -62,6 +76,25 @@ $C::Blocks::Type::uint_no_init::CLEANUP = 'sv_setuv';
 	= *C::Blocks::Type::uint_no_init::check_var_types
 	= \&C::Blocks::Type::NV::check_var_types;
 
+
+########################################################################
+                           # buffers #
+########################################################################
+$C::Blocks::Type::Buffer::char::TYPE   = 'char *';
+$C::Blocks::Type::Buffer::int::TYPE    = 'int *';
+$C::Blocks::Type::Buffer::float::TYPE  = 'float *';
+$C::Blocks::Type::Buffer::double::TYPE = 'double *';
+
+$C::Blocks::Type::Buffer::char::INIT   = 'SvPVbyte_nolen';
+$C::Blocks::Type::Buffer::int::INIT    = '(int*)SvPVbyte_nolen';
+$C::Blocks::Type::Buffer::float::INIT  = '(float*)SvPVbyte_nolen';
+$C::Blocks::Type::Buffer::double::INIT = '(double*)SvPVbyte_nolen';
+
+*C::Blocks::Type::Buffer::char::check_var_types
+	= *C::Blocks::Type::Buffer::int::check_var_types
+	= *C::Blocks::Type::Buffer::float::check_var_types
+	= *C::Blocks::Type::Buffer::double::check_var_types
+	= \&C::Blocks::Type::is_defined;
 
 
 1;
