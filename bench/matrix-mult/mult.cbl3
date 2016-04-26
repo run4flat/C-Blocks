@@ -25,7 +25,7 @@ $m = int($m) or die "A is not a square matrix\n";
 vec (my $C, length($B) - 1, 8) = 0;
 
 # Use a blas matrix multiply
-BEGIN { $C::Blocks::library_to_link = 'libblas.so' }
+BEGIN { @C::Blocks::libraries_to_link = ('/usr/lib/libblas.so') }
 clex { #include <cblas.h> }
 
 cisa C::Blocks::Type::int $m;

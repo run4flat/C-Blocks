@@ -25,7 +25,8 @@ vec (my $C, length($B) - 1, 8) = 0;
 
 # Load blas
 BEGIN {
-	$C::Blocks::library_to_link = 'libblas.so';
+	@C::Blocks::libraries_to_link = ('libatlas.so.3', 'libblas.so');
+#	$C::Blocks::compiler_options = '-Wall -static -latlas';
 }
 clex {
 	#include <cblas.h>
