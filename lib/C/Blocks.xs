@@ -28,7 +28,7 @@ typedef void (*my_void_func)(pTHX);
 
 typedef struct _available_extended_symtab {
 	extended_symtab_p exsymtab;
-	void * dll;
+	void ** dlls;
 } available_extended_symtab;
 
 XOP tcc_xop;
@@ -168,19 +168,23 @@ void my_symtab_sym_used(char * name, int len, void * data) {
 		available_extended_symtab lookup_data
 			= callback_data->available_extended_symtabs[i];
 		
-		/* If we have a dll, then look for the name in there */
-		if (lookup_data.dll != NULL) {
-			#ifdef PERL_IMPLICIT_CONTEXT
-				pointer = dynaloader_get_symbol(callback_data->my_perl,
-					callback_data->available_extended_symtabs[i].dll, name);
-			#else
-				pointer = dynaloader_get_symbol(
-					callback_data->available_extended_symtabs[i].dll, name);
-			#endif
+		/* Scan the dlls first */
+		void ** curr_dll = lookup_data.dlls;
+		if (curr_dll != NULL) {
+			while (*curr_dll != NULL) {
+				#ifdef PERL_IMPLICIT_CONTEXT
+					pointer = dynaloader_get_symbol(callback_data->my_perl,
+						*curr_dll, name);
+				#else
+					pointer = dynaloader_get_symbol(*curr_dll, name);
+				#endif
+				if (pointer) break;
+				curr_dll++;
+			}
 		}
 		
-		/* Otherwise, it was JIT-compiled, look for it in the exsymtab */
-		else {
+		/* If we didn't find it, check if it's in the exsymtab */
+		if (pointer == NULL) {
 			pointer = tcc_get_extended_symbol(lookup_data.exsymtab, name);
 		}
 		
@@ -954,7 +958,6 @@ void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
 }
 
 void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int keyword_type) {
-	SV * lib_to_link = get_sv("C::Blocks::library_to_link", 0);
 	/* Build an extended symbol table to serialize */
 	available_extended_symtab new_table;
 	new_table.exsymtab = tcc_get_extended_symbol_table(state);
@@ -963,16 +966,29 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	 * when everything is over. */
 	AV * extended_symtab_cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
 	av_push(extended_symtab_cache, newSViv(PTR2IV(new_table.exsymtab)));
-	
-	/* Get the dll pointer if this is linked against a dll */
-	new_table.dll = NULL;
-	if (SvPOK(lib_to_link) && SvCUR(lib_to_link) > 0) {
-		new_table.dll = dynaloader_get_lib(aTHX_ SvPVbyte_nolen(lib_to_link));
-		if (new_table.dll == NULL) {
-			croak("C::Blocks/DynaLoader unable to load library [%s]",
-				SvPVbyte_nolen(lib_to_link));
+
+	/* Get the dll pointers if this is to be linked against dlls */
+	AV * libs_to_link = get_av("C::Blocks::libraries_to_link", 0);
+	new_table.dlls = NULL;
+	if (libs_to_link != NULL && av_top_index(libs_to_link) >= 0) {
+		int N_libs = av_top_index(libs_to_link) + 1;
+		int i = 0;
+		new_table.dlls = Newx(new_table.dlls, N_libs + 1, void*);
+		while(av_top_index(libs_to_link) >= 0) {
+			SV * lib_to_link = av_shift(libs_to_link);
+			new_table.dlls[i] = dynaloader_get_lib(aTHX_ SvPVbyte_nolen(lib_to_link));
+			if (new_table.dlls[i] == NULL) {
+				croak("C::Blocks/DynaLoader unable to load library [%s]",
+					SvPVbyte_nolen(lib_to_link));
+			}
+			SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
+			i++;
 		}
-		SvSetMagicSV_nosteal(lib_to_link, &PL_sv_undef);
+		new_table.dlls[i] = NULL;
+		
+		/* Store a copy so we can later clean up memory */
+		AV * dll_list = get_av("C::Blocks::__dll_list_array", GV_ADDMULTI | GV_ADD);
+		av_push(dll_list, newSViv(PTR2IV(new_table.dlls)));
 	}
 	
 	/* add the serialized pointer address to the hints hash entry */
@@ -1269,6 +1285,17 @@ CODE:
 			warn("C::Blocks had trouble freeing extended symbol table, index %d", i);
 		}
 	}
+	cache = get_av("C::Blocks::__dll_list_array", GV_ADDMULTI | GV_ADD);
+	for (i = 0; i < av_len(cache); i++) {
+		elem_p = av_fetch(cache, i, 0);
+		if (elem_p != 0) {
+			Safefree(INT2PTR(void*, SvIV(*elem_p)));
+		}
+		else {
+			warn("C::Blocks had trouble freeing dll list, index %d", i);
+		}
+	}
+	
 
 BOOT:
 	/* Set up the keyword plugin to a useful initial value. */

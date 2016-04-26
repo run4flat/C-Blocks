@@ -15,10 +15,10 @@ our $VERSION = "0.03_01";
 XSLoader::load('C::Blocks', $VERSION);
 $VERSION = eval $VERSION;
 
-our (@__code_cache_array, @__symtab_cache_array);
+our (@__code_cache_array, @__symtab_cache_array, @__dll_list_array);
 our $default_compiler_options = "-Wall -D_C_BLOCKS_OS_$^O ";
 our $compiler_options = $default_compiler_options;
-our $library_to_link;
+our @libraries_to_link;
 our ($_add_msg_functions, $_msg);
 
 sub import {
@@ -555,6 +555,40 @@ write code that performs C operations on C structures. But then how do
 you declare your C data structures? And more importantly, how do you 
 package those structures into a library in order to share those 
 structures with others? That's what I discuss next.
+
+=head2 Configuring the Compiler
+
+Sometimes you need to configure the compiler. The most common situation
+that arises involves linking against external libraries. You may also
+need to include traditional compiler command-line arguments which you
+obtain from the command-line, or from a configuration module. The
+current means to do this is by setting special-purposed package
+variables which get examined during the compilation stage.
+
+NOTE: THIS API IS UNDER DEVELOPMENT. UNTIL C::BLOCKS REACHES v1.0, THIS
+API IS SUBJECT TO CHANGE, LIKELY WITHOUT NOTICE.
+
+To set most compiler settings, you simply treat
+C<$C::Blocks::compiler_options> like the command-line. For example, if
+you want to set preprocessor definition at runtime (but don't want to
+use an interpolation block for some reason), you can use
+
+ BEGIN { $C::Blocks::compiler_options = '-DDEBUG' }
+
+A very important aspect to remember is that the compiler options, and
+the shared libraries mentioned next, only apply to the first block they
+encounter. The process of compiling a block clears these variables.
+
+For C::Blocks, tcc does not handle linking to shared libraries, because
+it does not know how to open shared libraries on Mac systems. Instead,
+C::Blocks manages the shared libraries itself, loading libraries and
+looking up symbols using Dynaloader. For this reason, the shared
+libraries are not indicated with the typical C<-L> and C<-l> flags as
+compiler options. Instead, each library should be added to the package
+variable C<@C::Blocks::libraries_to_link>. Each string in this list
+should be the full library name, including file extensions. If the
+library is located in an unconventional location, the full path should
+be specified.
 
 =head1 KEYWORDS
 

@@ -29,7 +29,7 @@ BEGIN {
 	$C::Blocks::compiler_options =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
 	
 	# Set the Prima library
-	$C::Blocks::library_to_link = $Prima::Config::Config{dlname};
+	@C::Blocks::libraries_to_link = ($Prima::Config::Config{dlname});
 }
 cshare {
 	#include <apricot.h>

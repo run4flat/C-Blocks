@@ -4,6 +4,12 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
 
 0.04  Ddd, Mth #, 201#
 
+  [API CHANGES]
+  
+  * Shared libraries are now indicated with the package array
+    @C::Blocks::libraries_to_link rather than the package scalar
+    $C::Blocks::library_to_link.
+  
   [DEPENDENCIES]
   
   * Bumped Alien::TinyCCx dependency to v0.07.
@@ -11,6 +17,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   [BUG FIXES]
   
   * csub works!
+  
+  [ENHANCEMENTS]
+  
+  * Can now link multiple shared libraries to a single block, though
+    the functionality is not yet tested.
   
   [NEW FEATURES]
   
