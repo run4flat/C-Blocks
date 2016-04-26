@@ -970,11 +970,11 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	/* Get the dll pointers if this is to be linked against dlls */
 	AV * libs_to_link = get_av("C::Blocks::libraries_to_link", 0);
 	new_table.dlls = NULL;
-	if (libs_to_link != NULL && av_top_index(libs_to_link) >= 0) {
-		int N_libs = av_top_index(libs_to_link) + 1;
+	if (libs_to_link != NULL && av_len(libs_to_link) >= 0) {
+		int N_libs = av_len(libs_to_link) + 1;
 		int i = 0;
 		new_table.dlls = Newx(new_table.dlls, N_libs + 1, void*);
-		while(av_top_index(libs_to_link) >= 0) {
+		while(av_len(libs_to_link) >= 0) {
 			SV * lib_to_link = av_shift(libs_to_link);
 			new_table.dlls[i] = dynaloader_get_lib(aTHX_ SvPVbyte_nolen(lib_to_link));
 			if (new_table.dlls[i] == NULL) {
