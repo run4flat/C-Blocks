@@ -10,23 +10,20 @@ Pre-Beta
 
 =over
 
-=item Interpolation blocks on Windows
-
-These are currently failing on my Windows machine.
-
 =item Better representation on CPAN Testers
 
 Very few machines report this module as working on CPAN testers,
-including nothing for a number of key platforms.
+including nothing for a number of key platforms. This seems to crop up
+on 64-bit operating systems in particular. Before clicking over to v0.5,
+I want this to have passes on all major platforms.
 
 =back
 
 This project is currently pre-Beta. That means that I have nearly
 managed to get it working on at least one Linux, Mac, and Windows
-machine (The "nearly" business is that interpolation blocks do not seem
-to work on my Windows machine), and I have implemented the functionality
-and tests I had hoped to implement in the Alpha stage. The present goal
-is to find and fix all the ways that C::Blocks can break, i.e. expand
+machine, and I have implemented the functionality and tests I had hoped
+to implement in the Alpha stage. The present goal is to find and fix all
+the ways that C::Blocks can break, i.e. expand
 the test suite and get it to run it on as many platforms as
 possible. Not only can you expect some segmentation faults on at least a
 few operating system, but you can expect the current compiler setup API
