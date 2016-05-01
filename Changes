@@ -12,7 +12,7 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   
   [DEPENDENCIES]
   
-  * Bumped Alien::TinyCCx dependency to v0.07.
+  * Bumped Alien::TinyCCx dependency to v0.08.
   
   [BUG FIXES]
   
