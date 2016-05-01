@@ -28,11 +28,11 @@ cblock {
 }
 
 BEGIN {
-	is($package_var, 2, 'Interpolation blocks execute at BEGIN time');
+	is($package_var, 2, 'Assignment to package variables in interpolation blocks occurs at BEGIN time');
 	TODO: {
 		local $TODO = 'Lexical vars get reset after parse and before BEGIN blocks for older Perls'
-			if $^V lt v5.17.0;
-		is($lexical_var, 2, 'Interpolation blocks execute at BEGIN time');
+			if $^V le v5.18.0;
+		is($lexical_var, 2, 'Assignment to lexical variables in interpolation blocks occurs at BEGIN time');
 	}
 }
 
@@ -47,13 +47,13 @@ for (1 .. 3) {
 	}
 }
 BEGIN {
-	is($package_var, 3, 'Again, interpolation blocks execute at BEGIN time');
+	is($package_var, 3, 'Modification of package variables in interpolation blocks occurs at BEGIN time');
 	TODO: {
 		local $TODO = 'Lexical vars get reset after parse and before BEGIN blocks for older Perls'
-			if $^V lt v5.17.0;
-		is($lexical_var, 3, 'Again, interpolation blocks execute at BEGIN time');
+			if $^V le v5.18.0;
+		is($lexical_var, 3, 'Modification of lexical variables in interpolation blocks occurs at BEGIN time');
 	}
 }
-is ($C::Blocks::_msg, 'block 33', "Interpolation occurs at compile time");
+is ($C::Blocks::_msg, 'block 33', "Interpolation occurs at compile time with modified variable values");
 
 done_testing;
