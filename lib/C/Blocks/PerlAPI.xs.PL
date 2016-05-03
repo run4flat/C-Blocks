@@ -31,28 +31,6 @@ my @path = File::Spec->path;
 # to get the list of declarations, not definitions. We'll have to
 # pare down the results next.
 
-# Certain Perls have a definition for SvTRUE that give tcc trouble. This
-# is the redefinition, if appropriate:
-my $redefine_SvTRUE = '';
-if ($^V > v5.14.0 and $^V < 5.18.0) {
-	$redefine_SvTRUE = <<NEW_SVTRUE
-	#undef SvTRUE
-	#  define SvTRUE(sv) (						\\
-		!sv								\\
-		? 0								\\
-		:    SvPOK(sv)						\\
-		?   ((SvCUR(sv) > 1)					\\
-			|| ((SvCUR(sv) == 1) && (*(SvPV_nolen(sv)) != '0')))	\\
-		:							\\
-			SvIOK(sv)						\\
-			? SvIVX(sv) != 0					\\
-			:   SvNOK(sv)					\\
-			? SvNVX(sv) != 0.0				\\
-			: sv_2bool(sv) )
-	
-NEW_SVTRUE
-}
-
 sub serialize_perl_h {
 	# Put the cache file in the sharedir
 	my $share_file_location = File::Spec->catfile('share', 'perl.h.cache');
@@ -79,8 +57,6 @@ sub serialize_perl_h {
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
-
-$redefine_SvTRUE
 
 HEADER_CONTENTS
 
