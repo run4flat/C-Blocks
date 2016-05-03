@@ -41,12 +41,22 @@ PP(tcc_pp) {
 	RETURN;
 }
 
+#ifdef PERL_IMPLICIT_CONTEXT
+	/* according to perl.h, these macros only exist we have
+	 * PERL_IMPLICIT_CONTEXT defined */
+	#define C_BLOCKS_THX_DECL tTHX aTHX
+	#define C_BLOCKS_THX_DECL__ tTHX aTHX;
+	#define C_BLOCKS_CALLBACK_MY_PERL(callback) callback->aTHX,
+#else
+	#define C_BLOCKS_THX_DECL
+	#define C_BLOCKS_THX_DECL__
+	#define C_BLOCKS_CALLBACK_MY_PERL(callback)
+#endif
+
 /* ---- Extended symbol table handling ---- */
 typedef struct _extended_symtab_callback_data {
 	TCCState * state;
-	#ifdef PERL_IMPLICIT_CONTEXT
-		tTHX my_perl;  /* name of field is my_perl, according to perl.h */
-	#endif
+	C_BLOCKS_THX_DECL__
 	available_extended_symtab * available_extended_symtabs;
 	int N_tables;
 } extended_symtab_callback_data;
@@ -172,12 +182,8 @@ void my_symtab_sym_used(char * name, int len, void * data) {
 		void ** curr_dll = lookup_data.dlls;
 		if (curr_dll != NULL) {
 			while (*curr_dll != NULL) {
-				#ifdef PERL_IMPLICIT_CONTEXT
-					pointer = dynaloader_get_symbol(callback_data->my_perl,
-						*curr_dll, name);
-				#else
-					pointer = dynaloader_get_symbol(*curr_dll, name);
-				#endif
+				pointer = dynaloader_get_symbol(
+					C_BLOCKS_CALLBACK_MY_PERL(callback_data) *curr_dll, name);
 				if (pointer) break;
 				curr_dll++;
 			}
@@ -878,11 +884,7 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	int len = (int)(data->end - PL_bufptr);
 	
 	/* Set the extended callback handling */
-	#ifdef PERL_IMPLICIT_CONTEXT
-		extended_symtab_callback_data callback_data = { state, aTHX, NULL, 0 };
-	#else
-		extended_symtab_callback_data callback_data = { state, NULL, 0 };
-	#endif
+	extended_symtab_callback_data callback_data = { state, aTHX_ NULL, 0 };
 	
 	/* Set the extended symbol table lists if they exist */
 	if (SvPOK(data->exsymtabs) && SvCUR(data->exsymtabs)) {
