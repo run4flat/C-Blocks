@@ -4,10 +4,8 @@ use strict;
 use warnings;
 use Test::More;
 
-# Load cblocks and PerlAPI
+# Load cblocks; PerlAPI gets loaded implicitly
 use C::Blocks;
-use C::Blocks::PerlAPI;
-
 
 # lexical scalars are properly interpreted
 eval q{

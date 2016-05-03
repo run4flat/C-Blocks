@@ -340,7 +340,7 @@ typedef struct c_blocks_data {
 	SV * error_msg_sv;
 	int N_newlines;
 	int keep_curly_brackets;
-//	int has_loaded_perlapi;
+	int has_loaded_perlapi;
 } c_blocks_data;
 
 void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
@@ -350,7 +350,11 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->xsub_name = 0;
 	data->add_test_SV = 0;
 	data->keep_curly_brackets = 1;
-//	data->has_loaded_perlapi = 0;
+	
+	/* The user may have loaded perlapi explicitly. However, we won't
+	 * check unless we find a need to check. Start by assuming it's not
+	 * loaded. */
+	data->has_loaded_perlapi = 0;
 	
 	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
@@ -385,29 +389,37 @@ void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	Safefree(data->xsub_name);
 }
 
-#if 0
-void add_perlapi(pTHX_ c_blocks_data * data) {
+void ensure_perlapi(pTHX_ c_blocks_data * data) {
 	if (data->has_loaded_perlapi) return;
-	/* Load libperl and append to *just* *this* exsymtab list */
-	SV * perlapi = newSVpvn("C::Blocks::PerlAPI", 18);
-	load_module(PERL_LOADMOD_NOIMPORT, perlapi, NULL);
-	sv_2mortal(perlapi);
 	
-	/* Get the contents and append to the exsymtabs */
+	/* XXX This will add a second perlapi symtab entry to the symtab
+	 * list if the user already explicitly loaded PerlAPI. So this could
+	 * be streamlined with a check for existenct of PerlAPI in current
+	 * symtab list. */
+	
+	/* Load libperl and append to *just* *this* exsymtab list */
+	SV * perlapi_module_name = newSVpvn("C::Blocks::PerlAPI", 18);
+	load_module(PERL_LOADMOD_NOIMPORT, perlapi_module_name, NULL);
+/* XXX Unnecessary? SvREFCNT is zero, according to tests... */
+//	SvREFCNT_dec(perlapi_module_name);
+	
+	/* Make sure the PerlAPI symtab is available */
+	SV * old_symtabs = data->exsymtabs;
 	SV * perlapi_symtab = get_sv("C::Blocks::PerlAPI::__cblocks_extended_symtab_list",
 			GV_ADDMULTI);
-	SV * new_exsymtabs = newSVsv(data->exsymtabs);
-	sv_2mortal(new_exsymtabs);
-	sv_catpvn(new_exsymtabs, SvPVbyte_nolen(perlapi_symtab), sizeof(available_extended_symtab));
-	data->exsymtabs = new_exsymtabs;
+	data->exsymtabs = newSVsv(perlapi_symtab);
+	/* If we had other symtabs, put them after the PerlAPI one. The
+	 * symtabs are searched in reverse order, so this will ensure that
+	 * the PerlAPI symtab is checked last. That prevents the PerlAPI
+	 * symtab from potentially masking declarations. */
+	if (SvPOK(old_symtabs)) sv_catsv(data->exsymtabs, old_symtabs);
 	
 	data->has_loaded_perlapi = 1;
 }
-#endif
 
 void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
 	data->end = PL_bufptr;
-//	add_perlapi(aTHX_ data);
+	ensure_perlapi(aTHX_ data);
 	
 	/* extract the function name */
 	while (1) {
@@ -700,6 +712,9 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 	 * identifier character */
 	if (_is_id_cont(pstate->data->end[0])) return 1;
 	
+	/* make sure we have the PerlAPI loaded */
+	ensure_perlapi(aTHX_ pstate->data);
+	
 	/* We just identified the character that is one past the end of our
 	 * Perl variable name. Identify the type and construct the mangled
 	 * name for the C-side variable. */
@@ -761,7 +776,6 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 		}
 		
 		/* XXX fix this so that I don't need the ifdef/else */
-		//add_perlapi(aTHX_ data);
 		#ifdef PERL_IMPLICIT_CONTEXT
 			sv_catpvf(pstate->data->code_top, 
 				"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
