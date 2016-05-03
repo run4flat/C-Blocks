@@ -327,7 +327,6 @@ int _is_id_cont (char to_check) {
 
 
 typedef struct c_blocks_data {
-	char * my_perl_type;
 	char * end;
 	char * xs_c_name;
 	char * xs_perl_name;
@@ -363,26 +362,14 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
 	
-	/* The type for the pointer passed to op_func will depend on whether
-	 * libperl has been loaded. A preprocessor macro will eventually be set to
-	 * whatever is in this string. The default assumes no libperl, in which case
-	 * we should use a void pointer. */
-	data->my_perl_type = "void";
-	
 	/* Get the current exsymtabs list. If this doesn't exist, we'll have */
 	data->exsymtabs = cophh_fetch_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", 0);
 }
 
-void add_predeclaration_macros_to_block(pTHX_ c_blocks_data* data) {
-	/* Add the function declaration. The type is a macro that will default
-	 * to "void", but may be changed to PerlInterpreter later during the
-	 * compilation. */
-
-	#ifdef PERL_IMPLICIT_CONTEXT
-		sv_catpv_nomg(data->code_top, "void op_func(MY_PERL_TYPE * my_perl) {");
-	#else
-		sv_catpv_nomg(data->code_top, "void op_func() {");
-	#endif
+void add_function_signature_to_block(pTHX_ c_blocks_data* data) {
+	/* Add the function declaration. The definition of the THX_DECL
+	 * macro will be defined later. */
+	sv_catpv_nomg(data->code_top, "void op_func(C_BLOCKS_THX_DECL) {");
 }
 
 void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
@@ -415,8 +402,6 @@ void add_perlapi(pTHX_ c_blocks_data * data) {
 	data->exsymtabs = new_exsymtabs;
 	
 	data->has_loaded_perlapi = 1;
-	
-	data->my_perl_type = "PerlInterpreter";
 }
 #endif
 
@@ -479,7 +464,8 @@ void fixup_xsub_name(pTHX_ c_blocks_data * data) {
 	lex_unstuff(data->end);
 }
 
-/* Add testing functions if requested */
+/* Add testing functions if requested. This must be called before
+ * add_function_signature_to_block is called. */
 void add_msg_function_decl(pTHX_ c_blocks_data * data) {
 	if (SvOK(data->add_test_SV)) {
 		sv_catpv(data->code_top, "void c_blocks_send_msg(char * msg);"
@@ -894,9 +880,19 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
 		&my_symtab_sym_used, &my_prep_table, &callback_data);
 	
-	/* set the predeclarations */
+	/* set the block function's argument, if any */
 	if (keyword_type == IS_CBLOCK) {
-		tcc_define_symbol(state, "MY_PERL_TYPE", data->my_perl_type);
+		/* If this is a block, we need to define C_BLOCKS_THX_DECL.
+		 * This will be based on whether tTHX is available or not. */
+		#ifdef PERL_IMPLICIT_CONTEXT
+			void * return_value_ignored;
+			if (my_symtab_lookup_by_name("aTHX", 4, &callback_data, (void*) &return_value_ignored))
+				tcc_define_symbol(state, "C_BLOCKS_THX_DECL", "PerlInterpreter * my_perl");
+			else
+				tcc_define_symbol(state, "C_BLOCKS_THX_DECL", "void * my_perl_NOT_USED");
+		#else
+			tcc_define_symbol(state, "C_BLOCKS_THX_DECL", "");
+		#endif
 	}
 	
 	/* compile the code */
@@ -1166,7 +1162,7 @@ int my_keyword_plugin(pTHX_
 	initialize_c_blocks_data(aTHX_ &data);
 	
 	add_msg_function_decl(aTHX_ &data);
-	if (keyword_type == IS_CBLOCK) add_predeclaration_macros_to_block(aTHX_ &data);
+	if (keyword_type == IS_CBLOCK) add_function_signature_to_block(aTHX_ &data);
 	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ &data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		data.keep_curly_brackets = 0;
