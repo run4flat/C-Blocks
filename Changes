@@ -23,6 +23,8 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   * Can now link multiple shared libraries to a single block, though
     the functionality is not yet tested.
   
+  * Using sigiled variables automatically loads the PerlAPI symtab.
+  
   [NEW FEATURES]
   
   * Added interpolation blocks! It is now possible to use Perl to
@@ -32,6 +34,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   
   * Added C::Blocks::Object::Magic, a port of XS::Object::Magic. This
     makes it much easier to safely attach C structs to Perl variables.
+  
+  [OTHER]
+  
+  * The use of preprocessor branching in Blocks.xs has been cleaned
+    up a bit, which will hopefully make the distribution more robust.
 
 0.03  Fri, Dec 4, 2015
 
