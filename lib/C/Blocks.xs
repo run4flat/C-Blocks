@@ -775,15 +775,9 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 			sv_catpvf(pstate->data->code_top, "%s * %s = ", type, long_name);
 		}
 		
-		/* XXX fix this so that I don't need the ifdef/else */
-		#ifdef PERL_IMPLICIT_CONTEXT
-			sv_catpvf(pstate->data->code_top, 
-				"(%s*)(((PerlInterpreter *)my_perl)->Icurpad)[%d]; ",
-				type, var_offset);
-		#else
-			sv_catpvf(pstate->data->code_top, "(%s*)PAD_SV(%d); ",
-				type, var_offset);
-		#endif
+		/* Retrieve the SV from the current pad */
+		sv_catpvf(pstate->data->code_top, "(%s*)PAD_SV(%d); ",
+			type, var_offset);
 		
 		/* Add the type conversion */
 		if (fancy_type != &PL_sv_placeholder && fancy_init != &PL_sv_placeholder) {
