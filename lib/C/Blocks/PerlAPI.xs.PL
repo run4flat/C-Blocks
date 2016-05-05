@@ -37,8 +37,12 @@ sub serialize_perl_h {
 	return if -f $share_file_location and -f 'names.txt';
 
 	my($perl_h_fh, $perl_h_file) = File::Temp::tempfile(
-		'perl_h_XXXXXXXX', SUFFIX => '.c'
+		'perl_h_XXXXXXXX', SUFFIX => '.c', UNLINK => 1
 	);
+	my($perl_o_fh, $perl_o_file) = File::Temp::tempfile(
+		'perl_o_XXXXXXXX', SUFFIX => '.o', UNLINK => 1
+	);
+	close $perl_o_fh;
 
 	my $header_contents = <<HEADER_CONTENTS;
 
@@ -89,6 +93,7 @@ HEADER_CONTENTS
 	$compiler_args = join(' ', $compiler_args,
 		'-dump-identifier-names=names.txt',
 		'-serialize-symtab='.$share_file_location,
+		'-o', $perl_o_file,
 		$perl_h_file
 	);
 
