@@ -68,7 +68,7 @@ HEADER_CONTENTS
 	close $perl_h_fh;
 
 	# Construct the compiler arguments
-	my $compiler_args = join(' ', ccopts);
+	my $compiler_args = join(' ', ccopts, '-shared');
 	$compiler_args =~ s/\n+//g;
 	# tcc doesn't know how to use quotes in -I paths; remove them if found.
 	$compiler_args =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
