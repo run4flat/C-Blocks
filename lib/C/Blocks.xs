@@ -904,7 +904,7 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	}
 	
 	/* compile the code */
-	int tlen, mlen, blen;
+	STRLEN tlen, mlen, blen;
 	char * top = SvPVbyte(data->code_top, tlen);
 	char * main = SvPVbyte(data->code_main, mlen);
 	char * bot = SvPVbyte(data->code_bottom, blen);
