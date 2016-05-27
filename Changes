@@ -4,6 +4,15 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
 
 0.05  Ddd, Mth #, 201#
 
+  [DIFFERENT BEHAVIOR]
+  
+  * When a C::Blocks package has one or more cshare blocks, C::Blocks
+    used to add C::Blocks::libloader to the package's @ISA list. Now it
+    directly injects the import method from C::Blocks::libloader into
+    the current package, or warns if the package already has an import
+    glob entry in its stash. This makes it possible to use cshare in a
+    class defined using Moo (and probably many other OO frameworks).
+
 0.04  Tue, May 3, 2016
 
   [API CHANGES]
