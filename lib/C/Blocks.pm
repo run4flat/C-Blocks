@@ -435,47 +435,31 @@ from C<My::Module>.
 =head2 Breaking Sharing
 
 How do shared C declarations work? When C<C::Blocks> encounters a C<cshare>, it
-appends C<C::Blocks::libloader> to the current package's C<@ISA> array. The sole
-purpose of this is to provide a default C<import> method that properly copies
-the symbol table references in a lexically scoped way. This can be broken in one
-of two ways.
+injects a special C<import> method into the package that's being compiled. This
+C<import> method properly copies the symbol table references in a lexically
+scoped way.
 
-First, if you overwrite C<@ISA> by direct assignment, you will erase the
-C<libloader> entry. This is easier than you might think. For example, this will
-break the import mechanism:
+If your module provides its own import method, C::Blocks will issue a warning
+and refraing from injecting the method. (I eventually want to turn that warning
+into something that can be controlled with L<warnings>, but for now it'll always
+warn. Also, if you define C<import> after a C<cshare> block, bad things happen
+for reasons I don't fully understand. Here be bugs.)
 
- package Some::Code;
- our @ISA = qw(Base::Class);
- cshare {
-     /* ... */
- }
-
-The reason is that the assignment to C<@ISA> occurs when the package definition
-is executed, but C<libloader> is added to C<@ISA> at compile time (like adding
-it in a C<BEGIN> block).
-
-Another way to break sharing is to provide your own C<import> method which does
-not call C<C::Blocks::libloader::import>. In that case, Perl's own method
-resolution will resolve to your C<import> and never call C<libloader>'s. To fix
-this, you should include the following line in your C<import> method:
+If you module needs to provide its own import functionality, you can still get
+the code sharing (and a warning, at least for the moment) by including the
+following line somewhere in your C<import> function:
 
  sub import {
-     my ($package, @args) = @_;
-     ...
-     C::Blocks::libloader::import($package);
+  ...
+  C::Blocks::libloader::import(__PACKAGE__);
+  ...
  }
 
-You could also experience this problem the other way around: you expect your
-module to use an inherited C<import> method, but you only get C<libloader>'s
-import behavior. You fix that by providing your own C<import> method:
+This will perform the requisite magic to make the code from your
+C<cshare> blocks visible to whichever packages C<use> your module.
 
- # NOTE: NEEDS TO BE TESTED
- sub import {
-     my ($package, @args) = @_;
-     C::Blocks::libloader::import($package);
-     my $method = Parent::Package->can('import');
-     goto &$method;
- }
+WARNING: At least for now, be sure to declare your C<import> method
+I<before> any C<cshare> blocks in your package.
 
 =head2 XSUBs
 
