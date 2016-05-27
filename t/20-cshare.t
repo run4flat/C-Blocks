@@ -25,7 +25,8 @@ package My::Basic::Comm;
 		void* get_data() {
 			return c_blocks_get_msg();
 		}
-		
+	}
+	cshare {
 		void send_data(void * bytes_to_send, int N_bytes) {
 			c_blocks_send_bytes(bytes_to_send, N_bytes);
 		}

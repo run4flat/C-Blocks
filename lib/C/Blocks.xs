@@ -487,20 +487,59 @@ void add_msg_function_decl(pTHX_ c_blocks_data * data) {
 	}
 }
 
-/* Make the current module a child class of C::Blocks::libloader. */
-void use_parent_libloader(pTHX) {
-	int i;
-	AV * parents = mro_get_linear_isa(PL_curstash);
-	
-	/* Are any parents from C::Blocks::libloader? */
-	for (i = 0; i <= av_len(parents); i++) {
-		SV * parent = *(av_fetch(parents, i, 0));
-		if (strEQ("C::Blocks::libloader", SvPVbyte_nolen(parent))) return;
+/* inject C::Blocks::libloader's import method into the current package */
+void inject_import(pTHX) {
+	char * warn_message = "no warning (yet)";
+	SV * name = NULL;
+	/* Get CV for C::Blocks::libloader::import */
+	CV * import_method_to_inject
+		= get_cvn_flags("C::Blocks::libloader::import", 28, 0);
+	if (!import_method_to_inject) {
+		warn_message = "could not load C::Blocks::libloader::import";
+		goto fail;
 	}
 	
-	/* if not, add it to the isa list */
-	AV *isa = perl_get_av(form("%s::ISA", SvPVbyte_nolen(PL_curstname)), GV_ADDMULTI | GV_ADD);
-	av_push(isa, newSVpvn("C::Blocks::libloader", 20));
+	/* Get the symbol (hash) table entry */
+	name = newSVpv("import", 6);
+	HE * entry = hv_fetch_ent(PL_curstash, name, 1, 0);
+	if (!entry) {
+		warn_message = "unable to load symbol table entry for 'import'";
+		goto fail;
+	}
+	
+	/* Get the glob for the symbol table entry. Make sure it isn't
+	 * already initialized. */
+	/* XXX turn this into a lexically scopable warning */
+	GV * glob = (GV*)HeVAL(entry);
+	if (isGV(glob)) {
+		warn_message = "'import' method already found";
+		goto fail;
+	}
+	
+	/* initialize the glob */
+	SvREFCNT_inc(glob);
+	gv_init_sv(glob, PL_curstash, name, GV_ADDMULTI); /* XXX doesn't take flags??? */
+	if (HeVAL(entry)) {
+		SvREFCNT_dec(HeVAL(entry));
+	}
+	HeVAL(entry) = (SV*)glob;
+	
+	/* Add the method to the symbol table entry. See Package::Stash::XS
+	 * GvSetCV preprocessor macro (specifically taken from v0.28) */
+	SvREFCNT_dec(GvCV(glob));
+	GvCV_set(glob, import_method_to_inject);
+	GvIMPORTED_CV_on(glob);
+	GvASSUMECV_on(glob);
+	GvCVGEN(glob) = 0;
+	mro_method_changed_in(GvSTASH(glob));
+
+	SvREFCNT_dec(name);
+	return;
+
+fail:
+	if (name != NULL) SvREFCNT_dec(name);
+	warn("Could not inject 'import' into package %s: %s",
+		SvPVbyte_nolen(PL_curstname), warn_message);
 }
 
 /* State-aware parse functions. Each of these know how to look at data
@@ -1019,8 +1058,13 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 			sv_setpvn_mg(package_lists, (char*)&new_table, sizeof(available_extended_symtab));
 		}
 		
-		/* Add C::Blocks::libloader to @ISA if necessary */
-		use_parent_libloader(aTHX);
+		/* inject the import method */
+		SV * has_import = get_sv(form("%s::__cblocks_injected_import",
+			SvPVbyte_nolen(PL_curstname)), GV_ADDMULTI | GV_ADD);
+		if (!SvOK(has_import)) {
+			inject_import(aTHX);
+			sv_setuv(has_import, 1);
+		}
 	}
 }
 
