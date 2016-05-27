@@ -4,6 +4,7 @@
 
 use strict;
 use warnings;
+use warnings::register qw(import);
 
 use Alien::TinyCCx;
 use XSLoader;
@@ -31,6 +32,13 @@ sub import {
 	*{$caller.'::clex'} = sub () {};
 	*{$caller.'::cisa'} = sub () {};
 	_import();
+}
+
+# Provided so I can call warnings::warnif from Blocks.xs. Why can't I
+# just call warnings::warnif from that code directly????  XXX
+sub warnif {
+	my ($category, $message) = @_;
+	warnings::warnif($category, $message);
 }
 
 # The XS code for the keyword parser makes sure that if a module invokes cshare,
@@ -437,29 +445,30 @@ from C<My::Module>.
 How do shared C declarations work? When C<C::Blocks> encounters a C<cshare>, it
 injects a special C<import> method into the package that's being compiled. This
 C<import> method properly copies the symbol table references in a lexically
-scoped way.
+scoped way so when some I<other> code C<use>s the pacage, the symbol tables are
+available for use in C<cblock>s, etc.
 
-If your module provides its own import method, C::Blocks will issue a warning
-and refraing from injecting the method. (I eventually want to turn that warning
-into something that can be controlled with L<warnings>, but for now it'll always
-warn. Also, if you define C<import> after a C<cshare> block, bad things happen
-for reasons I don't fully understand. Here be bugs.)
+If your module provides its own import method, or has package-scoped variables
+such as C<our $import>, C::Blocks will issue a warning and refrain from injecting
+the method.
 
 If you module needs to provide its own import functionality, you can still get
-the code sharing (and a warning, at least for the moment) by including the
-following line somewhere in your C<import> function:
+the code sharing with something like this:
 
+ no warnings 'C::Blocks::import';
  sub import {
-  ...
+  ... your code here
   C::Blocks::libloader::import(__PACKAGE__);
-  ...
  }
 
 This will perform the requisite magic to make the code from your
-C<cshare> blocks visible to whichever packages C<use> your module.
+C<cshare> blocks visible to whichever packages C<use> your module, and
+avoid the warning.
 
 WARNING: At least for now, be sure to declare your C<import> method
-I<before> any C<cshare> blocks in your package.
+I<before> any C<cshare> blocks in your package. Declaring them after a
+C<cshare> block causes Perl to crash, probably because I'm not doing
+something right.
 
 =head2 XSUBs
 

@@ -240,6 +240,32 @@ void my_tcc_error_func (void * message_ptr, const char * msg ) {
 	}
 }
 
+/**************************/
+/**** Lexical Warnings ****/
+/**************************/
+void my_warnif (pTHX_ const char * category, SV * message) {
+	dSP;
+	
+	/* Prepare the stack */
+	ENTER;
+	SAVETMPS;
+	
+	/* Push the category and message onto the stack. The message must
+	 * be a mortalized SV. */
+	PUSHMARK(SP);
+	XPUSHs(sv_2mortal(newSVpvf("C::Blocks::%s", category)));
+	XPUSHs(message);
+	PUTBACK;
+	
+	/* Call */
+	/* XXX why can't I just call warnings::warnif??? */
+	call_pv("C::Blocks::warnif", G_VOID);
+	
+	/* cleanup */
+	FREETMPS;
+	LEAVE;
+}
+
 /********************************/
 /**** Keyword Identification ****/
 /********************************/
@@ -512,8 +538,11 @@ void inject_import(pTHX) {
 	/* XXX turn this into a lexically scopable warning */
 	GV * glob = (GV*)HeVAL(entry);
 	if (isGV(glob)) {
-		warn_message = "'import' method already found";
-		goto fail;
+		my_warnif(aTHX_ "import", sv_2mortal(newSVpvf("Could not inject 'import' "
+			"into package %s: 'import' method already found",
+			SvPVbyte_nolen(PL_curstname))));
+		SvREFCNT_dec(name);
+		return;
 	}
 	
 	/* initialize the glob */
@@ -538,7 +567,7 @@ void inject_import(pTHX) {
 
 fail:
 	if (name != NULL) SvREFCNT_dec(name);
-	warn("Could not inject 'import' into package %s: %s",
+	warn("Internal error while injecting 'import' into package %s: %s",
 		SvPVbyte_nolen(PL_curstname), warn_message);
 }
 

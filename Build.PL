@@ -28,6 +28,7 @@ my $build = Module::Build->new(
 		'File::Basename' => 0,
 		'File::Temp' => 0,
 		'File::Spec' => 0,
+		'Test::Warn' => 0,
 	},
 	requires => {
 		'Alien::TinyCCx' => '0.08',
