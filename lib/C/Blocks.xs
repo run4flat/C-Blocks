@@ -539,7 +539,6 @@ void inject_import(pTHX) {
 	
 	/* Get the glob for the symbol table entry. Make sure it isn't
 	 * already initialized. */
-	/* XXX turn this into a lexically scopable warning */
 	GV * glob = (GV*)HeVAL(entry);
 	if (isGV(glob)) {
 		my_warnif(aTHX_ "import", sv_2mortal(newSVpvf("Could not inject 'import' "
@@ -999,8 +998,8 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 		if (strstr(SvPV_nolen(data->error_msg_sv), "error")) {
 			croak("C::Blocks compiler error:\n%s", SvPV_nolen(data->error_msg_sv));
 		}
-		/* Otherwise, look for warnings, warn, and clear */
 		
+		/* Otherwise, report and clear the compiler warnings */
 		my_warnif(aTHX_ "compiler", sv_2mortal(newSVsv(data->error_msg_sv)));
 		SvPOK_off(data->error_msg_sv);
 	}
@@ -1294,7 +1293,7 @@ int my_keyword_plugin(pTHX_
 			croak("C::Blocks linker error:\n%s", SvPV_nolen(data.error_msg_sv));
 		}
 		/* Otherwise report warnings */
-		warn("C::Blocks linker warning:\n%s", SvPV_nolen(data.error_msg_sv));
+		my_warnif(aTHX_ "linker", sv_2mortal(newSVsv(data.error_msg_sv)));
 	}
 	if (relocate_returned < 0) {
 		croak("C::Blocks linker error: unable to relocate\n");

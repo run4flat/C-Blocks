@@ -16,7 +16,7 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   [NEW FEATURES]
   
   * C::Blocks provides lexically-scoped warnings categories of
-    C::Blocks::import and C::Blocks::compiler.
+    C::Blocks::import, C::Blocks::compiler, and C::Blocks::linker.
 
 0.04  Tue, May 3, 2016
 

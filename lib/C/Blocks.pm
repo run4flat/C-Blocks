@@ -4,7 +4,7 @@
 
 use strict;
 use warnings;
-use warnings::register qw(import compiler);
+use warnings::register qw(import compiler linker);
 
 use Alien::TinyCCx;
 use XSLoader;
@@ -583,21 +583,22 @@ should be the full library name, including file extensions. If the
 library is located in an unconventional location, the full path should
 be specified.
 
-=head2 Compiler Warnings
+=head2 Compiler and Linker Warnings
 
-Compiler warnings, such as C<assignment from incompatible pointer type>,
-can be turned on and off using the L<warnings> pragma with category
-C<C::Blocks::compiler>. For example:
+Compiler warnings (such as C<assignment from incompatible pointer type>)
+and linker warnings (need example...) can be turned on and off using the
+L<warnings> pragma with categories C<C::Blocks::compiler> and
+C<C::Blocks::linker>. For example:
 
- use warnings;  # compiler warnings ON
+ use warnings;  # compiler and linker warnings ON
  ...
- no warnings 'C::Blocks::compiler';  # now OFF
+ no warnings 'C::Blocks::compiler';  # compiler warnings OFF
  ...
  use warnings 'C::Blocks::compiler';  # back ON
 
 The warnings are handled using Perl's built-in warnings system, so as
-with all warnings, the reporting of compiler warnings can be controlled
-lexically.
+with all warnings, the reporting of compiler and linker warnings can be
+controlled lexically.
 
 =head1 KEYWORDS
 
