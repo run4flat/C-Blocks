@@ -12,6 +12,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
     the current package, or warns if the package already has an import
     glob entry in its stash. This makes it possible to use cshare in a
     class defined using Moo (and probably many other OO frameworks).
+  
+  [NEW FEATURES]
+  
+  * You can now disable select warnings in C::Blocks using the lexical
+    warnings pragma, i.e. `no warnings qw(C::Blocks::import)'
 
 0.04  Tue, May 3, 2016
 
