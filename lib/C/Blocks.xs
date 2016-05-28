@@ -551,7 +551,7 @@ void inject_import(pTHX) {
 	
 	/* initialize the glob */
 	SvREFCNT_inc(glob);
-	gv_init_sv(glob, PL_curstash, name, GV_ADDMULTI); /* XXX doesn't take flags??? */
+	gv_init(glob, PL_curstash, "import", 6, 1);
 	if (HeVAL(entry)) {
 		SvREFCNT_dec(HeVAL(entry));
 	}
