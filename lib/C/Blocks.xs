@@ -22,6 +22,10 @@
 # endif /* <5.11.2 */
 #endif /* !pad_findmy_pv */
 
+#ifndef GvCV_set
+#define GvCV_set(gv, cv) (GvCV(gv) = (CV*)(cv))
+#endif
+
 int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 
 typedef void (*my_void_func)(pTHX);
