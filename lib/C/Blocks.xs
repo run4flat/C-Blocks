@@ -1000,7 +1000,8 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 			croak("C::Blocks compiler error:\n%s", SvPV_nolen(data->error_msg_sv));
 		}
 		/* Otherwise, look for warnings, warn, and clear */
-		warn("C::Blocks compiler warning:\n%s", SvPV_nolen(data->error_msg_sv));
+		
+		my_warnif(aTHX_ "compiler", sv_2mortal(newSVsv(data->error_msg_sv)));
 		SvPOK_off(data->error_msg_sv);
 	}
 }

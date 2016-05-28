@@ -15,8 +15,8 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   
   [NEW FEATURES]
   
-  * You can now disable select warnings in C::Blocks using the lexical
-    warnings pragma, i.e. `no warnings qw(C::Blocks::import)'
+  * C::Blocks provides lexically-scoped warnings categories of
+    C::Blocks::import and C::Blocks::compiler.
 
 0.04  Tue, May 3, 2016
 

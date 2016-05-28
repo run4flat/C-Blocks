@@ -5,6 +5,7 @@ use C::Blocks;
 use C::Blocks::PerlAPI;
 our $VERSION = '0.04_01';
 $VERSION = eval $VERSION;
+no warnings qw(C::Blocks::compiler);
 
 cshare {
 	#define sbfree(a)         ((a) ? Safefree(stb__sbraw(a)),0 : 0)
