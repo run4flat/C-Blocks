@@ -13,6 +13,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
     glob entry in its stash. This makes it possible to use cshare in a
     class defined using Moo (and probably many other OO frameworks).
   
+  [DEPENDENCIES]
+  * The build process now depends upon Test::Warn, which is used (no
+    surprisingly) to test warning messages, and the lexical control
+    thereof.
+  
   [NEW FEATURES]
   
   * C::Blocks provides lexically-scoped warnings categories of
