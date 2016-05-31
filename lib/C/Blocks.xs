@@ -327,10 +327,9 @@ int _is_id_cont (char to_check) {
 	return 0;
 }
 
-/************************/
-/**** Keyword plugin ****/
-/************************/
-
+/*************************************/
+/**** Keyword plugin declarations ****/
+/*************************************/
 
 #ifdef PL_bufptr
 	#undef PL_bufptr
@@ -355,7 +354,6 @@ int _is_id_cont (char to_check) {
 		end = PL_bufptr + length_so_far;                        \
 	}
 
-
 typedef struct c_blocks_data {
 	char * end;
 	char * xs_c_name;
@@ -372,6 +370,370 @@ typedef struct c_blocks_data {
 	int keep_curly_brackets;
 	int has_loaded_perlapi;
 } c_blocks_data;
+
+void ensure_perlapi(pTHX_ c_blocks_data * data);
+
+
+/*********************************/
+/**** C code parser/extractor ****/
+/*********************************/
+
+/* The behavior of the parser is contained in the following bit of
+ * state. */
+struct parse_state_t;
+typedef struct parse_state_t parse_state;
+typedef int (*parse_func_t)(pTHX_ parse_state *);
+struct parse_state_t {
+	parse_func_t default_next_char; /* what we usually do */
+	parse_func_t process_next_char; /* what we're doing next */
+	c_blocks_data * data;           /* reference to c_blocks build state */
+	char * sigil_start;             /* location where sigil found */
+	int bracket_count;              /* unmatched open curly brackets */
+	int interpolation_bracket_count_start; /* number of open brackets
+											* when interpolation block began */
+	char delimiter;                 /* for delimited next_char parsing */
+};
+
+/* PARSE RESULTS: Return values for the character parse functions */
+enum {
+	PR_CLOSING_BRACKET, /* found the final closing bracket */
+	PR_MAYBE_SIGIL,     /* found character which may be a sigil (@ or %) */
+	PR_NON_SIGIL,       /* called does not need to worry about sigil
+						 * handling: either not a sigil, or sigil_start
+						 * was already set. */
+	PR_EXCEPTION,       /* interpolation block threw an exception */
+};
+
+int process_next_char_no_vars (pTHX_ parse_state * pstate);
+int process_next_char_sigil_blocks_ok (pTHX_ parse_state * pstate);
+int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate);
+int process_next_char_delimited (pTHX_ parse_state * pstate);
+int process_next_char_C_comment (pTHX_ parse_state * pstate);
+int process_next_char_post_sigil (pTHX_ parse_state * pstate);
+int process_next_char_sigiled_var (pTHX_ parse_state * pstate);
+int process_next_char_sigiled_block (pTHX_ parse_state * pstate);
+int execute_Perl_interpolation_block(pTHX_ parse_state * pstate);
+
+/* Base parser, and default text parser for clex and cshare. This parser
+ * does not handle variables, but it does track where $-sigils are found
+ * because interpolation blocks can be used anywhere. This is written
+ * such that the variable-handling parsers call this function first, and
+ * perform follow-ups if they get PR_MAYBE_SIGIL. Reinstates normal
+ * parsing after interpolation blocks have been identified. */
+int process_next_char_no_vars (pTHX_ parse_state * pstate) {
+	switch (pstate->data->end[0]) {
+		case '{':
+			pstate->bracket_count++;
+			if (pstate->bracket_count == 1) {
+				/* Remove first bracket from the buffer */
+				lex_unstuff(pstate->data->end + 1);
+				pstate->data->end = PL_bufptr - 1;
+			}
+			return PR_NON_SIGIL;
+		case '}':
+			pstate->bracket_count--;
+			if (pstate->bracket_count == 0) return PR_CLOSING_BRACKET;
+			if (pstate->interpolation_bracket_count_start == pstate->bracket_count)
+				return execute_Perl_interpolation_block(aTHX_ pstate);
+			return PR_NON_SIGIL;
+		case '\'': case '\"':
+			/* Setup "delimited" extraction state, matching on the
+			 * quotation character we just saw. */
+			pstate->process_next_char = process_next_char_delimited;
+			pstate->delimiter = pstate->data->end[0];
+			return PR_NON_SIGIL;
+		case '/':
+			if (pstate->data->end > PL_bufptr && pstate->data->end[-1] == '/') {
+				/* Handling C++ style comments is easy. They run until
+				 * the newline, so set up a parse state that is
+				 * delimited by a newline :-) */
+				pstate->process_next_char = process_next_char_delimited;
+				pstate->delimiter = '\n';
+			}
+			return PR_NON_SIGIL;
+		case '*':
+			if (pstate->data->end > PL_bufptr && pstate->data->end[-1] == '/') {
+				/* C-style comments have their own parser */
+				pstate->process_next_char = process_next_char_C_comment;
+			}
+			return PR_NON_SIGIL;
+		case '$':
+			/* No processing if we're extracting an interpolation block */
+			if (pstate->interpolation_bracket_count_start) return PR_NON_SIGIL;
+			/* Otherwise setup post-sigil handling. Clear out the
+			 * lexical buffer up to but not including this character
+			 * and set up the parser. */
+			sv_catpvn(pstate->data->code_main, PL_bufptr,
+				pstate->data->end - PL_bufptr);
+			lex_unstuff(pstate->data->end);
+			pstate->data->end = PL_bufptr;
+			pstate->process_next_char = process_next_char_post_sigil;
+			pstate->sigil_start = pstate->data->end;
+			return PR_NON_SIGIL;
+			
+	}
+	/* Out here means it's not one of the special characters considered
+	 * above, though it may be an array or hash sigil. */
+	return PR_MAYBE_SIGIL;
+}
+
+int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
+	/* Temporarily replace the closing bracket with null so we can
+	 * eval_pv the buffer without copying. */
+	*pstate->data->end = '\0';
+	/* XXX working here - should catch eval and return special value.
+	 * For now, croak on error (and leak). */
+	SV * returned = eval_pv(pstate->sigil_start + 2, 1);
+	
+	/* Replace the interpolation block with contents of eval. Be sure
+	 * to get rid of the entire block up to the closing bracket, which
+	 * is now the null character added above. */
+	sv_catpv_nomg(pstate->data->code_main, SvPVbyte_nolen(returned));
+	lex_unstuff(pstate->data->end + 1);
+	pstate->data->end = PL_bufptr;
+//	SvREFCNT_dec(returned); // XXX is this correct?
+	
+	/* XXX working here - add #line to make sure tcc correctly indicates
+	 * the line number of material that follows. There is no guarantee
+	 * that the evaluated text has the same number of lines as the
+	 * original block of Perl code just evaluated. */
+	
+	/* Return to default parse state */
+	pstate->sigil_start = 0;
+	pstate->process_next_char = pstate->default_next_char;
+	pstate->interpolation_bracket_count_start = 0;
+	
+	/* There shall not be any need for sigil handling by any calling
+	 * parsers. */
+	return PR_NON_SIGIL;
+}
+
+/* Default text parser for cblock */
+int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate) {
+	int no_vars_result = process_next_char_no_vars(aTHX_ pstate);
+	if (no_vars_result != PR_MAYBE_SIGIL) return no_vars_result;
+	if (*pstate->data->end == '@' || *pstate->data->end == '%') {
+		/* Clear out the lexical buffer up to but not including this
+		 * character. */
+		sv_catpvn(pstate->data->code_main, PL_bufptr,
+			pstate->data->end - PL_bufptr);
+		lex_unstuff(pstate->data->end);
+		pstate->data->end = PL_bufptr;
+		
+		/* Set up the variable name extractor */
+		pstate->process_next_char = process_next_char_post_sigil;
+		pstate->sigil_start = pstate->data->end;
+	}
+	return PR_NON_SIGIL;
+}
+
+int process_next_char_delimited (pTHX_ parse_state * pstate) {
+	if (pstate->data->end[0] == pstate->delimiter && pstate->data->end[-1] != '\\') {
+		/* Reset to normal parse state */
+		pstate->process_next_char = pstate->default_next_char;
+	}
+	else if (pstate->delimiter != '\n' && pstate->data->end[0] == '\n') {
+		/* Strings do not wrap */
+		pstate->process_next_char = pstate->default_next_char;
+	}
+	return PR_NON_SIGIL;
+}
+
+int process_next_char_C_comment (pTHX_ parse_state * pstate) {
+	if (pstate->data->end[0] == '/' && pstate->data->end[-1] == '*') {
+		/* Found comment closer. Reset to normal parse state */
+		pstate->process_next_char = pstate->default_next_char;
+	}
+	return PR_NON_SIGIL;
+}
+
+int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
+	/* Only called on the first character after the sigil. */
+	
+	/* If the sigil is a dollar sign and the next character is an
+	 * opening bracket, then we have an interpolation block. */
+	if (pstate->data->end[-1] == '$' && pstate->data->end[0] == '{') {
+		pstate->process_next_char = process_next_char_no_vars;
+		pstate->interpolation_bracket_count_start = pstate->bracket_count++;
+		return PR_NON_SIGIL;
+	}
+	
+	/* IF our default parser accepts sigiled variables, then check for a
+	 * valid identifier character and set up continued searching for the
+	 * end of the variable name. */
+	if (pstate->default_next_char == process_next_char_sigil_vars_ok
+		&& _is_id_cont(pstate->data->end[0]))
+	{
+		pstate->process_next_char = process_next_char_sigiled_var;
+		return PR_NON_SIGIL;
+	}
+	
+	/* We either have a lone sigil character followed by a space or a
+	 * sigiled variable name being parsed when sigiled variable names
+	 * are not allowed. Reset the state and defer to the default
+	 * handler. */
+	pstate->process_next_char = pstate->default_next_char;
+	return pstate->default_next_char(aTHX_ pstate);
+}
+
+int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
+	/* keep collecting if the current character looks like a valid
+	 * identifier character */
+	if (_is_id_cont(pstate->data->end[0])) return PR_NON_SIGIL;
+	
+	/* make sure we have the PerlAPI loaded */
+	ensure_perlapi(aTHX_ pstate->data);
+	
+	/* We just identified the character that is one past the end of our
+	 * Perl variable name. Identify the type and construct the mangled
+	 * name for the C-side variable. */
+	char backup = *pstate->data->end;
+	*pstate->data->end = '\0';
+	char * type;
+	char * long_name;
+	if (*pstate->sigil_start == '$') {
+		type = "SV";
+		long_name = savepv(form("_PERL_LEXICAL_SCALAR_%s", 
+			pstate->sigil_start + 1));
+	}
+	else if (*pstate->sigil_start == '@') {
+		type = "AV";
+		long_name = savepv(form("_PERL_LEXICAL_ARRAY_%s", 
+			pstate->sigil_start + 1));
+	}
+	else if (*pstate->sigil_start == '%') {
+		type = "HV";
+		long_name = savepv(form("_PERL_LEXICAL_HASH_%s", 
+			pstate->sigil_start + 1));
+	}
+	else {
+		/* should never happen */
+		*pstate->data->end = backup;
+		croak("C::Blocks internal error: unknown sigil %c\n",
+			*pstate->sigil_start);
+	}
+	
+	/* Check if we need to add a declaration for the C-side variable */
+	if (strstr(SvPVbyte_nolen(pstate->data->code_top), long_name) == NULL) {
+		/* Add a new declaration for it */
+		/* NOTE: pad_findmy_pv expects the sigil!! */
+		
+		int var_offset = (int)pad_findmy_pv(pstate->sigil_start, 0);
+		/* Ensure that the variable exists in the pad */
+		if (var_offset == NOT_IN_PAD) {
+			CopLINE(PL_curcop) += pstate->data->N_newlines;
+			*pstate->data->end = backup;
+			croak("Could not find lexically scoped \"%s\"",
+				pstate->sigil_start);
+		}
+		
+		/* support for cisa type declarations. Save the SV in an even
+		 * more obfuscated variable, and the given type in the expected
+		 * variable. */
+		
+		SV * fancy_type = cophh_fetch_pv(pstate->data->hints_hash,
+			form("C::Blocks/TYPE%s", pstate->sigil_start), 0, 0);
+		SV * fancy_init = cophh_fetch_pv(pstate->data->hints_hash,
+			form("C::Blocks/INIT%s", pstate->sigil_start), 0, 0);
+		
+		/* Add the type declaration and long variable name */
+		if (fancy_type != &PL_sv_placeholder && fancy_init != &PL_sv_placeholder) {
+			sv_catpvf(pstate->data->code_top, "%s * _HIDDEN%s = ", type, long_name);
+		}
+		else {
+			sv_catpvf(pstate->data->code_top, "%s * %s = ", type, long_name);
+		}
+		
+		/* Retrieve the SV from the current pad */
+		sv_catpvf(pstate->data->code_top, "(%s*)PAD_SV(%d); ",
+			type, var_offset);
+		
+		/* Add the type conversion */
+		if (fancy_type != &PL_sv_placeholder && fancy_init != &PL_sv_placeholder) {
+			sv_catpvf(pstate->data->code_top, "%s %s = %s(_HIDDEN%s); ",
+				SvPVbyte_nolen(fancy_type), long_name,
+				SvPVbyte_nolen(fancy_init), long_name
+			);
+		}
+		
+		/* Finally, add any cleanup code with the variable and the SV */
+		SV * fancy_cleanup = cophh_fetch_pv(pstate->data->hints_hash,
+			form("C::Blocks/CLEANUP%s", pstate->sigil_start), 0, 0);
+		if (fancy_cleanup != &PL_sv_placeholder) {
+			sv_catpvf(pstate->data->code_bottom, "%s(_HIDDEN%s, %s); ",
+				SvPVbyte_nolen(fancy_cleanup), long_name, long_name);
+		}
+		
+	}
+	
+	/* Reset the character just following the var name */
+	*pstate->data->end = backup;
+	
+	/* Add the long name to the main code block in place of the sigiled
+	 * expression, and remove the sigiled varname from the buffer. */
+	sv_catpv_nomg(pstate->data->code_main, long_name);
+	lex_unstuff(pstate->data->end);
+	pstate->data->end = PL_bufptr;
+	
+	/* Cleanup memory */
+	Safefree(long_name);
+	
+	/* Reset the parser state and process the current character with
+	 * the default parser */
+	pstate->process_next_char = pstate->default_next_char;
+	return pstate->default_next_char(aTHX_ pstate);
+}
+
+void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
+	/* copy data out of the buffer until we encounter the matching
+	 * closing bracket, accounting for brackets that may occur in
+	 * comments and strings. Process sigiled variables as well. */
+	
+	/* Set up the parser state */
+	parse_state my_parse_state;
+	my_parse_state.data = data;
+	my_parse_state.sigil_start = 0;
+	my_parse_state.bracket_count = 0;
+	my_parse_state.interpolation_bracket_count_start = 0;
+	if (keyword_type == IS_CBLOCK) {
+		my_parse_state.process_next_char = process_next_char_sigil_vars_ok;
+		my_parse_state.default_next_char = process_next_char_sigil_vars_ok;
+	}
+	else {
+		my_parse_state.process_next_char = process_next_char_no_vars;
+		my_parse_state.default_next_char = process_next_char_no_vars;
+	}
+	
+	
+	data->end = PL_bufptr;
+	int still_working;
+	do {
+		ENSURE_LEX_BUFFER(data->end, "C::Blocks expected closing curly brace but did not find it");
+		
+		if (*data->end == '\n') data->N_newlines++;
+		still_working = my_parse_state.process_next_char(aTHX_ &my_parse_state);
+		if (still_working == PR_EXCEPTION) {
+			/* XXX working here - if an exception in Perl block, must clean up! */
+		}
+		data->end++;
+	} while (still_working);
+	
+	/* Finish by moving the (remaining) contents of the lexical buffer
+	 * into the main code container. Don't copy the final bracket, so
+	 * that bottom's code can be appended later. */
+	sv_catpvn(data->code_main, PL_bufptr, data->end - PL_bufptr - 1);
+	/* end points to the first character after the closing bracket, so
+	 * don't copy (or unstuff) that. */
+	lex_unstuff(data->end);
+	data->end = PL_bufptr;
+	/* Add the closing bracket to the end, if appropriate */
+	if (data->keep_curly_brackets) sv_catpvn(data->code_bottom, "}", 1);
+}
+
+
+/*************************/
+/**** Keyword plugin ****/
+/************************/
 
 void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->N_newlines = 0;
@@ -572,364 +934,6 @@ fail:
 	if (name != NULL) SvREFCNT_dec(name);
 	warn("Internal error while injecting 'import' into package %s: %s",
 		SvPVbyte_nolen(PL_curstname), warn_message);
-}
-
-/* State-aware parse functions. Each of these know how to look at data
- * coming from the buffer in a state-dependent way. They return the
- * proper parse function for the next character. */
-struct parse_state_t;
-typedef struct parse_state_t parse_state;
-typedef int (*parse_func_t)(pTHX_ parse_state *);
-struct parse_state_t {
-	parse_func_t process_next_char;
-	parse_func_t default_next_char;
-	c_blocks_data * data;
-	char * sigil_start;
-	int bracket_count;
-	int interpolation_bracket_count_start;
-	char delimiter;
-};
-int process_next_char_sigil_blocks_ok (pTHX_ parse_state * pstate);
-int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate);
-int process_next_char_no_sigils (pTHX_ parse_state * pstate);
-int process_next_char_delimited (pTHX_ parse_state * pstate);
-int process_next_char_C_comment (pTHX_ parse_state * pstate);
-int process_next_char_post_sigil (pTHX_ parse_state * pstate);
-int process_next_char_sigiled_var (pTHX_ parse_state * pstate);
-int process_next_char_sigiled_block (pTHX_ parse_state * pstate);
-int execute_Perl_interpolate_block(pTHX_ parse_state * pstate);
-
-/* Base parser, and default text parser for clex and cshare. Makes use
- * of the range of nonzero return values so the sigil-var handler can
- * call this and be smart about any additional work. Identifies $-sigil,
- * for interpolation blocks, and also reinstates normal parsing after
- * interpolation blocks have been identified.
- * Return values:
- * 0: found final closing bracket
- * 1: found normal character, possibly a sigil
- * 2: found and handled non-sigil character
- * 3: encountered exception during evaluation of an interpolation block
- */
-int process_next_char_no_sigils (pTHX_ parse_state * pstate) {
-	switch (pstate->data->end[0]) {
-		case '{':
-			pstate->bracket_count++;
-			if (pstate->bracket_count == 1) {
-				/* First bracket; unstuff if we're not holding on to them */
-				lex_unstuff(pstate->data->end + 1);
-				pstate->data->end = PL_bufptr - 1;
-			}
-			return 2;
-		case '}':
-			pstate->bracket_count--;
-			if (pstate->bracket_count == 0) return 0;
-			if (pstate->interpolation_bracket_count_start == pstate->bracket_count)
-				return execute_Perl_interpolate_block(aTHX_ pstate);
-			return 2;
-		case '\'': case '\"':
-			/* Shift to quote extraction state */
-			pstate->process_next_char = process_next_char_delimited;
-			pstate->delimiter = pstate->data->end[0];
-			return 2;
-		case '/':
-			if (pstate->data->end > PL_bufptr && pstate->data->end[-1] == '/') {
-				pstate->process_next_char = process_next_char_delimited;
-				pstate->delimiter = '\n';
-			}
-			return 2;
-		case '*':
-			if (pstate->data->end > PL_bufptr && pstate->data->end[-1] == '/') {
-				pstate->process_next_char = process_next_char_C_comment;
-				pstate->delimiter = '\n';
-			}
-			return 2;
-		case '$':
-			/* No processing if we're extracting an interpolation block */
-			if (pstate->interpolation_bracket_count_start) return 2;
-			/* Otherwise setup post-sigil handling. Clear out the
-			 * lexical buffer up to but not including this character
-			 * and set up the parser. */
-			sv_catpvn(pstate->data->code_main, PL_bufptr,
-				pstate->data->end - PL_bufptr);
-			lex_unstuff(pstate->data->end);
-			pstate->data->end = PL_bufptr;
-			pstate->process_next_char = process_next_char_post_sigil;
-			pstate->sigil_start = pstate->data->end;
-			return 2;
-			
-	}
-	/* Out here means it's a normal character: nothing special */
-	return 1;
-}
-
-/* Tricks lex_unstuff to replace everything from sigil to (but not
- * including) pstate's data->end with the given replacement string. */
-void replace_sigil_thing(pTHX_ parse_state * pstate, char * replacement) {
-	/* Change what the lexer thinks of as the "start" of the buffer.
-	 * This should be safe because lex_unstuff does not allocate new
-	 * memory, it just moves stuff around. */
-	int buffptr_relative_to_sigil = pstate->sigil_start - PL_bufptr;
-	PL_bufptr = pstate->sigil_start;
-	
-	/* Get rid of sigiled varname and replace with the long
-	 * name */
-	lex_unstuff(pstate->data->end);
-	lex_stuff_pv(replacement, 0);
-	
-	/* Reset the buffer pointers */
-	pstate->data->end = PL_bufptr + 1;
-	PL_bufptr -= buffptr_relative_to_sigil;
-}
-
-int execute_Perl_interpolate_block(pTHX_ parse_state * pstate) {
-	/* Temporarily replace the closing bracket with null so we can
-	 * eval_pv the buffer without copying. */
-	*pstate->data->end = '\0';
-	/* XXX working here - should catch eval and return special value.
-	 * For now, croak on error (and leak). */
-	SV * returned = eval_pv(pstate->sigil_start + 2, 1);
-	
-	/* Replace the interpolation block with contents of eval. Be sure
-	 * to get rid of the null character added above. */
-	sv_catpv_nomg(pstate->data->code_main, SvPVbyte_nolen(returned));
-	lex_unstuff(pstate->data->end + 1);
-	pstate->data->end = PL_bufptr;
-//	SvREFCNT_dec(returned); // XXX is this correct?
-	
-	/* XXX working here - add #line to make sure tcc correctly indicates
-	 * the line number of material that follows. There is no guarantee
-	 * that the evaluated text has the same number of lines as the
-	 * original block of Perl code just evaluated. */
-	
-	/* Return to default parse state */
-	pstate->sigil_start = 0;
-	pstate->process_next_char = pstate->default_next_char;
-	pstate->interpolation_bracket_count_start = 0;
-	
-	/* Return a value indicating that we've already handled everything. */
-	return 2;
-}
-
-/* Default text parser for cblock */
-int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate) {
-	int no_sigils_result = process_next_char_no_sigils(aTHX_ pstate);
-	if (no_sigils_result != 1) return no_sigils_result;
-	if (*pstate->data->end == '@' || *pstate->data->end == '%') {
-		/* Clear out the lexical buffer up to but not including this
-		 * character. */
-		sv_catpvn(pstate->data->code_main, PL_bufptr,
-			pstate->data->end - PL_bufptr);
-		lex_unstuff(pstate->data->end);
-		pstate->data->end = PL_bufptr;
-		
-		/* Set up the variable name extractor */
-		pstate->process_next_char = process_next_char_post_sigil;
-		pstate->sigil_start = pstate->data->end;
-	}
-	return 1;
-}
-
-int process_next_char_delimited (pTHX_ parse_state * pstate) {
-	if (pstate->data->end[0] == pstate->delimiter && pstate->data->end[-1] != '\\') {
-		/* Reset to normal parse state */
-		pstate->process_next_char = pstate->default_next_char;
-	}
-	else if (pstate->delimiter != '\n' && pstate->data->end[0] == '\n') {
-		/* Strings do not wrap */
-		pstate->process_next_char = pstate->default_next_char;
-	}
-	return 1;
-}
-
-int process_next_char_C_comment (pTHX_ parse_state * pstate) {
-	if (pstate->data->end[0] == '/' && pstate->data->end[-1] == '*') {
-		/* Found comment closer. Reset to normal parse state */
-		pstate->process_next_char = pstate->default_next_char;
-	}
-	return 1;
-}
-
-int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
-	/* Only called on the first character after the sigil. */
-	
-	/* If the sigil is a dollar sign and the next character is an
-	 * opening bracket, then we have an interpolation block. */
-	if (pstate->data->end[-1] == '$' && pstate->data->end[0] == '{') {
-		pstate->process_next_char = process_next_char_no_sigils;
-		pstate->interpolation_bracket_count_start = pstate->bracket_count++;
-		return 1;
-	}
-	
-	/* IF our parser accepts sigiled variables, then check for a valid
-	 * identifier character and set up continued searching for the end
-	 * of the variable name. */
-	if (pstate->default_next_char == process_next_char_sigil_vars_ok
-		&& _is_id_cont(pstate->data->end[0]))
-	{
-		pstate->process_next_char = process_next_char_sigiled_var;
-		return 1;
-	}
-	
-	/* We either have a lone sigil character followed by a space or a
-	 * sigiled variable name being parsed when sigiled variable names
-	 * are not allowed. Reset the state and defer to the default
-	 * handler. */
-	pstate->process_next_char = pstate->default_next_char;
-	return pstate->default_next_char(aTHX_ pstate);
-}
-
-int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
-	/* keep collecting if the current character looks like a valid
-	 * identifier character */
-	if (_is_id_cont(pstate->data->end[0])) return 1;
-	
-	/* make sure we have the PerlAPI loaded */
-	ensure_perlapi(aTHX_ pstate->data);
-	
-	/* We just identified the character that is one past the end of our
-	 * Perl variable name. Identify the type and construct the mangled
-	 * name for the C-side variable. */
-	char backup = *pstate->data->end;
-	*pstate->data->end = '\0';
-	char * type;
-	char * long_name;
-	if (*pstate->sigil_start == '$') {
-		type = "SV";
-		long_name = savepv(form("_PERL_LEXICAL_SCALAR_%s", 
-			pstate->sigil_start + 1));
-	}
-	else if (*pstate->sigil_start == '@') {
-		type = "AV";
-		long_name = savepv(form("_PERL_LEXICAL_ARRAY_%s", 
-			pstate->sigil_start + 1));
-	}
-	else if (*pstate->sigil_start == '%') {
-		type = "HV";
-		long_name = savepv(form("_PERL_LEXICAL_HASH_%s", 
-			pstate->sigil_start + 1));
-	}
-	else {
-		/* should never happen */
-		*pstate->data->end = backup;
-		croak("C::Blocks internal error: unknown sigil %c\n",
-			*pstate->sigil_start);
-	}
-	
-	/* Check if we need to add a declaration for the C-side variable */
-	if (strstr(SvPVbyte_nolen(pstate->data->code_top), long_name) == NULL) {
-		/* Add a new declaration for it */
-		/* NOTE: pad_findmy_pv expects the sigil!! */
-		
-		int var_offset = (int)pad_findmy_pv(pstate->sigil_start, 0);
-		/* Ensure that the variable exists in the pad */
-		if (var_offset == NOT_IN_PAD) {
-			CopLINE(PL_curcop) += pstate->data->N_newlines;
-			*pstate->data->end = backup;
-			croak("Could not find lexically scoped \"%s\"",
-				pstate->sigil_start);
-		}
-		
-		/* support for cisa type declarations. Save the SV in an even
-		 * more obfuscated variable, and the given type in the expected
-		 * variable. */
-		
-		SV * fancy_type = cophh_fetch_pv(pstate->data->hints_hash,
-			form("C::Blocks/TYPE%s", pstate->sigil_start), 0, 0);
-		SV * fancy_init = cophh_fetch_pv(pstate->data->hints_hash,
-			form("C::Blocks/INIT%s", pstate->sigil_start), 0, 0);
-		
-		/* Add the type declaration and long variable name */
-		if (fancy_type != &PL_sv_placeholder && fancy_init != &PL_sv_placeholder) {
-			sv_catpvf(pstate->data->code_top, "%s * _HIDDEN%s = ", type, long_name);
-		}
-		else {
-			sv_catpvf(pstate->data->code_top, "%s * %s = ", type, long_name);
-		}
-		
-		/* Retrieve the SV from the current pad */
-		sv_catpvf(pstate->data->code_top, "(%s*)PAD_SV(%d); ",
-			type, var_offset);
-		
-		/* Add the type conversion */
-		if (fancy_type != &PL_sv_placeholder && fancy_init != &PL_sv_placeholder) {
-			sv_catpvf(pstate->data->code_top, "%s %s = %s(_HIDDEN%s); ",
-				SvPVbyte_nolen(fancy_type), long_name,
-				SvPVbyte_nolen(fancy_init), long_name
-			);
-		}
-		
-		/* Finally, add any cleanup code with the variable and the SV */
-		SV * fancy_cleanup = cophh_fetch_pv(pstate->data->hints_hash,
-			form("C::Blocks/CLEANUP%s", pstate->sigil_start), 0, 0);
-		if (fancy_cleanup != &PL_sv_placeholder) {
-			sv_catpvf(pstate->data->code_bottom, "%s(_HIDDEN%s, %s); ",
-				SvPVbyte_nolen(fancy_cleanup), long_name, long_name);
-		}
-		
-	}
-	
-	/* Reset the character just following the var name */
-	*pstate->data->end = backup;
-	
-	/* Add the long name to the main code block in place of the sigiled
-	 * expression, and remove the sigiled varname from the buffer. */
-	sv_catpv_nomg(pstate->data->code_main, long_name);
-	lex_unstuff(pstate->data->end);
-	pstate->data->end = PL_bufptr;
-	
-	/* Cleanup memory */
-	Safefree(long_name);
-	
-	/* Reset the parser state and process the current character with
-	 * the default parser */
-	pstate->process_next_char = pstate->default_next_char;
-	return pstate->default_next_char(aTHX_ pstate);
-}
-
-void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
-	/* copy data out of the buffer until we encounter the matching
-	 * closing bracket, accounting for brackets that may occur in
-	 * comments and strings. Process sigiled variables as well. */
-	
-	/* Set up the parser state */
-	parse_state my_parse_state;
-	my_parse_state.data = data;
-	my_parse_state.sigil_start = 0;
-	my_parse_state.bracket_count = 0;
-	my_parse_state.interpolation_bracket_count_start = 0;
-	if (keyword_type == IS_CBLOCK) {
-		my_parse_state.process_next_char = process_next_char_sigil_vars_ok;
-		my_parse_state.default_next_char = process_next_char_sigil_vars_ok;
-	}
-	else {
-		my_parse_state.process_next_char = process_next_char_no_sigils;
-		my_parse_state.default_next_char = process_next_char_no_sigils;
-	}
-	
-	
-	data->end = PL_bufptr;
-	int still_working;
-	do {
-		ENSURE_LEX_BUFFER(data->end, "C::Blocks expected closing curly brace but did not find it");
-		
-		if (*data->end == '\n') data->N_newlines++;
-		still_working = my_parse_state.process_next_char(aTHX_ &my_parse_state);
-		if (still_working == 3) {
-			/* XXX working here - if an exception in Perl block, must clean up! */
-		}
-		data->end++;
-	} while (still_working);
-	
-	/* Finish by moving the (remaining) contents of the lexical buffer
-	 * into the main code container. Don't copy the final bracket, so
-	 * that bottom's code can be appended later. */
-	sv_catpvn(data->code_main, PL_bufptr, data->end - PL_bufptr - 1);
-	/* end points to the first character after the closing bracket, so
-	 * don't copy (or unstuff) that. */
-	lex_unstuff(data->end);
-	data->end = PL_bufptr;
-	/* Add the closing bracket to the end, if appropriate */
-	if (data->keep_curly_brackets) sv_catpvn(data->code_bottom, "}", 1);
 }
 
 void setup_compiler (pTHX_ TCCState * state, c_blocks_data * data) {
