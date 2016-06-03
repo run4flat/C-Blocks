@@ -2,7 +2,7 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in chronological order, i.e. oldest at the top
 
-0.05  Ddd, Mth #, 201#
+0.05  Thu, June 2, 2016
 
   [DIFFERENT BEHAVIOR]
   
@@ -14,9 +14,13 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
     class defined using Moo (and probably many other OO frameworks).
   
   [DEPENDENCIES]
+  
   * The build process now depends upon Test::Warn, which is used (no
     surprisingly) to test warning messages, and the lexical control
     thereof.
+  
+  * Bumped Alien::TinyCCx dependency to v0.10, which should properly
+    support Macs.
   
   [NEW FEATURES]
   
