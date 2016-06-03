@@ -2,6 +2,8 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in chronological order, i.e. oldest at the top
 
+0.06  Ddd, Mth #, 201#
+
 0.05  Thu, June 2, 2016
 
   [DIFFERENT BEHAVIOR]
