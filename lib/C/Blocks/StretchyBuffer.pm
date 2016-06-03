@@ -3,7 +3,7 @@ use warnings;
 package C::Blocks::StretchyBuffer;
 use C::Blocks;
 use C::Blocks::PerlAPI;
-our $VERSION = '0.04_01';
+our $VERSION = '0.05';
 $VERSION = eval $VERSION;
 no warnings qw(C::Blocks::compiler);
 
