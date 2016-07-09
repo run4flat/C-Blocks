@@ -97,9 +97,19 @@ HEADER_CONTENTS
 		$perl_h_file
 	);
 
-	# Build the files!
-	system("tcc $compiler_args") == 0
-		or die "Unable to serialize the header file\n";
+	# Build the files! Only croak on errors that are not due to
+	# undefined symbols, as we don't care about linking here.
+	my ($output, $exit) = capture_merged { system("tcc $compiler_args") };
+	print $output;
+	if ($exit != 0) {
+		if ($output =~ /undefined symbol/) {
+			warn "^^^ Ignoring likely erroneous undefined symbol warning\n";
+		}
+		else {
+			die "Unable to serialize the header file\n";
+		}
+	}
+		
 	unlink $perl_h_file;
 	Module::Build->current->add_to_cleanup($share_file_location);
 	Module::Build->current->add_to_cleanup('names.txt');
