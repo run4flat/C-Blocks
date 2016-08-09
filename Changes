@@ -17,7 +17,7 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   
   [DEPENDENCIES]
   
-  * The build process now depends upon Test::Warn, which is used (no
+  * The build process now depends upon Test::Warn, which is used (not
     surprisingly) to test warning messages, and the lexical control
     thereof.
   
