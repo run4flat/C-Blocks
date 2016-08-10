@@ -233,10 +233,10 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  print "All done!\n"; 
 
-=head1 ALPHA
+=head1 PRE-BETA
 
-This project is currently in alpha. The C<csub> keyword does not work
-yet due to bewildering tcc-level symbol table lookup issues.
+This project is currently in pre-beta. It'll be declared beta when it
+passes its test suite on at least one Windows, Linux, and Mac machine.
 
 =head1 DESCRIPTION
 
@@ -283,13 +283,9 @@ or C<cshare> blocks that precede it. These blocks are discussed in the
 next section.
 
 You can also use sigiled variable names in your C<cblock>s, and they 
-will be mapped directly to the correct lexically scoped variables. 
-(Bear in mind, though, that you will need to use L<C::Blocks::PerlAPI>. 
-I plan to have this auto-load when it detects sigils, but it isn't 
-smart enough yet.)
+will be mapped directly to the correct lexically scoped variables.
 
  use C::Blocks;
- use C::Blocks::PerlAPI;
  my $message = 'Greetings!';
  my @array;
  
@@ -394,17 +390,20 @@ such as:
  
  print "Average distance to origin is $avg_distance\n";
 
-With the Tiny C Compiler backend, this works copying the C symbol table and
-storing a reference to it in a lexically scoped location. Later C blocks consult
-the symbol tables that are referenced in the current lexical scope, and copy
-individual symbols on an as-needed basis into their own symbol tables.
+How does this work? First, the code in the C<clex> block gets compiled
+down to machine code immediately after it is encountered. Second,
+C::Blocks copies the C E<symbol table> for the code in the C<clex> and
+stores a reference to it in a lexically scoped location. Later blocks
+consult the symbol tables that are referenced in the current lexical
+scope, and copy individual symbols on an as-needed basis into their own
+symbol tables.
 
 This code could be part of a module, but none of the C declarations would be
 available to modules that C<use> this module. C<clex> blocks let you declare
 private things to be used only within the lexical scope that encloses the
 C<clex> block. If you want to share a C API, for others to use in their own
-C<cblock> and C<clex> code, you should look into the next type of block:
-C<cshare>.
+C<cblock>, C<clex>, C<cshare>, and C<csub> code, you should look into the next
+type of block: C<cshare>.
 
 =head2 Shared C Declarations
 
@@ -446,13 +445,11 @@ How do shared C declarations work? When C<C::Blocks> encounters a C<cshare>, it
 injects a special C<import> method into the package that's being compiled. This
 C<import> method properly copies the symbol table references in a lexically
 scoped way so when some I<other> code C<use>s the pacage, the symbol tables are
-available for use in C<cblock>s, etc.
+available for use in C<cblock>s, etc. If your module provides its own import
+method, or has package-scoped variables such as C<our $import>, C::Blocks will
+issue a warning and refrain from injecting the method.
 
-If your module provides its own import method, or has package-scoped variables
-such as C<our $import>, C::Blocks will issue a warning and refrain from injecting
-the method.
-
-If you module needs to provide its own import functionality, you can still get
+If your module needs to provide its own import functionality, you can still get
 the code sharing with something like this:
 
  no warnings 'C::Blocks::import';
@@ -481,8 +478,10 @@ produces a function in the current package with the given name.
 
 Writing a functional XSUB requires knowing a fair bit about the Perl
 argument stack and manipulation macros, so it will have to be discussed
-at greater depth somewhere else. For now, it may be best to refer to
-L<perlapi> and L<http://blog.booking.com/native-extensions-for-perl-without-smoke-and-mirrors.html>.
+at greater depth somewhere else. For now, I hope the example in the
+L</SYNOPSIS> is enough to get you started. For a more in-depth discussion, see
+L<http://blog.booking.com/native-extensions-for-perl-without-smoke-and-mirrors.html>.
+Once you've gotten through that, check out L<perlapi>.
 
 =head2 Generating C Code
 
@@ -524,30 +523,6 @@ blocks execute, but before any BEGIN blocks run. This only applies to
 lexically scoped variables, however. Changes to package-scoped variables
 (including lexically scoped names, i.e. C<our $package_var>) persist,
 as would be expected if these variables were set in BEGIN blocks.
-
-=head2 Performance
-
-C<C::Blocks> is currently implemented using the Tiny C Compiler, a 
-compiler written to I<compile> fast, but not necessarily produce 
-blazingly fast machine code. As such, the above code block is not going 
-to run as quickly as the equivalent XS code compiled using C<gcc -O3>. 
-What's more, Perl's core has been pretty highly optimized. 
-Micro-optimizations that replace a handful of Perl statements with 
-their C-API equivalents may give performance gains, but they are likely
-to be incremental.
-
-Where are you likely to see the most gains? The performance boost will 
-be best when you have multiple tightly nested for-loops, where 
-operations within the for loops are based on the indices. For example, 
-you will see major improvements if you replace a naive prime number 
-calculator written in Perl can be replaced with a prime number 
-calculator written using C::Blocks.
-
-To get the best performance, however, you should use C<C::Blocks> to 
-write code that performs C operations on C structures. But then how do 
-you declare your C data structures? And more importantly, how do you 
-package those structures into a library in order to share those 
-structures with others? That's what I discuss next.
 
 =head2 Configuring the Compiler
 
@@ -599,6 +574,99 @@ C<C::Blocks::linker>. For example:
 The warnings are handled using Perl's built-in warnings system, so as
 with all warnings, the reporting of compiler and linker warnings can be
 controlled lexically.
+
+=head1 PERFORMANCE
+
+C<C::Blocks> is not a silver bullet for performance. Other Perl 
+libraries more tailored to your goal may serve you better. Sometimes 
+they will lead to fewer lines of code, or clearer code, than the 
+corresponding C code. Other times they will be built on solid libraries 
+which are blazing fast already. C<C::Blocks> is implemented using the 
+Tiny C Compiler, a compiler that I<compiles> fast and produces machine 
+code, but which is of mediocre quality. If you compiled the exact same 
+code with a high-quality compiler such as C<gcc -O3>, it would take 
+longer to compile, but the resulting machine code would be more 
+efficient. When can you expect a C::Blocks solution to be a good 
+choice?
+
+=head2 When not to use C::Blocks
+
+Don't rewrite an existing XS module using C::Blocks. A C::Blocks API to 
+your XS code might be useful, but don't rewrite mature XS code. 
+C::Blocks can save you from the effort of producing a new XS 
+distribution, but if you've already put in that effort, don't throw it 
+away.
+
+Don't replace a handful of Perl statements with their C-API 
+equivalents. Perl's core has been pretty highly optimized and is 
+compiled at high optimization levels. At best, you'll get incremental
+performance gains, and they will likely come at the expense of many
+additional lines of code. This probably isn't worth it.
+
+Don't discount the cost of marshalling Perl data into C data. Obtaining 
+C representations of your data will always cost you at least a few 
+clock cycles, and it will usually add lines of code, too. You're likely 
+to see the best performance benefits if you can marshall the data as 
+early as possible and use that C-accessible data many times over. For 
+example, if you have a data-parsing stage in which you build a complex 
+data structure representing that data, try to build a C structure 
+instead of a Perl structure at parse time. All future operations will
+have access to the C representation.
+
+=head2 C::Blocks vs Perl and PDL
+
+In what follows, I assume you have already marshalled your data into a
+C data structure, like an array or a struct.
+
+C<C::Blocks> outperforms Perl on O(N) numeric calculations on arrays, 
+often by a factor greater than 10. (An O(N) calculation is any 
+algorithm that only needs to examine each data point once, so the 
+calculation should scale with the number of data points.) In fact, 
+C<C::Blocks> is competitive with L<PDL> in such calculations. 
+C<C::Blocks> requires more lines of code, though. For a calculation of 
+the average of a dataset, L<PDL> uses only one line, a Perl 
+implementation uses three, and C::Blocks uses 14. What you gain in 
+speed you lose in lines of code.
+
+Another interesting comparison between L<PDL> and C::Blocks is the 
+calculation of euclidian distance for an N-dimensional vector, where N 
+scales from very small to very large numbers. The calculation is always 
+O(N), but is more complex than the simple average already discussed, 
+and not explicitly implemented as a low-level L<PDL> routine. The 
+L<PDL> implementation is only a single very readable line, highlighting 
+L<PDL>'s expresiveness. The C::Blocks implementation is 14 lines of 
+traditional C code, making it straight-forward but lengthy. The 
+C::Blocks has the upper hand in execution rate---always faster than 
+L<PDL>, though never more than by a factor of two---and in predictable 
+scaling---almost perfectly linear in system size, vs slightly nonlinear 
+behavior in the PDL implementation. I'd say the number of lines of code
+is the primary deciding factor here, but the trade-off might fall
+differently for more complicated calculations.
+
+The calculation of the Mandelbrot set provides a very interesting 
+benchmark. The algorithm involves a loop that has a fixed maximun 
+number of iterations, but which can exit early if the calculation 
+converges. This exit-early algorithm knocks PDL out of the race. 
+There's no good way to implement this in PDL short of writing a 
+low-level implementation.
+
+The comparsion between C::Blocks and PDL can best be summarized thus. 
+If you have a very small dataset, less than 1000 elements, C::Blocks 
+will out-perform PDL due to PDL's costly method launch mechanism. If 
+you have multiple tightly nested for-loops, where operations within the 
+for loops are based on the indices, then C::Blocks will likely give you 
+a competitive computation rate, at the cost of many more lines of code. 
+If those for-loops have the possibility of an early exit, PDL may run 
+significantly slower than C::Blocks, and may even run slower than pure 
+Perl. Finally, if you have image manipulations or calculations, PDL is 
+almost certainly the better tool, as it has a lot of low-level image 
+manipulation routines already.
+
+=head2 C::Blocks vs Graph
+
+I have not had the opportunity to write and run additional benchmarks 
+for C::Blocks. The next obvious choice would be a comparison with
+L<Graph>, but I have not yet endeavored to produce those calculations.
 
 =head1 KEYWORDS
 
