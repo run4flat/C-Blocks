@@ -62,13 +62,17 @@ sub serialize_perl_h {
 #include "perl.h"
 #include "XSUB.h"
 
+int main() {
+	return 0;
+}
+
 HEADER_CONTENTS
 
 	print $perl_h_fh $header_contents;
 	close $perl_h_fh;
 
 	# Construct the compiler arguments
-	my $compiler_args = join(' ', ccopts, '-shared');
+	my $compiler_args = ccopts;
 	$compiler_args =~ s/\n+//g;
 	# tcc doesn't know how to use quotes in -I paths; remove them if found.
 	$compiler_args =~ s/-I"([^"]*)"/-I$1/g if $^O =~ /MSWin/;
@@ -90,10 +94,9 @@ HEADER_CONTENTS
 
 	# Add arguments to produce the identifier list and serialization
 	mkdir 'share';
-	$compiler_args = join(' ', $compiler_args,
+	$compiler_args = join(' ', '-run', $compiler_args,
 		'-dump-identifier-names=names.txt',
 		'-serialize-symtab='.$share_file_location,
-		'-o', $perl_o_file,
 		$perl_h_file
 	);
 
@@ -103,7 +106,7 @@ HEADER_CONTENTS
 	print $output;
 	if ($exit != 0) {
 		if ($output =~ /undefined symbol/) {
-			warn "^^^ Ignoring likely erroneous undefined symbol warning\n";
+			warn "^^^ Ignoring likely erroneous undefined symbol warning/error\n";
 		}
 		else {
 			die "Unable to serialize the header file\n";
