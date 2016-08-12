@@ -39,10 +39,6 @@ sub serialize_perl_h {
 	my($perl_h_fh, $perl_h_file) = File::Temp::tempfile(
 		'perl_h_XXXXXXXX', SUFFIX => '.c', UNLINK => 1
 	);
-	my($perl_o_fh, $perl_o_file) = File::Temp::tempfile(
-		'perl_o_XXXXXXXX', SUFFIX => '.o', UNLINK => 1
-	);
-	close $perl_o_fh;
 
 	my $header_contents = <<HEADER_CONTENTS;
 

@@ -8,27 +8,28 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
 
 Pre-Beta
 
-=over
+This distribution seems to be working very well for me. However, even 
+if the current version passes its test suite and installs on your 
+system, it may be subtly broken and throw segmentation faults during 
+ordinary use. Uncovering and fixing these is one of the major goals of
+the Alpha stage. You can be more confident in the distribution's
+robustness once it reaches Beta.
 
-=item Better representation on CPAN Testers
+Currently this distribution builds and passes its test suite on at 
+least a subset of the Linux, Mac, and Windows machines reporting on 
+CPAN Testers, and I have implemented the functionality and many of the 
+tests I had hoped to implement in the Alpha stage. Now that I have 
+passing reports on the Big Three, I turn my attention to expanding the
+test suite.
 
-Very few machines report this module as working on CPAN testers,
-including nothing for a number of key platforms. This seems to crop up
-on 64-bit operating systems in particular. Before clicking over to v0.5,
-I want this to have passes on all major platforms.
+For more on the milestones for Alpha, Beta, and v1.0, see Goals and
+Milestones below.
 
-=back
-
-This project is currently pre-Beta. That means that I have nearly
-managed to get it working on at least one Linux, Mac, and Windows
-machine, and I have implemented the functionality and tests I had hoped
-to implement in the Alpha stage. The present goal is to find and fix all
-the ways that C::Blocks can break, i.e. expand
-the test suite and get it to run it on as many platforms as
-possible. Not only can you expect some segmentation faults on at least a
-few operating system, but you can expect the current compiler setup API
-to change once the distribution has reached a greater level of
-stability. (The API will be ironed out during Beta.)
+I do not yet make any promises about backwards compatibility. (But, I 
+use this distribution in my own code, so you can anticipate that a fair 
+bit of the API has seen use and is not likely to change much.) In 
+particular, the compiler setup and type APIs will be ironed out, in 
+backwards-incompatible ways, during Beta.
 
 =head1 DESCRIPTION
 
@@ -73,42 +74,108 @@ kitchen sink.
 
 =head2 Pre-Alpha
 
-The goal during the pre-alpha stage is to get things mostly working on 
-most platforms. Once this is accomplished, I will spin an Alpha release 
-on CPAN. I declared victory on this stage when I got libperl caching 
-working on all platforms, even though StretchyBuffer still gave trouble 
-on Windows.
+The goal during the pre-alpha stage was to get things mostly working on 
+most platforms. Once this was accomplished, I spun the first release on 
+CPAN. I declared victory on this stage when I got libperl caching 
+working on all three platforms I had easy access to, even though 
+StretchyBuffer still gave trouble on Windows.
 
 =head2 Alpha CPAN Release, v0.01 - 0.49
 
-The goal during the alpha stage is to vastly expand the test suite to 
-make sure that everything works properly. For the most part, this means 
-writing lots of tests of Perl's own C API. Additional tests for things 
-like scoping and memory duration could stand to be expanded as well. 
-Once I feel the test suite is robust, I move on to v0.5, beta.
+The goal during the alpha stage is to achieve successful builds that 
+can be trusted to work on the three popular "user" operating systems: 
+Linux, Strawberry Windows, and Mac. Major work in the alpha stage will 
+focus on OS-specific build issues and vastly expanding the test suite. 
+The easiest and most important tests to add focus on Perl's own C API, 
+as well as porting XS::Object::Magic's tests for 
+C::Blocks::Object::Magic. Tests for things like scoping, memory 
+duration, and correct line number reporting need to be expanded as 
+well. A significant number of failures on Linux, Mac, or Strawberry 
+Windows systems will be considered blockers to finalizing the Alpha 
+stage.
+
+Although originally planned as a much later addition, I have added 
+C::Blocks::Object::Magic during alpha. This modue is a port of 
+XS::Object::Magic. I want to keep this as a core module at least through
+Beta. The  idea it implements is too useful to distribute it elsewhere,
+and it provides an excellent testing target. I hope to incorporate
+XS::Object::Magic's test suite as part of the test build-up for Beta.
+
+Besides Linux, Mac, and Strawberry, I plan to officially support all 
+operating systems for which Alien::TinyCCx successfully installs. (For 
+the moment, that includes the addition of gnukfreebsd.) TCC itself is 
+not guaranteed to work on Cygwin, for example, and I see no point in 
+holding back C::Blocks due to a failure of the underlying library. (See 
+the Beta requirements for more on Cygwin, and BSD.)
 
 The API for tweaking the compiler will still be considered in flux, so 
 substantial library development is discouraged during Alpha.
 
-Also, I currently get a lot of warnings saying
+It is easy to produce warnings saying
 
  warning: assignment from incompatible pointer type
 
-This is a bug with the underlying extended symbol table handling and
-struct type checking. I would like this to be fixed sooner rather than
-later.
+This is a bug with the underlying extended symbol table handling and 
+struct type checking. I would like this to be fixed sooner rather than 
+later. Thankfully, it is not hard to work around this warning, and it 
+is not a blocking issue.
 
 =head2 Beta CPAN Release, v0.50 - v0.99
 
-After the distribution hits v0.50, it'll be time to begin settling on 
-an API to set up the compiler. The current API uses global variables, 
-but this almost certainly can be done better.
+The goals after the distribution hits v0.50 include settling on a 
+compiler setup API, finalizing the automated type handling system, 
+cleaning up the internals, and officially supporting Cygwin and BSDs. 
+Pre-1.0 work will focus on expanding the documentation.
 
-With the settling of the API, I also hope to make it easier to write
-libraries that are export wrappers. The simplest example would be
-something that, for the moment, I am calling C<C::Blocks::lib>. This
-module would make it easy to import a bunch of C::Blocks modules in
-one shot, i.e.
+The current compiler setup API involves parsing global string 
+variables. This can certainly be done better. I want to work out a more 
+sophisticated and programatic approach to compiler setup so that 
+authors do not have to jump through too many hoops to set up C::Blocks 
+when wrapping a C library. In particular, L<ExtUtils::Depends> provides
+information about functions and typemaps provided by other Perl XS
+modules, and this API should make it easy to use this information.
+
+The C<cisa> keyword implements a very simple type system, introduced 
+based on experience durinig the alpha stage. In practice, the current 
+implementation is awkward to use. I would like to redesign the type 
+system during Beta.
+
+I believe that C<call_checker> and C<call_parser> represent a better 
+API for the lexically-scoped keywords introduced by C::Blocks. I used 
+the keyword API for prototyping because it was easy for me to get 
+started. During Beta, I would like to investigate using these. If this 
+alternative API represents an improvement over the keyword API, I want 
+the switch to take place during Beta.
+
+The Alpha version of C::Blocks supports (but does not enforce) 
+single-threaded compilation of multi-threaded code. That is, it is 
+possible and perfectly safe for a thread to compile code that is run 
+simultaneously by many child threads. There are two problems with 
+threads. First, the Tiny C Compiler is not itself threadsafe, so if 
+multiple threads attempt to compile code simultaneously, things would 
+go horribly awry. Second, the actual object code produced when 
+C::Blocks compiles a chunk of code is stored in the parent's 
+thread-specific storage. If the parent exits before the child does 
+(which is not possible on Windows but is possible on POSIXy systems), 
+the child could try to execute code from memory that has been freed.
+I would like to address these by protecting compilation with a mutex,
+and by storing object code somewhere that can live across thread
+boundaries. (Doing that in such a way that does not leak will be one of
+the more challenging parts of this particular issue.) C::Blocks can
+already produce thread-safe code following certain practies. The goal
+here is to solve the problem with code, not programming practices.
+
+Cygwin and BSD support will be added as soon as I can get 
+Alien::TinyCCx to build on those operating systems. Support for these 
+operating systems is a blocker for v1.0, and so this distribution will 
+not get out of Beta without sufficient work on Alien::TinyCCx (and 
+probably tcc itself).
+
+With the settling of the compiler setup API, I also hope to make it 
+easier to write libraries that are export wrappers. The simplest 
+example would be something that, for the moment, I am calling 
+C<C::Blocks::lib>. This module would make it easy to import a bunch of 
+C::Blocks modules in one shot, i.e.
 
  use C::Blocks::lib qw(perl gsl prima);
 
@@ -121,22 +188,19 @@ would be equivalent to
 Of course, I've not yet decided if I want to call all libraries 
 C<lib...>, so this still needs some thought.
 
-Another important thing that'll come either during Alpha or Beta is 
-switching to C<call_checker> and C<call_parser>. I used the keyword API 
-for prototyping because it was easy for me to get started, but the 
-newer API is the preferred method for this sort of stuff.
-
 Finally, I want to create a module that helps automate the symbol table 
 load/dump functionality and symbol verification currently under 
-development for use with libperl. Once it's working for libperl, I want 
-to create author tools for L<Module::Build> and L<ExtUtils::MakeMaker> 
-so that build-time symbol table caching is easy.
+development for use with PerlAPI. During Beta, I want to create author 
+tools for L<Module::Build>, L<ExtUtils::MakeMaker>, L<Dist::Zilla>, and 
+other distribution tools so that build-time symbol table caching is 
+easy.
 
 =head2 v1.0
 
 When C::Blocks hits v1.0, it'll have a solid test suite and stable API.
 From v1.0 onward, it'll simply be a question of what to include in the
-distribution itself.
+distribution itself. Here are things I want to add (or at least think
+about adding) after reaching v1.0:
 
 =over
 
@@ -144,12 +208,9 @@ distribution itself.
 
 I plan to write a module that makes it easy to write single-inheritance 
 object oriented C code. My current plans are to steal from Prima, which 
-does this sort of thing exceptionally well.
-
-=item XS::Object::Magic
-
-I like XS::Object::Magic, and I think I'd like to distribute a 
-C::Blocks module with that functionality within C::Blocks itself.
+does this sort of thing exceptionally well. Whether this is added to 
+the base distribution or released as an independent one is still up in 
+the air.
 
 =item Generate Inline::C, XS, ExtUtils::Depends
 
@@ -164,15 +225,16 @@ authors via ExtUtils::Depends.
 
 =item Utilize ExtUtils::Depends
 
-There is a lot of overlap between C<C::Blocks> and ExtUtils::Depends, 
-and undoubtedly users of C<C::Blocks> would like to have access to 
-functions and data structures that are made available through 
-ExtUtils::Depends. It would be nice to provide some sort of automatic 
-C::Blocks wrapper for ExtUtils::Depends based modules.
+C::Blocks' consumption of ExtUtils::Depends information was a
+Beta target. Going the other way, I<producing> an ExtUtils::Depends-like
+result for C::Blocks distributions, would likely be a nice feature.
 
 =item Threadsafe
 
-The Tiny C Compiler uses lots of global variables and is therefore not 
+The functions produced by the Tiny C Compiler are threadsafe. However,
+compiling code with the Tiny C Compiler itself is not threadsafe.
+
+uses lots of global variables and is therefore not 
 threadsafe. I would like to contribute back to the project by 
 encapsulating all of that global state into the compiler state object, 
 where it belongs. Others in the tcc community have expressed interest 

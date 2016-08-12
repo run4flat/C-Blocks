@@ -12,7 +12,7 @@ use XSLoader;
 # Use David Golden's version numbering suggestions. Note that we have to call
 # the XSLoader before evaling the version string because XS modules check the
 # version *string*, not the version *number*, at boot time.
-our $VERSION = "0.05_04";
+our $VERSION = "0.40";
 XSLoader::load('C::Blocks', $VERSION);
 $VERSION = eval $VERSION;
 
@@ -235,8 +235,10 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
 
 =head1 PRE-BETA
 
-This project is currently in pre-beta. It'll be declared beta when it
-passes its test suite on at least one Windows, Linux, and Mac machine.
+This project is currently in pre-beta. Is known to compile and pass its
+test suite on a number of Windows, Linux, and Mac machines. Once the
+test suite has been expanded, it will move to Beta, v0.50. For more on
+goals and milestones, see the distribution's README.
 
 =head1 DESCRIPTION
 

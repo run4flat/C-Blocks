@@ -2,12 +2,23 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in chronological order, i.e. oldest at the top
 
-0.06  Ddd, Mth #, 201#
+0.40  Fri, Aug 12, 2016
 
   [DEPENDENCIES]
   
   * Bumped Alien::TinyCCx dependency to v0.11, which should properly
     support 64-bit Macs.
+  
+  [BUG FIXES]
+  
+  * Revised the perl.h symbol table caching in PerlAPI.xs.PL to use the
+	tcc -run option instead of producing a shared object file. It does
+	not need to produce anything---it just needs to cache the symbol
+	table---but in order to get the default tcc to do that, I need to
+	give it a compile target. Shared objects gave trouble on Macs, but
+	tcc -run does not. An alternative fix would be to change tcc itself
+	to add a "no output" target, or some such. In the meantime, this
+	seems to solve the problem.
   
 0.05  Thu, June 2, 2016
 
