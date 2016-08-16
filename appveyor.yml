@@ -8,7 +8,6 @@ init:
 install:
   - cinst strawberryperl -version 5.20.1.1
   - SET PATH=C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin;%PATH%
-  - cpanm --notest https://cpan.metacpan.org/authors/id/D/DC/DCMERTENS/Alien-TinyCCx-0.07_02.tar.gz
   - cpanm --installdeps --notest .
 
 build_script:
