@@ -7,7 +7,8 @@ use PDL;
 use Benchmark qw(timethese :hireswallclock);
 
 # Generate some data
-my (@data, $pdl_data, $packed_data, $N);
+my (@data, $pdl_data, $N);
+my C::pdouble_t $packed_data;
 for my $log_n (1, 2, 3, 4, 5, 6, 7) {
 	$N = 10**$log_n;
 	print "--- For N = $N ---\n";
@@ -32,18 +33,11 @@ sub perl_avg {
 }
 
 sub c_blocks_avg {
-	my $to_return;
+	my C::double_t $sum = 0;
 	cblock {
-		double accum = 0;
-		int i, N;
-		double * data;
-		
-		data = (double*)(SvPVbyte_nolen($packed_data));
-		N = SvIV($N);
-		for (i = 0; i < N; i++) {
-			accum += data[i];
+		for (int i = 0; i < SvBUFFER_LENGTH($packed_data); i++) {
+			$sum += $packed_data[i];
 		}
-		sv_setnv($to_return, accum / N);
 	}
-	return $to_return;
+	return $sum / $N;
 }

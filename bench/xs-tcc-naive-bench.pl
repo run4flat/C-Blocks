@@ -9,7 +9,7 @@ use C::Blocks::PerlAPI;
 use Benchmark qw(timethese :hireswallclock);
 
 # Generate some data
-my $N;
+my C::int_t $N;
 for my $log_n (1, 1.5, 2, 2.5, 3) {
 	$N = int(10**$log_n);
 	print "--- For N = $N ---\n";
@@ -33,18 +33,13 @@ sub perl_math {
 }
 
 sub c_blocks_math {
-	my $to_return;
+	my C::double_t $to_return = 0;
 	cblock {
-		int i, j;
-		int N = SvIV($N);
-		double ans;
-		
-		for (i = 0; i < N; i++) {
-			for (j = 0; j < N; j++) {
-				ans += i / (double)(j == 0 ? 1 : j);
+		for (int i = 0; i < $N; i++) {
+			for (int j = 0; j < $N; j++) {
+				$to_return += i / (double)(j == 0 ? 1 : j);
 			}
 		}
-		sv_setnv($to_return, ans);
 	}
 	return $to_return;
 }

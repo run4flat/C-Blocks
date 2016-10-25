@@ -30,7 +30,6 @@ sub import {
 	*{$caller.'::csub'} = sub () {};
 	*{$caller.'::cshare'} = sub () {};
 	*{$caller.'::clex'} = sub () {};
-	*{$caller.'::cisa'} = sub () {};
 	_import();
 }
 
@@ -65,70 +64,6 @@ sub C::Blocks::libloader::import {
 END {
 	_cleanup();
 }
-
-########################################################################
-                   package C::Blocks::Type::NV;
-########################################################################
-use Scalar::Util;
-use Carp;
-
-our $TYPE = 'NV';
-our $INIT = 'SvNV';
-our $CLEANUP = 'sv_setnv';
-
-sub check_var_types {
-	my $package = shift @_;
-	$@ = '';
-	while (@_) {
-		my ($arg_name, $arg) = splice @_, 0, 2;
-		$@ .= "$arg_name is not defined\n" and next if not defined $arg;
-		$@ .= "$arg_name is a reference\n" and next if ref($arg);
-		$@ .= "$arg_name does not look like a number" and next
-			unless Scalar::Util::looks_like_number($arg);
-	}
-	if ($@ eq '') {
-		undef $@;
-		return 1;
-	}
-	return 0;
-}
-
-########################################################################
-               package C::Blocks::Type::double;
-########################################################################
-our $TYPE = 'double';
-our $INIT = 'SvNV';
-our $CLEANUP = 'sv_setnv';
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
-########################################################################
-               package C::Blocks::Type::float;
-########################################################################
-our $TYPE = 'float';
-our $INIT = 'SvNV';
-our $CLEANUP = 'sv_setnv';
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
-########################################################################
-               package C::Blocks::Type::int;
-########################################################################
-our $TYPE = 'int';
-our $INIT = 'SvIV';
-our $CLEANUP = 'sv_setiv';
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
-########################################################################
-               package C::Blocks::Type::uint;
-########################################################################
-our $TYPE = 'unsigned int';
-our $INIT = 'SvUV';
-our $CLEANUP = 'sv_setuv';
-# Should check sign, too
-*check_var_types = \&C::Blocks::Type::NV::check_var_types;
-
-# Other types:
-# int2ptr
-# uint2ptr
 
 1;
 
@@ -678,10 +613,6 @@ precede a block of C code encapsulated in curly brackets. Because these use the
 Perl keyword API, they parse the C code during Perl's parse stage, so any code
 errors in your C code will be caught during parse time, not during run time.
 
-In addition to these keywords, C<C::Blocks> lets you indicate types and
-type conversion with C<cisa>. Unlike the other keywords, this keyword is
-not followed by a block of code, but the type and a list of variables.
-
 =over
 
 =item cblock { code }
@@ -696,13 +627,22 @@ declarations are not allowed. Also, variable declarations and preprocessor
 definitions are confined to the C<cblock> and will not be present in later
 C<cblock>s. For that sort of behavior, see C<clex>.
 
-Variables with C<$> sigils are interpreted as referring to the C<SV*>
-representing the variable in the current lexical scope, unless otherwise
-specified with a C<cisa> statement.
+By default, variables with C<$> sigils are interpreted as referring to
+the C<SV*> representing the variable in the current lexical scope. The
+exception is when a variable is declared with a type, a la
+
+ my C::double_t $thing;
+
+The C<C::double_t> is a type annotation. If the indicated package
+happens to have a function C<c_blocks_init_cleanup>, that function will
+be called and it will be expected to produce initialization and cleanup
+code. The end result for this example is that in ensuing C blocks,
+C<$thing> can be treated as a floating point number: its values can be
+used directly, and changes in C code flow back to the underlying SV.
 
 Note: If you need to leave a C<cblock> early, you should use a C<return>
-statement without any arguments. This will also bypass the data repacking
-provided by C<cisa> types.
+statement without any arguments. This will also bypass any cleanup code
+provided by types.
 
 
 =item clex { code }
@@ -726,39 +666,6 @@ current module.
 C code contained in a csub block is wrapped into an xsub function definition.
 This means that after this code is compiled, it is accessible just like any
 other xsub.
-
-Currently, C<csub> does not work.
-
-=item cisa type variable-list
-
-If you include sigil variables in your C<cblock> blocks (not C<clex>,
-C<cshare>, or C<csub>, just C<cblock>), they will normally be resolved
-to the underlying SV data structure for that variable. Under many
-circumstances, you do not need to manipulate the SV itself, but merely
-need the data contained in the SV (or the object pointed to by the SV).
-A C<cisa> statement tells C::Blocks that certain variables should be
-represented by a C data structure other than an SV. The package used for
-the type (must) have package constants that indicate the C type to use,
-and how to marshall the data at the beginning and end of your block.
-
-C<cisa> statements also have the runtime responsibility of validating
-the data in the variables. Failed validations should probably throw
-exceptions indicating which variables did not satisfy validation, and
-why they failed. Your validation code can make as much or as little
-noise as you deem appropriate, from quietly setting C<$@> to warning to
-throwing exceptions. Note that you could include validation code in the
-initialization function, but C<cisa> validation is only called once per
-C<cisa> statement, whereas the variable initialization code is called
-at the beginning of each C<cblock> that uses the variable.
-
-Packages that represent types must include the package variables
-C<$TYPE> and C<$INIT>. The first indicates the C type while the second
-indicates a C macro or function that accepts an SV and returns the
-data of type C<$TYPE>. C<$CLEANUP> is an optional macro or function that
-takes the original SV and the (presumably revised) data, and updates the
-contents of the SV. Runtime type checking is performed by the package
-method C<check_var_types>, which gets key/value pairs of the variable
-name and the variable.
 
 =back
 

@@ -4,6 +4,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
 
 0.41  DDD, Mth #, 201#
 
+  [API CHANGES]
+  
+  * cisa has been removed! C::Blocks now uses the built-in type
+    annotation facilities of Perl.
+
 0.40  Fri, Aug 12, 2016
 
   [DEPENDENCIES]

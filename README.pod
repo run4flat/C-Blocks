@@ -37,8 +37,7 @@ This distribution contains C<C::Blocks>, a module that adds a few
 lexically scoped keywords to your Perl parser. These keywords delimit C 
 code blocks, and (in the current implementation) the code within them 
 is compiled during Perl's bytecode compilation phase. The keywords 
-including C<cblock>, C<clex>, C<cshare>, and C<csub>. The keyword
-C<cisa> provides a simple typemap-like system.
+including C<cblock>, C<clex>, C<cshare>, and C<csub>.
 
 In addition, this distribution contains C<C::Blocks::PerlAPI>, which 
 loads Perl's C API. I may eventually include similar modules for all 
@@ -135,10 +134,9 @@ when wrapping a C library. In particular, L<ExtUtils::Depends> provides
 information about functions and typemaps provided by other Perl XS
 modules, and this API should make it easy to use this information.
 
-The C<cisa> keyword implements a very simple type system, introduced 
-based on experience durinig the alpha stage. In practice, the current 
-implementation is awkward to use. I would like to redesign the type 
-system during Beta.
+C::Blocks pays attention to the type annotation of variables, and adds
+init and cleanup code based on information from the type. The specific
+mechanism for getting this type information is still in flux.
 
 I believe that C<call_checker> and C<call_parser> represent a better 
 API for the lexically-scoped keywords introduced by C::Blocks. I used 

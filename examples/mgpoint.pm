@@ -6,33 +6,14 @@ package mgpoint;
 	use C::Blocks;
 	use C::Blocks::PerlAPI;
 	use C::Blocks::Object::Magic;
-	use C::Blocks::Type;
-	use Scalar::Util;
-	use Carp qw(croak);
 	
-	# So this can be used as a cisa type
-	BEGIN {
-		our $TYPE = 'point *';
-		our $INIT = 'data_from_SV';
-		sub check_var_types {
-			my $class = shift @_;
-			my $message = '';
-			while (@_) {
-				my ($arg_name, $arg) = splice @_, 0, 2;
-				$message .= "$arg_name is not defined\n" and next if not defined $arg;
-				$message .= "$arg_name is not a reference\n" and next if not ref($arg);
-				$message .= "$arg_name is not blessed\n" and next
-					if not Scalar::Util::blessed($arg);
-				$message .= "$arg_name is not a mgpoint\n" and next
-					unless $arg->isa('mgpoint');
-			}
-			if ($message eq '') {
-				undef $@;
-				return 1;
-			}
-			chomp $message;
-			croak($message);
-		}
+	sub c_blocks_init_cleanup {
+		my ($package, $C_name, $sigil_type, $pad_offset) = @_;
+		
+		my $init_code = "$sigil_type * _hidden_$C_name = ($sigil_type*)PAD_SV($pad_offset); "
+			. "point * $C_name = data_from_SV(_hidden_$C_name); ";
+		
+		return $init_code;
 	}
 	
 	cshare {
@@ -97,18 +78,16 @@ package mgpoint;
 		mXPUSHn(sqrt(data->x*data->x + data->y*data->y));
 		XSRETURN(1);
 	}
-	# Perl-side with cisa
+	# Perl-side with type
 	sub distance_2 {
-		my $self = shift;
-		my $to_return;
-		cisa mgpoint $self;
-		cisa C::Blocks::Type::double_no_init $to_return;
+		my mgpoint $self = shift;
+		my C::double_t $to_return = 0;
 		cblock {
 			$to_return = sqrt($self->x*$self->x + $self->y*$self->y);
 		}
 		return $to_return;
 	}
-	# Perl-side without cisa
+	# Perl-side without type
 	sub distance_3 {
 		my $self = shift;
 		my $to_return;

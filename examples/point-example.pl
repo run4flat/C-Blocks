@@ -31,16 +31,15 @@ use C::Blocks::PerlAPI;
  my $points = pack 'd*', @pairs;
  
  # Calculate the average distance to the origin:
- my $avg_distance;
+ my C::double_t $avg_distance = 0;
  cblock {
      point * points = point_from_SV($points);
      int N_points = av_len(@pairs) / 2 + 0.5;
      int i;
-     double length_sum = 0;
      for (i = 0; i < N_points; i++) {
-         length_sum += point_distance_from_origin(points + i);
+         $avg_distance += point_distance_from_origin(points + i);
      }
-     sv_setnv($avg_distance, length_sum / N_points);
+     $avg_distance /= N_points;
  }
  
  print "Average distance to origin is $avg_distance\n";

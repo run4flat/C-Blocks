@@ -7,7 +7,8 @@ use PDL;
 use Benchmark qw(timethese :hireswallclock);
 
 # Generate some data
-my ($pdl_data, $packed_data, $N);
+my (@data, $pdl_data, $N);
+my C::pdouble_t $packed_data;
 for my $log_n (1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7) {
 	$N = 10**$log_n;
 	print "--- For N = $N ---\n";
@@ -26,18 +27,11 @@ sub pdl_euclid {
 }
 
 sub c_blocks_euclid {
-	my $to_return;
+	my C::double_t $sum = 0;
 	cblock {
-		double accum = 0;
-		int i, N;
-		double * data;
-		
-		data = (double*)(SvPVbyte_nolen($packed_data));
-		N = SvIV($N);
-		for (i = 0; i < N; i++) {
-			accum += data[i] * data[i];
+		for (int i = 0; i < SvBUFFER_LENGTH($packed_data); i++) {
+			$sum += $packed_data[i] * $packed_data[i];
 		}
-		sv_setnv($to_return, sqrt(accum));
 	}
-	return $to_return;
+	return sqrt($sum);
 }

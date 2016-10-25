@@ -20,6 +20,106 @@ our $VERSION = '0.40_01';
 bootstrap C::Blocks::PerlAPI $VERSION;
 $VERSION = eval $VERSION;
 
+########################################################################
+                   package C::Blocks::PerlAPI::Type;
+########################################################################
+
+sub c_blocks_init_cleanup {
+	my ($package, $C_name, $sigil_type, $pad_offset) = @_;
+	my $data_type = $package->data_type;
+	my $getter = $package->getter;
+	my $setter = $package->setter;
+	
+	my $init_code = "$sigil_type * _hidden_$C_name = ($sigil_type*)PAD_SV($pad_offset); "
+		. "$data_type $C_name = $getter(_hidden_$C_name); ";
+	my $cleanup_code = "$setter(_hidden_$C_name, $C_name);";
+	
+	return ($init_code, $cleanup_code);
+}
+
+########################################################################
+#                   Floating point
+########################################################################
+package C::NV_t;
+our @ISA = qw(C::Blocks::PerlAPI::Type);
+sub data_type { 'NV' }
+sub getter { 'SvNV' }
+sub setter { 'sv_setnv' }
+
+package C::double_t;
+our @ISA = qw(C::NV_t);
+sub data_type { 'double' }
+
+package C::float_t;
+our @ISA = qw(C::NV_t);
+sub data_type { 'float' }
+
+########################################################################
+#               Signed Integers
+########################################################################
+package C::IV_t;
+our @ISA = qw(C::Blocks::PerlAPI::Type);
+sub data_type { 'IV' }
+sub getter { 'SvIV' }
+sub setter { 'sv_setiv' }
+
+package C::int_t;
+our @ISA = qw(C::IV_t);
+sub data_type { 'int' }
+
+package C::short_t;
+our @ISA = qw(C::IV_t);
+sub data_type { 'short' }
+
+########################################################################
+#               Unsigned Integers
+########################################################################
+package C::UV_t;
+our @ISA = qw(C::Blocks::PerlAPI::Type);
+sub data_type { 'UV' }
+sub getter { 'SvUV' }
+sub setter { 'sv_setuv' }
+
+package C::uint_t;
+our @ISA = qw(C::UV_t);
+sub data_type { 'unsigned int' }
+
+########################################################################
+#               Buffers
+########################################################################
+package C::pdouble_t;
+sub data_type { 'double' }
+sub c_blocks_init_cleanup {
+	my ($package, $C_name, $sigil_type, $pad_offset) = @_;
+	my $data_type = $package->data_type;
+	
+	my $init_code = join(";\n",
+		"$sigil_type * _hidden_$C_name = ($sigil_type*)PAD_SV($pad_offset)",
+		"STRLEN _length_$C_name",
+		"$data_type * $C_name = ($data_type*)SvPVbyte(_hidden_$C_name, _length_$C_name)",
+		"_length_$C_name /= sizeof($data_type)",
+		'',
+	);
+	
+	return $init_code;
+}
+
+package C::pfloat_t;
+our @ISA = qw(C::pdouble_t);
+sub data_type { 'float' }
+
+package C::pint_t;
+our @ISA = qw(C::pdouble_t);
+sub data_type { 'int' }
+
+package C::pchar_t;
+our @ISA = qw(C::pdouble_t);
+sub data_type { 'char' }
+
+# Other types:
+# int2ptr
+# uint2ptr
+
 1;
 
 __END__

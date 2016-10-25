@@ -17,15 +17,11 @@ cblock {
 print "After manual cblock, distance to ", $thing->name, " is ", $thing->distance_2, "\n";
 
 # Use cisa to make data manipulation code even cleaner
-cisa mgpoint $thing;
-cblock {
-	$thing->x = 7;
+{
+	# A typed alias
+	my mgpoint $thing2 = $thing;
+	cblock {
+		$thing2->x = 7;
+	}
 }
 print "After cblock, distance to ", $thing->name, " is ", $thing->distance_3, "\n";
-
-# cisa validation won't let us use bad variables:
-my $foo = 8;
-cisa mgpoint $foo; #BOOM! (a good boom here!)
-cblock {
-	$foo->x = 7;
-}
