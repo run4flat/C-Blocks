@@ -5,11 +5,11 @@ use strict;
 use warnings;
 
 use C::Blocks;
-use C::Blocks::PerlAPI;
+use C::Blocks::Types qw(Int double);
 use Benchmark qw(timethese :hireswallclock);
 
 # Generate some data
-my C::int_t $N;
+my Int $N;
 for my $log_n (1, 1.5, 2, 2.5, 3) {
 	$N = int(10**$log_n);
 	print "--- For N = $N ---\n";
@@ -33,7 +33,7 @@ sub perl_math {
 }
 
 sub c_blocks_math {
-	my C::double_t $to_return = 0;
+	my double $to_return = 0;
 	cblock {
 		for (int i = 0; i < $N; i++) {
 			for (int j = 0; j < $N; j++) {

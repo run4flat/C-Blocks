@@ -2,6 +2,7 @@ use strict;
 use warnings;
 use C::Blocks;
 use C::Blocks::PerlAPI;
+use C::Blocks::Types qw(double);
 
  clex {
      typedef struct _point_t {
@@ -31,7 +32,7 @@ use C::Blocks::PerlAPI;
  my $points = pack 'd*', @pairs;
  
  # Calculate the average distance to the origin:
- my C::double_t $avg_distance = 0;
+ my double $avg_distance = 0;
  cblock {
      point * points = point_from_SV($points);
      int N_points = av_len(@pairs) / 2 + 0.5;

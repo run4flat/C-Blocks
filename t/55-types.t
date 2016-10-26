@@ -2,24 +2,24 @@ use strict;
 use warnings;
 use Test::More;
 use C::Blocks;
-use C::Blocks::PerlAPI;
+use C::Blocks::Types qw(:all);
 
-my C::NV_t $var = 23;
+my NV $var = 23;
 
 cblock { $var = 10.5; }
-is($var, 10.5, 'C::NV_t works');
+is($var, 10.5, 'NV works');
 
-my C::uint_t $unsigned = 0;
+my uint $unsigned = 0;
 cblock { $unsigned = 5; }
-is($unsigned, 5, 'Type::uint works');
+is($unsigned, 5, 'uint works');
 
-my C::int_t $signed = 0;
+my Int $signed = 0;
 cblock { $signed = -5; }
-is($signed, -5, 'Type::int works');
+is($signed, -5, 'Int works');
 
 
 # Taken from http://stackoverflow.com/questions/483622/how-can-i-catch-the-output-from-a-carp-in-perl
-my C::int_t $foo;
+my Int $foo;
 my $stderr = '';
 {
 	local *STDERR;

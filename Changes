@@ -7,7 +7,8 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   [API CHANGES]
   
   * cisa has been removed! C::Blocks now uses the built-in type
-    annotation facilities of Perl.
+    annotation facilities of Perl. Short type names are provided by
+    C::Blocks::Types.
 
 0.40  Fri, Aug 12, 2016
 

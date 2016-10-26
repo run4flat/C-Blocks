@@ -58,7 +58,7 @@ sub serialize_perl_h {
 #include "perl.h"
 #include "XSUB.h"
 
-#define SvBUFFER_LENGTH(varname)  _length_ ## varname
+#define array_length(varname)  _length_ ## varname
 
 int main() {
 	return 0;

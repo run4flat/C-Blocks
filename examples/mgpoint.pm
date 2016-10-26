@@ -6,6 +6,7 @@ package mgpoint;
 	use C::Blocks;
 	use C::Blocks::PerlAPI;
 	use C::Blocks::Object::Magic;
+	use C::Blocks::Types qw(double);
 	
 	sub c_blocks_init_cleanup {
 		my ($package, $C_name, $sigil_type, $pad_offset) = @_;
@@ -81,7 +82,7 @@ package mgpoint;
 	# Perl-side with type
 	sub distance_2 {
 		my mgpoint $self = shift;
-		my C::double_t $to_return = 0;
+		my double $to_return = 0;
 		cblock {
 			$to_return = sqrt($self->x*$self->x + $self->y*$self->y);
 		}

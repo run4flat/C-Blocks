@@ -631,19 +631,38 @@ By default, variables with C<$> sigils are interpreted as referring to
 the C<SV*> representing the variable in the current lexical scope. The
 exception is when a variable is declared with a type, a la
 
- my C::double_t $thing;
+ my Class::Name $thing;
 
-The C<C::double_t> is a type annotation. If the indicated package
-happens to have a function C<c_blocks_init_cleanup>, that function will
-be called and it will be expected to produce initialization and cleanup
-code. The end result for this example is that in ensuing C blocks,
-C<$thing> can be treated as a floating point number: its values can be
-used directly, and changes in C code flow back to the underlying SV.
+Here C<Class::Name> specifies the type of C<$thing>. Associating a type
+with a variable name like this is not often seen in Perl because it does
+not provide any extension mechanism for type constraints or type
+checking. However, it can be used by parser hooks such as C::Blocks.
+When a type-annotated sigiled variable is used in a C<cblock>, C::Blocks
+looks for a function C<c_blocks_init_cleanup> and calls it to produce
+initialization and cleanup code for the variable in the context of the
+block of C code. For example, the two variables C<$d1> and C<$d2> in
+
+ use C::Blocks::Types qw(double);
+ my C::Blocks::Type::double $d1 = 3.14159;
+ my double $d2 = 0;
+
+can be used directly as double-precision floating-point numbers in C
+code without any SV manipulation calls:
+
+ cblock {
+     $d2 = 2 * $d1;
+ }
+ print "two-pi is roughly $d2\n";
+
+Not only can we use the sigiled variables C<$d1> and C<$d2> in the
+C<cblock>, but the change to C<$d2> in the block propogates back to the
+underlying SV and is accessible from Perl-level code.
 
 Note: If you need to leave a C<cblock> early, you should use a C<return>
 statement without any arguments. This will also bypass any cleanup code
-provided by types.
-
+provided by types. Specifically in this case, changes to the
+C-representation of C<$d2> will I<not> propogate back to the Perl-side
+variable.
 
 =item clex { code }
 
