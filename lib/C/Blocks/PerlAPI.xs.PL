@@ -58,8 +58,6 @@ sub serialize_perl_h {
 #include "perl.h"
 #include "XSUB.h"
 
-#define array_length(varname)  _length_ ## varname
-
 int main() {
 	return 0;
 }

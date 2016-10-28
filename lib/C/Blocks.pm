@@ -242,22 +242,26 @@ This produces the output
  After the cblock, message is [5.938]
  and array contains 7
 
-An important low-level detail is that the actual variable name for the 
-SV*, AV*, or HV* in your C code is based on the original variable name 
-with some gentle mangling. This lets you use C-side variables with the 
-"same" name (sans the sigil):
+It often happens that the scalars you want to work with represent a
+specific piece of information with a specific data type. In that case,
+you do not want to manipulate the SV but instead want to work directly
+with the data represented within the SV. If you indicate the type during
+the variable's declaration, C::Blocks can use that type information to
+automatically unpack and repack the data for you:
 
- my $N = 100;
- my $result;
+ # Need to pull in the type packages
+ use C::Blocks::Types qw(double Int);
+ my double $sum = 0;
+ my Int $limit = 100;
  cblock {
-     int i;
-     int result = 0;
-     int N = SvIV($N); /* notice "same" name N */
-     for (i = 1; i < N; i++) result += i;
-     sv_setiv($result, result);
+     for (int i = 1; i < $limit; i++) {
+         $sum += 1.0 / i;
+	 }
  }
- print "The brute-force sum from 1 to 100 is $result\n";
- print "Gauss would have said ", $N * ($N - 1) / 2, "\n";
+ print "The sum of 1/x for x from 1 to $limit is $sum\n";
+
+The details for how types work, and how to create your own, are
+discussed under L<C::Blocks/TYPES>.
 
 =head2 Private C Declarations
 
@@ -633,36 +637,14 @@ exception is when a variable is declared with a type, a la
 
  my Class::Name $thing;
 
-Here C<Class::Name> specifies the type of C<$thing>. Associating a type
-with a variable name like this is not often seen in Perl because it does
-not provide any extension mechanism for type constraints or type
-checking. However, it can be used by parser hooks such as C::Blocks.
-When a type-annotated sigiled variable is used in a C<cblock>, C::Blocks
-looks for a function C<c_blocks_init_cleanup> and calls it to produce
-initialization and cleanup code for the variable in the context of the
-block of C code. For example, the two variables C<$d1> and C<$d2> in
-
- use C::Blocks::Types qw(double);
- my C::Blocks::Type::double $d1 = 3.14159;
- my double $d2 = 0;
-
-can be used directly as double-precision floating-point numbers in C
-code without any SV manipulation calls:
-
- cblock {
-     $d2 = 2 * $d1;
- }
- print "two-pi is roughly $d2\n";
-
-Not only can we use the sigiled variables C<$d1> and C<$d2> in the
-C<cblock>, but the change to C<$d2> in the block propogates back to the
-underlying SV and is accessible from Perl-level code.
+Here C<Class::Name> specifies the type of C<$thing>. The package
+C<Class::Name> has information used by C::Blocks to unpack and repack
+C<$thing> into the appropriate C data type. Implementation details are
+discussed under L<C::Blocks/TYPES>.
 
 Note: If you need to leave a C<cblock> early, you should use a C<return>
-statement without any arguments. This will also bypass any cleanup code
-provided by types. Specifically in this case, changes to the
-C-representation of C<$d2> will I<not> propogate back to the Perl-side
-variable.
+statement without any arguments. In particular, this will bypass any
+cleanup code provided by types.
 
 =item clex { code }
 
@@ -687,6 +669,184 @@ This means that after this code is compiled, it is accessible just like any
 other xsub.
 
 =back
+
+=head1 TYPES
+
+Perl lets you declare the type of a lexically scoped variable with
+syntax like this:
+
+ my Some::Class $foo;
+
+Here, Perl knows that C<$foo> is of type C<Some::Class>. However, it
+does not let C<Some::Class> do much with C<$foo>, rendering this feature
+mostly useless. It is useful for C::Blocks, however, because C::Blocks
+I<can> use the type of a scalar: it consults that package for
+information about how to unpack and repack C<$foo> into a more useful
+C-side data type.
+
+Type classes for basic C data types (like C<double> and C<long>) are
+provided in L<C::Blocks::Types>. In this section, I discuss how you
+might create your own type class that can be utilized by C::Blocks.
+
+When a type-annotated sigiled variable is used in a C<cblock>, 
+C::Blocks looks for a function C<c_blocks_init_cleanup> in the type 
+package and calls it. This class method is expected to produce 
+initialization code for the variable, and optionally to produce cleanup 
+code as well. This code is added to the beginning and end of the larger 
+chunk of C code that eventually gets compiled.
+
+To understand how all of this works, let's examine what C::Blocks does 
+when we do not specify a type for our scalar. Here is a way to 
+manipulate the floating-point value of a Perl variable using C::Blocks:
+
+ my $foo;
+ cblock {
+     sv_setnv($foo, 3.14159);
+ }
+
+The actual C code that gets produced for the C<cblock> is a void
+function that looks essentially like this:
+
+ void op_func() {
+     SV * _PERL_LEXICAL_SCALAR_foo = (SV*)PAD_SV(3);
+     sv_setnv(_PERL_LEXICAL_SCALAR_foo, 3.14159);
+ }
+
+In the first line of this function, the SV associated with C<$foo> is 
+retrieved from the current PAD. The next line is exactly what we typed 
+in the C<cblock>, except that C<$foo> has been replaced with 
+C<_PERL_LEXICAL_SCALAR_foo>.
+
+When we use types, we can say what we mean more directly:
+
+ use C::Blocks::Types;
+ my C::Blocks::Type::double $foo = 0;
+ cblock {
+     $foo = 3.14159;
+ }
+
+Indented for clarity, the actual code that gets produced for the 
+C<cblock> this looks like:
+
+ void op_func() {
+     SV * SV__PERL_LEXICAL_SCALAR_foo = (SV*)PAD_SV(3);
+     double _PERL_LEXICAL_SCALAR_foo
+         = SvNV(SV__PERL_LEXICAL_SCALAR_foo);
+     
+     _PERL_LEXICAL_SCALAR_foo = 3.14159;
+     
+     sv_setnv(SV__PERL_LEXICAL_SCALAR_foo,
+         _PERL_LEXICAL_SCALAR_foo);
+ }
+
+The midddle line of code, C<_PERL_LEXICAL_SCALAR_foo = 3.14159>, clearly
+comes from the contents of the C<cblock>. The rest was supplied by the
+C<c_blocks_init_cleanup> method of the C<C::Blocks::Type::double>
+package. This example illustrates what this method is supposed to do.
+
+The C<c_blocks_init_cleanup> method is supposed to return a string with
+initialization code and, optionally, another string containing cleanup
+code. In order to construct that code, the method is called with the
+following arguments:
+
+=over
+
+=item package name
+
+The type's package name. In this case it would be
+C<C::Blocks::Type::double>.
+
+=item C variable name
+
+The long-winded semi-mangled variable name. In this case, for the 
+variable C<$foo>, we got the name C<_PERL_LEXICAL_SCALAR_foo>. This 
+string of characters is injected into the cblock wherever it encounters 
+C<$foo>, so the code must declare a variable with this name.
+
+=item sigil type
+
+The C struct type for this associated sigil. If the sigil is C<$>, we'll
+get C<SV>, for C<@>, we'll get C<AV>, and for C<%>, we'll get C<HV>.
+
+=item pad offset
+
+The integer offset of the variable in the current pad.
+
+=back
+
+The method must use this information to produce a string containing 
+initialization code. In this example, the generated code is a sequence 
+of C declarations that culminate in C<_PERL_LEXICAL_SCALAR_foo> being a 
+variable of type C<double> and being assigned the current 
+floating-point value of the Perl variable C<$foo>. It also produces a 
+string containing "cleanup" code, code that modifies C<$foo> with the 
+value of C<_PERL_LEXICAL_SCALAR_foo> as the block comes to a close.
+
+If your type only needs to unpack a value, and does not need to perform
+any cleanup, then a rudimentary template for C<c_blocks_init_cleanup>
+could look like this:
+
+ sub c_blocks_init_cleanup {
+     my ($package, $C_name, $sigil_type, $pad_offset) = @_;
+     
+     # Should probably die if $sigil_type is not SV
+     # but I can't handle that quite yet. :-(
+     
+     # Assumes that some_type and get_some_type_from_SV
+     # have been defined in some clex or cshare block:
+     return qq{
+         some_type * $C_name
+             = get_some_type_from_SV(PAD_SV($pad_offset));
+     };
+ }
+
+The most critical pieces are that C<PAD_SV($pad_offset)> must be used to
+retrieve the SV, and we must interpolate the C<$C_name> as the name of
+the C-side variable.
+
+If some part of the initialization process allocates resources that need
+to be cleaned up when the block comes to a close, that code should be
+returned as the second return value of the method:
+
+ sub c_blocks_init_cleanup {
+     my ($package, $C_name, $sigil_type, $pad_offset) = @_;
+     
+     # Should probably die if $sigil_type is not SV
+     # but I can't handle that quite yet. :-(
+     
+     # Assumes that some_type and get_some_type_from_SV
+     # have been defined in some clex or cshare block:
+     my $init_code = qq{
+         FILE *fp_$C_name = fopen("logfile_$C_name", "a");
+         some_type * $C_name
+             = get_some_type_from_SV(PAD_SV($pad_offset));
+     };
+     my $cleanup_code = qq{
+	     fclose(fp_$C_name);
+	 }
+	 return ($init_code, $cleanup_code);
+ }
+
+In this case, the user would not only have access to their variable as
+the provided C type, but they would have an additional file handle that
+they could use for logging. A C<cblock> using this would be able to say
+
+ my Some::Type $foo;
+ cblock {
+     fprintf(fp_$foo, "about to call big-operation\n");
+     
+     big_operation($foo, 5, "hello");
+     
+     fprintf(fp_$foo, "Finished big-operation\n");
+ }
+
+Of course, this example is a bit contrived: you should probably handle
+this sort of logging at the Perl level. However, it gives you some idea
+for how you could use cleanup code together with initialization code.
+
+(Eventually include a full example of a class that wraps itself around
+a C struct, including all necessary cshare statements, so that the
+init code's call to special functions make sense.)
 
 =head1 SEE ALSO
 

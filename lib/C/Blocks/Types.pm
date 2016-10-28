@@ -1,6 +1,10 @@
-package C::Blocks::Types;
 use strict;
 use warnings;
+
+package C::Blocks::Types;
+our $VERSION = '0.40_01';
+
+# XXXXXXXX use Sub::Exporter for greater granularity and control???
 
 # The purpose of this package is to provide short type names that are
 # associated with the lengthy package names:
@@ -44,9 +48,9 @@ sub c_blocks_init_cleanup {
 	my $getter = $package->getter;
 	my $setter = $package->setter;
 	
-	my $init_code = "$sigil_type * _hidden_$C_name = ($sigil_type*)PAD_SV($pad_offset); "
-		. "$data_type $C_name = $getter(_hidden_$C_name); ";
-	my $cleanup_code = "$setter(_hidden_$C_name, $C_name);";
+	my $init_code = "$sigil_type * SV_$C_name = ($sigil_type*)PAD_SV($pad_offset); "
+		. "$data_type $C_name = $getter(SV_$C_name); ";
+	my $cleanup_code = "$setter(SV_$C_name, $C_name);";
 	
 	return ($init_code, $cleanup_code);
 }
@@ -120,10 +124,10 @@ sub c_blocks_init_cleanup {
 	my $data_type = $package->data_type;
 	
 	my $init_code = join(";\n",
-		"$sigil_type * _hidden_$C_name = ($sigil_type*)PAD_SV($pad_offset)",
-		"STRLEN _length_$C_name",
-		"$data_type * $C_name = ($data_type*)SvPVbyte(_hidden_$C_name, _length_$C_name)",
-		"_length_$C_name /= sizeof($data_type)",
+		"$sigil_type * SV_$C_name = ($sigil_type*)PAD_SV($pad_offset)",
+		"STRLEN length_$C_name",
+		"$data_type * $C_name = ($data_type*)SvPVbyte(SV_$C_name, length_$C_name)",
+		"length_$C_name /= sizeof($data_type)",
 		'',
 	);
 	
@@ -145,3 +149,53 @@ sub data_type { 'char' }
 # Other types:
 # int2ptr
 # uint2ptr
+
+__END__
+
+=head1 NAME
+
+C::Blocks::Types - type classes for basic C data types for C::Blocks
+
+=head1 VERSION
+
+This documentation is for v0.40_1
+
+=head1 SYNOPSIS
+
+ use C::Blocks;
+ use C::Blocks::Types qw(double double_array Int);
+ 
+ # Generate some synthetic data;
+ my @data = map { rand() } 1 .. 10;
+ print "data are @data\n";
+
+ # Pack this data into a C array
+ my double_array $points = pack 'd*', @data;
+ 
+ # Calculate the rms (root mean square)
+ my double $rms = 0;
+ cblock {
+     for (int i = 0; i < length_$points; i++) {
+         $rms += $points[i]*$points[i];
+     }
+     $rms = sqrt($rms / length_$points);
+ }
+ 
+ print "data rms is $rms\n";
+ 
+ # Note that Int is capitalized, unlike the other type names
+ my Int $foo = 4;
+ cblock {
+     printf("$foo is %d\n", $foo);
+ }
+
+=head1 DESCRIPTION
+
+L<C::Blocks> lets you intersperse blocks of C code directly among your
+Perl code. To help facilitate the interchange of C and Perl data, you
+can indicate that your Perl variable has an associated type package.
+This is discussed in L<C::Blocks/TYPES>. The purpose of this package is
+to provide type packages, and short names, for basic C data types like
+L<double> and L<short>, as well as rudimentary packed arrays.
+
+... must document provided types as well as "length_" variables.
