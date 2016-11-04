@@ -319,7 +319,8 @@ int _is_whitespace_char(char to_check) {
 int _is_id_cont (char to_check) {
 	if('_' == to_check || ('0' <= to_check && to_check <= '9')
 		|| ('A' <= to_check && to_check <= 'Z')
-		|| ('a' <= to_check && to_check <= 'z')) return 1;
+		|| ('a' <= to_check && to_check <= 'z')
+		|| ':' == to_check) return 1;
 	return 0;
 }
 
@@ -408,6 +409,7 @@ int process_next_char_C_comment (pTHX_ parse_state * pstate);
 int process_next_char_post_sigil (pTHX_ parse_state * pstate);
 int process_next_char_sigiled_var (pTHX_ parse_state * pstate);
 int process_next_char_sigiled_block (pTHX_ parse_state * pstate);
+int process_next_char_colon(pTHX_ parse_state * pstate);
 int execute_Perl_interpolation_block(pTHX_ parse_state * pstate);
 int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
 	char * type, char * long_name, int var_offset);
@@ -455,6 +457,14 @@ int process_next_char_no_vars (pTHX_ parse_state * pstate) {
 				pstate->process_next_char = process_next_char_C_comment;
 			}
 			return PR_NON_SIGIL;
+		case ':':
+			/* No processing if we're extracting an interpolation block */
+			if (pstate->interpolation_bracket_count_start) return PR_NON_SIGIL;
+			/* This is a colon following something other than a colon,
+			   and outside an interpolation block. Set up the parser to
+			   detect and act on a potential second colon. */
+			pstate->process_next_char = process_next_char_colon;
+			return PR_NON_SIGIL;
 		case '$':
 			/* No processing if we're extracting an interpolation block */
 			if (pstate->interpolation_bracket_count_start) return PR_NON_SIGIL;
@@ -475,21 +485,47 @@ int process_next_char_no_vars (pTHX_ parse_state * pstate) {
 	return PR_MAYBE_SIGIL;
 }
 
+char * replace_double_colons_with_double_underscores(pTHX_ SV * to_replace) {
+	/* Replace any double-colons with double-underscores */
+	int is_in_string;
+	STRLEN i, len;
+	char * to_return;
+	
+	to_return = SvPV(to_replace, len);
+	is_in_string = to_return[0] == '"';
+	for (i = 1; i < len; i++) {
+		if (is_in_string) {
+			if (to_return[i] == '"' && to_return[i-1] != '\\') {
+				is_in_string = 0;
+			}
+		}
+		else {
+			if (to_return[i-1] == ':' && to_return[i] == ':') {
+				to_return[i-1] = to_return[i] = '_';
+			}
+		}
+	}
+	return to_return;
+}
+
 int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 	/* Temporarily replace the closing bracket with null so we can
 	 * eval_pv the buffer without copying. */
 	*pstate->data->end = '\0';
 	/* XXX working here - should catch eval and return special value.
 	 * For now, croak on error (and leak). */
-	SV * returned = eval_pv(pstate->sigil_start + 2, 1);
+	SV * returned_sv = eval_pv(pstate->sigil_start + 2, 1);
+	
+	char * fixed_returned
+		= replace_double_colons_with_double_underscores(aTHX_ returned_sv);
 	
 	/* Replace the interpolation block with contents of eval. Be sure
 	 * to get rid of the entire block up to the closing bracket, which
 	 * is now the null character added above. */
-	sv_catpv_nomg(pstate->data->code_main, SvPVbyte_nolen(returned));
+	sv_catpv_nomg(pstate->data->code_main, fixed_returned);
 	lex_unstuff(pstate->data->end + 1);
 	pstate->data->end = PL_bufptr;
-//	SvREFCNT_dec(returned); // XXX is this correct?
+//	SvREFCNT_dec(returned_sv); // XXX is this correct?
 	
 	/* XXX working here - add #line to make sure tcc correctly indicates
 	 * the line number of material that follows. There is no guarantee
@@ -543,6 +579,21 @@ int process_next_char_C_comment (pTHX_ parse_state * pstate) {
 		pstate->process_next_char = pstate->default_next_char;
 	}
 	return PR_NON_SIGIL;
+}
+
+int process_next_char_colon(pTHX_ parse_state * pstate) {
+	/* No matter what, reset to the default parser. */
+	pstate->process_next_char = pstate->default_next_char;
+	if (pstate->data->end[0] == ':') {
+		/* we just encountered a double-colon. Replace it with a
+		   double-underscore. */
+		pstate->data->end[0] = pstate->data->end[-1] = '_';
+		/* Indicate we've handled this character */
+		return PR_NON_SIGIL;
+	}
+	/* revert to the default parser to handle this character since it is
+	   not a colon. */
+	return pstate->default_next_char(aTHX_ pstate);
 }
 
 int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
@@ -697,11 +748,13 @@ int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
 		count--;
 	}
 	if (count == 2) {
-		sv_catsv(pstate->data->code_bottom, POPs);
+		sv_catpv_nomg(pstate->data->code_bottom, 
+			replace_double_colons_with_double_underscores(aTHX_ POPs));
 		count--;
 	}
 	if (count == 1) {
-		sv_catsv(pstate->data->code_top, POPs);
+		sv_catpv_nomg(pstate->data->code_top, 
+			replace_double_colons_with_double_underscores(aTHX_ POPs));
 	}
 	
 	/* final stack cleanup */

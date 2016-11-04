@@ -14,7 +14,7 @@ clex {
 	void snd_msg(char * msg) {
 		c_blocks_send_msg(msg);
 	}
-	void send_hello () {
+	void Send::Hello () {
 		c_blocks_send_msg("Hello!");
 	}
 	void send_second() {
@@ -32,7 +32,7 @@ pass('At runtime, lexical block gets skipped without trouble');
 
 #### Invoke hello for the first time ####
 cblock {
-	send_hello();
+	Send::Hello();
 }
 BEGIN { pass 'cblock after lexical block compiles without trouble' }
 pass 'cblock is called and run without trouble';
@@ -68,7 +68,7 @@ is($C::Blocks::_msg, 'baz', 'sending baz works');
 
 #### Invoke hello for the second time ####
 cblock {
-	send_hello();
+	Send::Hello();
 }
 BEGIN { pass 'Nth cblock after lexical block compiles without trouble' }
 pass 'Nth cblock is called and run without trouble';
@@ -78,7 +78,7 @@ $C::Blocks::_msg = '';
 eval q{
 	cblock {
 		// call hello again
-		send_hello();
+		Send::Hello();
 	}
 	BEGIN { pass "string-eval'd code with lexical block compiles without trouble" }
 	pass "string-eval'd code with lexical block runs without trouble";

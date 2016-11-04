@@ -137,9 +137,12 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  use C::Blocks;
  use C::Blocks::PerlAPI;
  cshare {
-     /* This function can be imported into other lexical scopes. */
+     /* These functions can be imported into other lexical scopes. */
      void say_hi() {
          printf("Hello from My::Fastlib\n");
+     }
+     void My::Fastlib::goodbye() {
+         printf("Goodbye from My::Fastlib\n");
      }
  }
  
@@ -152,6 +155,7 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  cblock {
      say_hi();
+     My::Fastlib::goodbye();
  }
  
  ### Use Perl to generate code at compile time
@@ -515,6 +519,30 @@ C<C::Blocks::linker>. For example:
 The warnings are handled using Perl's built-in warnings system, so as
 with all warnings, the reporting of compiler and linker warnings can be
 controlled lexically.
+
+=head2 Double-colons
+
+Double colons are a standard notation for package-name resolution in
+Perl. They are also invalid syntax in C. For this reason, C::Blocks lets
+you use double-colons in your C code by performing a simple replacement.
+Whenever C::Blocks encounters a double-colon that is not part of a
+sigiled variable name or the contents of a string, it will replace the
+pair with a pair of underscores. Thus this code:
+
+ void My::Func() { ... }
+
+actually gets compiled as
+
+ void My__Func() { ... }
+
+Note that this replacement does not modify the contents of strings, so
+if you spit out a printed message such as
+
+  printf("There was a problem in My::Module::method...\n");
+
+the double-colons will pass through unscathed. In addition, this
+replacement occurs with text provided by interpolation blocks and code
+provided for type initialization and cleanup.
 
 =head1 PERFORMANCE
 
