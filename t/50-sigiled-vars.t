@@ -109,11 +109,8 @@ eval q{
 	is($Some::Package::Variable, 8, 'Package variables are properly resolved');
 	1;
 } or do {
-	TODO: {
-		local $TODO = 'Add support for package-named variables';
-		fail('Package variable name resolution failed to compile');
-		diag($@);
-	}
+	fail('Package variable name resolution failed to compile');
+	diag($@);
 };
 
 done_testing;

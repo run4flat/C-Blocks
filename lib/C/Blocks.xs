@@ -625,6 +625,18 @@ int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
 	return pstate->default_next_char(aTHX_ pstate);
 }
 
+int direct_replace_double_colons(char * to_check) {
+	if (to_check[0] == 0) return 0;
+	int found = 0;
+	for (to_check++; *to_check != 0; to_check++) {
+		if (to_check[-1] == ':' && to_check[0] == ':') {
+			to_check[-1] = to_check[0] = '_';
+			found = 1;
+		}
+	}
+	return found;
+}
+
 int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 	/* keep collecting if the current character looks like a valid
 	 * identifier character */
@@ -642,17 +654,17 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 	char * long_name;
 	if (*pstate->sigil_start == '$') {
 		type = "SV";
-		long_name = savepv(form("_PERL_LEXICAL_SCALAR_%s", 
+		long_name = savepv(form("_PERL_SCALAR_%s", 
 			pstate->sigil_start + 1));
 	}
 	else if (*pstate->sigil_start == '@') {
 		type = "AV";
-		long_name = savepv(form("_PERL_LEXICAL_ARRAY_%s", 
+		long_name = savepv(form("_PERL_ARRAY_%s", 
 			pstate->sigil_start + 1));
 	}
 	else if (*pstate->sigil_start == '%') {
 		type = "HV";
-		long_name = savepv(form("_PERL_LEXICAL_HASH_%s", 
+		long_name = savepv(form("_PERL_HASH_%s", 
 			pstate->sigil_start + 1));
 	}
 	else {
@@ -662,27 +674,42 @@ int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 			*pstate->sigil_start);
 	}
 	
+	/* replace any double-colons */
+	int is_package_global = direct_replace_double_colons(long_name);
+	
 	/* Check if we need to add a declaration for the C-side variable */
 	if (strstr(SvPVbyte_nolen(pstate->data->code_top), long_name) == NULL) {
 		/* Add a new declaration for it */
-		/* NOTE: pad_findmy_pv expects the sigil!! */
 		
-		int var_offset = (int)pad_findmy_pv(pstate->sigil_start, 0);
-		/* Ensure that the variable exists in the pad */
-		if (var_offset == NOT_IN_PAD) {
-			CopLINE(PL_curcop) += pstate->data->N_newlines;
-			*pstate->data->end = backup;
-			croak("Could not find lexically scoped \"%s\"",
-				pstate->sigil_start);
+		/* NOTE: pad_findmy_pv expects the sigil, but get_sv/get_av/get_hv
+		   do not!! */
+		
+		if (is_package_global) {
+			sv_catpvf(pstate->data->code_top, "%s * %s = (%s(\"%s\", GV_ADD)); ",
+				type, long_name,
+				  *pstate->sigil_start == '$' ? "get_sv"
+				: *pstate->sigil_start == '@' ? "get_av"
+				:                               "get_hv",
+				pstate->sigil_start + 1);
 		}
-		
-		/* If the variable has an annotated type, use the type's
-		 * code builder. Otherwise, declare the basic type. */
-		if (!call_init_cleanup_builder_method(aTHX_ pstate, type,
-				long_name, var_offset))
-		{
-			sv_catpvf(pstate->data->code_top, "%s * %s = (%s*)PAD_SV(%d); ",
-				type, long_name, type, var_offset);
+		else {
+			int var_offset = (int)pad_findmy_pv(pstate->sigil_start, 0);
+			/* Ensure that the variable exists in the pad */
+			if (var_offset == NOT_IN_PAD) {
+				CopLINE(PL_curcop) += pstate->data->N_newlines;
+				*pstate->data->end = backup;
+				croak("Could not find lexically scoped \"%s\"",
+					pstate->sigil_start);
+			}
+			
+			/* If the variable has an annotated type, use the type's
+			 * code builder. Otherwise, declare the basic type. */
+			if (!call_init_cleanup_builder_method(aTHX_ pstate, type,
+					long_name, var_offset))
+			{
+				sv_catpvf(pstate->data->code_top, "%s * %s = (%s*)PAD_SV(%d); ",
+					type, long_name, type, var_offset);
+			}
 		}
 	}
 	

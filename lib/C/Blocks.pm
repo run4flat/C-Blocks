@@ -736,14 +736,14 @@ The actual C code that gets produced for the C<cblock> is a void
 function that looks essentially like this:
 
  void op_func() {
-     SV * _PERL_LEXICAL_SCALAR_foo = (SV*)PAD_SV(3);
-     sv_setnv(_PERL_LEXICAL_SCALAR_foo, 3.14159);
+     SV * _PERL_SCALAR_foo = (SV*)PAD_SV(3);
+     sv_setnv(_PERL_SCALAR_foo, 3.14159);
  }
 
 In the first line of this function, the SV associated with C<$foo> is 
 retrieved from the current PAD. The next line is exactly what we typed 
 in the C<cblock>, except that C<$foo> has been replaced with 
-C<_PERL_LEXICAL_SCALAR_foo>.
+C<_PERL_SCALAR_foo>.
 
 When we use types, we can say what we mean more directly:
 
@@ -757,17 +757,17 @@ Indented for clarity, the actual code that gets produced for the
 C<cblock> this looks like:
 
  void op_func() {
-     SV * SV__PERL_LEXICAL_SCALAR_foo = (SV*)PAD_SV(3);
-     double _PERL_LEXICAL_SCALAR_foo
-         = SvNV(SV__PERL_LEXICAL_SCALAR_foo);
+     SV * SV__PERL_SCALAR_foo = (SV*)PAD_SV(3);
+     double _PERL_SCALAR_foo
+         = SvNV(SV__PERL_SCALAR_foo);
      
-     _PERL_LEXICAL_SCALAR_foo = 3.14159;
+     _PERL_SCALAR_foo = 3.14159;
      
-     sv_setnv(SV__PERL_LEXICAL_SCALAR_foo,
-         _PERL_LEXICAL_SCALAR_foo);
+     sv_setnv(SV__PERL_SCALAR_foo,
+         _PERL_SCALAR_foo);
  }
 
-The midddle line of code, C<_PERL_LEXICAL_SCALAR_foo = 3.14159>, clearly
+The midddle line of code, C<_PERL_SCALAR_foo = 3.14159>, clearly
 comes from the contents of the C<cblock>. The rest was supplied by the
 C<c_blocks_init_cleanup> method of the C<C::Blocks::Type::double>
 package. This example illustrates what this method is supposed to do.
@@ -787,7 +787,7 @@ C<C::Blocks::Type::double>.
 =item C variable name
 
 The long-winded semi-mangled variable name. In this case, for the 
-variable C<$foo>, we got the name C<_PERL_LEXICAL_SCALAR_foo>. This 
+variable C<$foo>, we got the name C<_PERL_SCALAR_foo>. This 
 string of characters is injected into the cblock wherever it encounters 
 C<$foo>, so the code must declare a variable with this name.
 
@@ -804,11 +804,11 @@ The integer offset of the variable in the current pad.
 
 The method must use this information to produce a string containing 
 initialization code. In this example, the generated code is a sequence 
-of C declarations that culminate in C<_PERL_LEXICAL_SCALAR_foo> being a 
+of C declarations that culminate in C<_PERL_SCALAR_foo> being a 
 variable of type C<double> and being assigned the current 
 floating-point value of the Perl variable C<$foo>. It also produces a 
 string containing "cleanup" code, code that modifies C<$foo> with the 
-value of C<_PERL_LEXICAL_SCALAR_foo> as the block comes to a close.
+value of C<_PERL_SCALAR_foo> as the block comes to a close.
 
 If your type only needs to unpack a value, and does not need to perform
 any cleanup, then a rudimentary template for C<c_blocks_init_cleanup>
