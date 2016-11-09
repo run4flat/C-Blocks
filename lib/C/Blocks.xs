@@ -847,6 +847,42 @@ void extract_C_code(pTHX_ c_blocks_data * data, int keyword_type) {
 	if (data->keep_curly_brackets) sv_catpvn(data->code_bottom, "}", 1);
 }
 
+void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
+	/* Get $_ and place the code in it */
+	SV * underbar = find_rundefsv();
+	SV * under_backup = newSVsv(underbar);
+	sv_setpvf(underbar, "%s%s%s", SvPVbyte_nolen(data->code_top),
+		SvPVbyte_nolen(data->code_main), SvPVbyte_nolen(data->code_bottom));
+	
+	/* Get the different packages to use as filters */
+	SV * packages_SV = cophh_fetch_pvs(data->hints_hash, "C::Blocks/filters", 0);
+	if (packages_SV) {
+		dSP;
+		char * packages = SvPVbyte_nolen(packages_SV);
+		char * start = packages;
+		char backup;
+		while(1) {
+			if (*packages == '\0' && start == packages) break;
+			if (*packages == '|') {
+				backup = *packages;
+				*packages = '\0';
+				/* get the package name */
+				char * full_method = form("%s::c_blocks_filter", start);
+				*packages = backup;
+				PUSHMARK(SP);
+				call_pv(full_method, G_DISCARD|G_NOARGS);
+				start = packages + 1;
+			}
+			packages++;
+		}
+	}
+	
+	/* copy contents of underbar into main */
+	sv_setsv(data->code_main, underbar);
+	
+	/* restore underbar when done */
+	sv_setsv(underbar, under_backup);
+}
 
 /*************************/
 /**** Keyword plugin ****/
@@ -1095,13 +1131,10 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 		#endif
 	}
 	
-	/* compile the code */
-	STRLEN tlen, mlen, blen;
-	char * top = SvPVbyte(data->code_top, tlen);
-	char * main = SvPVbyte(data->code_main, mlen);
-	char * bot = SvPVbyte(data->code_bottom, blen);
-	char * to_compile = form("%s%s%s", top, main, bot);
-	tcc_compile_string_ex(state, to_compile, tlen + mlen + blen,
+	/* compile the code, which is (by this time) stored entirely in main */
+	STRLEN main_len;
+	char * to_compile = SvPVbyte(data->code_main, main_len);
+	tcc_compile_string_ex(state, to_compile, main_len,
 		CopFILE(PL_curcop), CopLINE(PL_curcop));
 	
 	/* Handle any compilation errors */
@@ -1254,6 +1287,7 @@ int my_keyword_plugin(pTHX_
 	/************************/
 	
 	extract_C_code(aTHX_ &data, keyword_type);
+	run_filters(aTHX_ &data, keyword_type);
 	
 	TCCState * state = tcc_new();
 	if (!state) croak("Unable to create C::TinyCompiler state!\n");

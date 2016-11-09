@@ -469,6 +469,13 @@ lexically scoped variables, however. Changes to package-scoped variables
 (including lexically scoped names, i.e. C<our $package_var>) persist,
 as would be expected if these variables were set in BEGIN blocks.
 
+=head2 Filtering C Code
+
+In addition to generating raw C code, you can modify code before it is
+compiled with a filter module. Filter modules are given the complete
+contents of the code in the underbar variable C<$_> before it is
+processed through the compiler. See L<C::Blocks::Filter> for more details.
+
 =head2 Configuring the Compiler
 
 Sometimes you need to configure the compiler. The most common situation
