@@ -744,7 +744,7 @@ int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
 	/* get the method; warn and exit if we can't find it */
 	GV * declaration_gv;
 	CV * declaration_cv;
-	declaration_gv = gv_fetchmeth_pvn_autoload(stash, "c_blocks_init_cleanup", 21, 0, 0);
+	declaration_gv = gv_fetchmeth_autoload(stash, "c_blocks_init_cleanup", 21, 0);
 	if (declaration_gv != 0) declaration_cv = GvCV(declaration_gv);
 	if (declaration_gv == 0 || declaration_cv == 0) {
 		my_warnif (aTHX_ "type", sv_2mortal(newSVpvf("C::Blocks could "
