@@ -856,7 +856,7 @@ void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
 	
 	/* Get the different packages to use as filters */
 	SV * packages_SV = cophh_fetch_pvs(data->hints_hash, "C::Blocks/filters", 0);
-	if (packages_SV) {
+	if (packages_SV != &PL_sv_placeholder) {
 		dSP;
 		char * packages = SvPVbyte_nolen(packages_SV);
 		char * start = packages;
