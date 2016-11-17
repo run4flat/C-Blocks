@@ -26,6 +26,10 @@
 #define GvCV_set(gv, cv) (GvCV(gv) = (CV*)(cv))
 #endif
 
+#ifndef pad_compname_type
+#define pad_compname_type(a)	Perl_pad_compname_type(aTHX_ a)
+#endif
+
 int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 
 typedef void (*my_void_func)(pTHX);
