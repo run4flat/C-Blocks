@@ -9,7 +9,26 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   * cisa has been removed! C::Blocks now uses the built-in type
     annotation facilities of Perl. Short type names are provided by
     C::Blocks::Types.
-
+  
+  [ENHANCEMENTS]
+  
+  * Perl package globals are now properly resolved. If you make a
+    reference some $Some::Package::Scalar in your C code, it'll properly
+    retrieve the SV named $Scalar from the package Some::Package.
+  
+  [NEW FEATURES]
+  
+  * New module C::Blocks::Types provides short type names
+  
+  * Double-colons are now processed by the code extractor and converted
+    into double-underscores. So if you use Some::Thing in your C code
+    block, it'll be immediately converted to Some__Thing.
+  
+  * Source filters! C::Blocks source filters are given the contents of
+    the C code, start to finish, to manipulate. While it would be nicer
+    to hook directly into the parser, this provides 99% of the desired
+    functionality with 1% of the required effort of a parser hook.
+  
 0.40  Fri, Aug 12, 2016
 
   [DEPENDENCIES]
