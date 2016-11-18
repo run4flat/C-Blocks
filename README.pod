@@ -8,19 +8,15 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
 
 Pre-Beta
 
-This distribution seems to be working very well for me. However, even 
-if the current version passes its test suite and installs on your 
-system, it may be subtly broken and throw segmentation faults during 
-ordinary use. Uncovering and fixing these is one of the major goals of
-the Alpha stage. You can be more confident in the distribution's
-robustness once it reaches Beta.
-
-Currently this distribution builds and passes its test suite on at 
-least a subset of the Linux, Mac, and Windows machines reporting on 
-CPAN Testers, and I have implemented the functionality and many of the 
-tests I had hoped to implement in the Alpha stage. Now that I have 
-passing reports on the Big Three, I turn my attention to expanding the
-test suite.
+The current blocker for beta is that C::Blocks::Object::Magic throws 
+segmentation faults. This is a blocker because the code in 
+C::Blocks::Object::Magic is not too complicated (as far as the compiler 
+should be conerned). Fixing this is a top priority of the Alpha stage. 
+C::Blocks::Object::Magic and its tests are not yet included in the CPAN 
+distribution, so even though this distribution is expected to pass its 
+test suite when installed from CPAN, it is still subtly broken. You can 
+be more confident in the distribution's robustness once it reaches 
+Beta.
 
 For more on the milestones for Alpha, Beta, and v1.0, see Goals and
 Milestones below.
