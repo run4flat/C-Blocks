@@ -18,6 +18,8 @@ lib/C/Blocks.xs
 lib/C/Blocks/PerlAPI.pm
 lib/C/Blocks/PerlAPI.xs.PL
 lib/C/Blocks/StretchyBuffer.pm
+lib/C/Blocks/Filter.pm
+lib/C/Blocks/Filter/BlockArrowMethods.pm
 MANIFEST			This list of files
 ppport.h
 README.pod
@@ -26,6 +28,10 @@ t/02-use-and-no.t
 t/03-error-reporting.t
 t/04-PerlAPI.t
 t/05-brace-counting.t
+t/06-double-colon.t
+t/06-interpolation.t
+t/07-compiler-setup.t
+t/08-lexical-compiler-warnings.t
 t/10-clex.t
 t/11-clex-series.t
 t/12-clex-struct.t
@@ -35,8 +41,13 @@ t/16-clex-scoping.t
 t/17-clex-define-undefine-series.t
 t/18-clex-global-vars.t
 t/20-cshare.t
+t/21-cshare-warnings.t
 t/30-API-SV.t
+t/35-API-Memory.t
+t/40-csub.t
 t/50-sigiled-vars.t
+t/55-types.t
+t/60-filters.t
 t/80-StretchyBuffer.t
 t/99-stdio-fails.t
 META.yml
