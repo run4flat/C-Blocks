@@ -2,7 +2,8 @@ use strict;
 use warnings;
 
 package C::Blocks::Types;
-our $VERSION = '0.40_01';
+our $VERSION = '0.40_02';
+$VERSION = eval $VERSION;
 
 # XXXXXXXX use Sub::Exporter for greater granularity and control???
 

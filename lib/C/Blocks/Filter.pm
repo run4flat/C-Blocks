@@ -4,6 +4,8 @@
 
 use strict;
 use warnings;
+our $VERSION = '0.40_02';
+$VERSION = eval $VERSION;
 
 # Any filter will need to add itself to the list of filters. These
 # methods can be inherited by other filters so they can focus on the

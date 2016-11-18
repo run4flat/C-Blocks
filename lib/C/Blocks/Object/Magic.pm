@@ -2,7 +2,8 @@ use strict;
 use warnings;
 package C::Blocks::Object::Magic;
 {
-	our $VERSION = '0.40_01';
+	our $VERSION = '0.40_02';
+	$VERSION = eval $VERSION;
 	use C::Blocks;
 	use C::Blocks::PerlAPI;
 
