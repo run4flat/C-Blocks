@@ -21,7 +21,7 @@ lib/C/Blocks/StretchyBuffer.pm
 lib/C/Blocks/Types.pm
 lib/C/Blocks/Filter.pm
 lib/C/Blocks/Filter/BlockArrowMethods.pm
-lib/C/Blocks/Object/Magic.pm
+#lib/C/Blocks/Object/Magic.pm
 MANIFEST			This list of files
 ppport.h
 README.pod
@@ -51,7 +51,7 @@ t/50-sigiled-vars.t
 t/55-types.t
 t/60-filters.t
 t/80-StretchyBuffer.t
-t/81-Object-Magic.t
+#t/81-Object-Magic.t
 t/99-stdio-fails.t
 META.yml
 META.json
