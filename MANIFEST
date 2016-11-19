@@ -18,6 +18,7 @@ lib/C/Blocks.xs
 lib/C/Blocks/PerlAPI.pm
 lib/C/Blocks/PerlAPI.xs.PL
 lib/C/Blocks/StretchyBuffer.pm
+lib/C/Blocks/Types.pm
 lib/C/Blocks/Filter.pm
 lib/C/Blocks/Filter/BlockArrowMethods.pm
 lib/C/Blocks/Object/Magic.pm
