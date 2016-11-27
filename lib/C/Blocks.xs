@@ -1318,21 +1318,24 @@ int my_keyword_plugin(pTHX_
 	
 	/* prepare for relocation; store in a global so that we can free everything
 	 * at the end of the Perl program's execution. */
-	AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
-	SV * machine_code_SV = newSV(tcc_relocate(state, 0));
-	int relocate_returned = tcc_relocate(state, SvPVX(machine_code_SV));
-	if (SvPOK(data.error_msg_sv)) {
-		/* Look for errors and croak */
-		if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
-			croak("C::Blocks linker error:\n%s", SvPV_nolen(data.error_msg_sv));
+	int machine_code_size = tcc_relocate(state, 0);
+	if (machine_code_size > 0) {
+		SV * machine_code_SV = newSV(machine_code_size);
+		AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
+		int relocate_returned = tcc_relocate(state, SvPVX(machine_code_SV));
+		av_push(machine_code_cache, machine_code_SV);
+		if (SvPOK(data.error_msg_sv)) {
+			/* Look for errors and croak */
+			if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
+				croak("C::Blocks linker error:\n%s", SvPV_nolen(data.error_msg_sv));
+			}
+			/* Otherwise report warnings */
+			my_warnif(aTHX_ "linker", sv_2mortal(newSVsv(data.error_msg_sv)));
 		}
-		/* Otherwise report warnings */
-		my_warnif(aTHX_ "linker", sv_2mortal(newSVsv(data.error_msg_sv)));
+		if (relocate_returned < 0) {
+			croak("C::Blocks linker error: unable to relocate\n");
+		}
 	}
-	if (relocate_returned < 0) {
-		croak("C::Blocks linker error: unable to relocate\n");
-	}
-	av_push(machine_code_cache, machine_code_SV);
 	
 	/********************************************************/
 	/* Build op tree or serialize the symbol table; cleanup */
