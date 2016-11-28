@@ -4,7 +4,7 @@
 
 use strict;
 use warnings;
-our $VERSION = '0.40_02';
+our $VERSION = '0.41';
 $VERSION = eval $VERSION;
 
 # Any filter will need to add itself to the list of filters. These
