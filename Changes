@@ -10,6 +10,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
     annotation facilities of Perl. Short type names are provided by
     C::Blocks::Types.
   
+  [DEPENDENCIES]
+  
+  * Bumped Alien::TinyCCx dependency to v0.12, which fixes struct
+    alignment issues and enum handling.
+  
   [ENHANCEMENTS]
   
   * Perl package globals are now properly resolved. If you make a

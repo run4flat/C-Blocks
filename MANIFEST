@@ -46,6 +46,7 @@ t/20-cshare.t
 t/21-cshare-warnings.t
 t/30-API-SV.t
 t/35-API-Memory.t
+t/36-API-Creation.t
 t/40-csub.t
 t/50-sigiled-vars.t
 t/55-types.t
