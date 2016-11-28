@@ -1,21 +1,15 @@
 use strict;
 use warnings;
 
-BEGIN {printf "Line %d\n", __LINE__ }
-
 ########################################################################
 package mgpoint;
 ########################################################################
 # The package using Object::Magic, which we will exercise shortly
 use C::Blocks;
-BEGIN {printf "Line %d\n", __LINE__ }
 use C::Blocks::PerlAPI;
-BEGIN {printf "Line %d\n", __LINE__ }
 use C::Blocks::Object::Magic;
-BEGIN {printf "Line %d\n", __LINE__ }
 use C::Blocks::Types qw(double);
 
-BEGIN {printf "Line %d\n", __LINE__ }
 sub c_blocks_init_cleanup {
 	my ($package, $C_name, $sigil_type, $pad_offset) = @_;
 	
@@ -25,7 +19,6 @@ sub c_blocks_init_cleanup {
 	return $init_code;
 }
 
-BEGIN {printf "Line %d\n", __LINE__ }
 cshare {
 	/* Define a simple x/y data pint using a struct */
 	typedef struct point {
@@ -54,7 +47,6 @@ cshare {
 	}
 }
 
-BEGIN {printf "Line %d\n", __LINE__ }
 # Perl-side constructor. Build an empty hash and attach the
 # point struct to it.
 sub new {
@@ -69,7 +61,6 @@ sub new {
 	return $self;
 }
 
-BEGIN {printf "Line %d\n", __LINE__ }
 # Perl-side accessor for setting the point's coordinate.
 csub set {
 	dXSARGS;
@@ -81,7 +72,6 @@ csub set {
 
 # Different versions of Perl-side methods for computing the distance.
 
-BEGIN {printf "Line %d\n", __LINE__ }
 # csub, i.e. pure C
 csub distance_1 {
 	dXSARGS;
@@ -92,7 +82,6 @@ csub distance_1 {
 	XSRETURN(1);
 }
 # Perl-side with type
-BEGIN {printf "Line %d\n", __LINE__ }
 sub distance_2 {
 	my mgpoint $self = shift;
 	my double $to_return = 0;
@@ -102,7 +91,6 @@ sub distance_2 {
 	return $to_return;
 }
 # Perl-side without type
-BEGIN {printf "Line %d\n", __LINE__ }
 sub distance_3 {
 	my $self = shift;
 	my $to_return;
@@ -115,7 +103,6 @@ sub distance_3 {
 
 # Perl-side accessor/method with no counterpart in C
 # (illustrating that this really is a hashref-backed object).
-BEGIN {printf "Line %d\n", __LINE__ }
 sub name {
 	my $self = shift;
 	return $self->{name} || 'no-name' if @_ == 0;
@@ -123,7 +110,6 @@ sub name {
 }
 
 # Destructor should clean up the allocated struct memory.
-BEGIN {printf "Line %d\n", __LINE__ }
 csub DESTROY {
 	dXSARGS;
 	Safefree(data_from_SV(ST(0)));
@@ -137,29 +123,21 @@ package main;
 use Test::More;
 
 # Perl-side constructor and methods
-BEGIN {printf "Line %d\n", __LINE__ }
 my $thing = mgpoint->new;
-BEGIN {printf "Line %d\n", __LINE__ }
 $thing->set(3, 4);
-BEGIN {printf "Line %d\n", __LINE__ }
 is($thing->distance_1, 5, 'First distance method returns correct distance');
 is($thing->name, 'no-name', 'Default (Perl-side) name works');
-BEGIN {printf "Line %d\n", __LINE__ }
 
 $thing->name('Random Point');
-BEGIN {printf "Line %d\n", __LINE__ }
 is($thing->name, 'Random Point', 'Changing name works');
 
 # Access data from C-side...
-BEGIN {printf "Line %d\n", __LINE__ }
 cblock {
 	point * thing = data_from_SV($thing);
 	thing->x = 6;
 	thing->y = 8;
 }
-BEGIN {printf "Line %d\n", __LINE__ }
 is($thing->distance_2, 10, 'C-side set works; second distance method returns correct distance');
-BEGIN {printf "Line %d\n", __LINE__ }
 
 # Use cisa to make data manipulation code even cleaner
 {
@@ -170,9 +148,6 @@ BEGIN {printf "Line %d\n", __LINE__ }
 		$thing2->y = 12;
 	}
 }
-BEGIN {printf "Line %d\n", __LINE__ }
 is($thing->distance_3, 13, 'C-side access via typing works; third distance method returns correct distance');
-BEGIN {printf "Line %d\n", __LINE__ }
 
 done_testing;
-BEGIN {printf "Line %d\n", __LINE__ }
