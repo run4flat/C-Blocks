@@ -4,7 +4,7 @@
 
 use strict;
 use warnings;
-our $VERSION = '0.41';
+our $VERSION = '0.41_01';
 $VERSION = eval $VERSION;
 use C::Blocks::Filter ();
 our @ISA = qw(C::Blocks::Filter);

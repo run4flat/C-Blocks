@@ -51,4 +51,8 @@ my $build = Module::Build->new(
 	share_dir => 'share',
 );
 
+use File::Spec;
+unlink('names.txt');
+unlink File::Spec->catfile(qw(share perl.h.cache));
+
 $build->create_build_script;

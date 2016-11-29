@@ -4,6 +4,13 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
 
 0.42  Ddd, Mth #, 201#
 
+  [BUG FIXES]
+  
+  * Build.PL now removes names.txt and share/perl.h.cache. This is not
+    important for basic installation, but shows up when the distribution
+    is repeatedly compiled in the same directory against different
+    versions of Perl.
+
 0.41  Mon, Nov 28, 2016
 
   [API CHANGES]
