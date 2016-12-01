@@ -31,7 +31,7 @@ BEGIN {
 	is($package_var, 2, 'Assignment to package variables in interpolation blocks occurs at BEGIN time');
 	TODO: {
 		local $TODO = 'Lexical vars get reset after parse and before BEGIN blocks for older Perls'
-			if $^V le v5.18.0;
+			if $^V le v5.18.1;
 		is($lexical_var, 2, 'Assignment to lexical variables in interpolation blocks occurs at BEGIN time');
 	}
 }
@@ -50,7 +50,7 @@ BEGIN {
 	is($package_var, 3, 'Modification of package variables in interpolation blocks occurs at BEGIN time');
 	TODO: {
 		local $TODO = 'Lexical vars get reset after parse and before BEGIN blocks for older Perls'
-			if $^V le v5.18.0;
+			if $^V le v5.18.1;
 		is($lexical_var, 3, 'Modification of lexical variables in interpolation blocks occurs at BEGIN time');
 	}
 }
