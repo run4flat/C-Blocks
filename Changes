@@ -10,6 +10,14 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
     important for basic installation, but shows up when the distribution
     is repeatedly compiled in the same directory against different
     versions of Perl.
+  
+  * Executable code is now relocated to a location in memory that is
+    properly aligned with modern CPU page alignments. This is hard-coded
+    at the moment at 4096 bytes. Without this alignment, code compiled in
+    clex blocks would sometimes perform dismally. This showed up most
+    obviously in the rng and random-access benchmarks that were recently
+    added to the benchmarks folder. Before this fix, the C::Blocks rng
+    implementation would often perform as slowly as the Perl one.
 
 0.41  Mon, Nov 28, 2016
 

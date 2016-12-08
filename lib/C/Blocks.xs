@@ -1317,12 +1317,21 @@ int my_keyword_plugin(pTHX_
 	}
 	
 	/* prepare for relocation; store in a global so that we can free everything
-	 * at the end of the Perl program's execution. */
+	 * at the end of the Perl program's execution. Allocate up to on page size
+	 * more memory than we need so that we can align the code at the start of
+	 * the page. */
 	int machine_code_size = tcc_relocate(state, 0);
 	if (machine_code_size > 0) {
-		SV * machine_code_SV = newSV(machine_code_size);
+		/* XXX uses hard-coded page sizes. This could stand to be cleaned up, I suspect */
+		SV * machine_code_SV = newSV(machine_code_size + 4096);
 		AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
-		int relocate_returned = tcc_relocate(state, SvPVX(machine_code_SV));
+		uintptr_t machine_code_loc = (uintptr_t)SvPVX(machine_code_SV);
+		unsigned int PAGESIZE = 4096;
+		if ((machine_code_loc & 0xfff) != 0) {
+			machine_code_loc &= ~0xfff;
+			machine_code_loc += 4096;
+		}
+		int relocate_returned = tcc_relocate(state, (void*)machine_code_loc);
 		av_push(machine_code_cache, machine_code_SV);
 		if (SvPOK(data.error_msg_sv)) {
 			/* Look for errors and croak */
