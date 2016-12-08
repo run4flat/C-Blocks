@@ -1,31 +1,28 @@
 use strict;
 use warnings;
 
-my $w = my $h = shift || 200;
+use C::Blocks;
+use C::Blocks::Types qw(uint char_array);
+use C::Blocks::PerlAPI;
+
+my uint $w = my uint $h = shift || 200;
 my $bytes_per_line = $w / 8;
 
 print "P4\n$w $h\n"; # PBM image header
 
-use C::Blocks;
-use C::Blocks::Type;
-use C::Blocks::PerlAPI;
-
 # Allocate the line contents so that we have something that we can
 # easily manipulate.
-my $line_contents;
+my char_array $line_contents;
 my $N_bytes = $w % 8 == 0 ? $w / 8 : int($w / 8) + 1;
 vec ($line_contents, $N_bytes - 1, 8) = 0;
 
-for my $y ( 0 .. $h-1) {
-	cisa C::Blocks::Type::int $y, $w, $h;
+for my uint $y ( 0 .. $h-1) {
 	cblock {
 		int bit_num = 0;
 		char byte_acc = 0;
 		int i, iter = 50;
 		double x, limit = 2.0;
 		double Zr, Zi, Cr, Ci, Tr, Ti;
-		
-		char * line_contents = SvPVbyte_nolen($line_contents);
 		
         for(x=0; x < $w; ++x) {
             Zr = Zi = Tr = Ti = 0.0;
@@ -47,13 +44,13 @@ for my $y ( 0 .. $h-1) {
 
             
             if(bit_num == 8) {
-                line_contents[(int)(x/8)] = byte_acc;
+                $line_contents[(int)(x/8)] = byte_acc;
                 byte_acc = 0;
                 bit_num = 0;
             }
             else if(x == $w-1) {
                 byte_acc <<= (8 - $w % 8);
-                line_contents[(int)(x/8)] = byte_acc;
+                $line_contents[(int)(x/8)] = byte_acc;
                 byte_acc = 0;
                 bit_num = 0;
             }
