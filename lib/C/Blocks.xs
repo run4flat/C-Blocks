@@ -858,26 +858,34 @@ void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
 	sv_setpvf(underbar, "%s%s%s", SvPVbyte_nolen(data->code_top),
 		SvPVbyte_nolen(data->code_main), SvPVbyte_nolen(data->code_bottom));
 	
-	/* Get the different packages to use as filters */
-	SV * packages_SV = cophh_fetch_pvs(data->hints_hash, "C::Blocks/filters", 0);
-	if (packages_SV != &PL_sv_placeholder) {
+	/* Apply the different filters */
+	SV * filters_SV = cophh_fetch_pvs(data->hints_hash, "C::Blocks/filters", 0);
+	if (filters_SV != &PL_sv_placeholder) {
 		dSP;
-		char * packages = SvPVbyte_nolen(packages_SV);
-		char * start = packages;
+		char * filters = SvPVbyte_nolen(filters_SV);
+		char * start = filters;
 		char backup;
 		while(1) {
-			if (*packages == '\0' && start == packages) break;
-			if (*packages == '|') {
-				backup = *packages;
-				*packages = '\0';
-				/* get the package name */
-				char * full_method = form("%s::c_blocks_filter", start);
-				*packages = backup;
+			if (*filters == '\0' && start == filters) break;
+			if (*filters == '|') {
+				backup = *filters;
+				*filters = '\0';
+				/* construct the function name to call */
+				char * full_method;
+				/* if it starts with an ampersand, it's a function name */
+				if (*start == '&') {
+					full_method = start + 1;
+				}
+				else {
+					/* we have the package name; append the normal method */
+					full_method = form("%s::c_blocks_filter", start);
+				}
 				PUSHMARK(SP);
 				call_pv(full_method, G_DISCARD|G_NOARGS);
-				start = packages + 1;
+				start = filters + 1;
+				*filters = backup;
 			}
-			packages++;
+			filters++;
 		}
 	}
 	

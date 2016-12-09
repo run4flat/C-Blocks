@@ -4,6 +4,11 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
 
 0.42  Ddd, Mth #, 201#
 
+  [NEW FEATURES]
+  
+  * It is now possible to indicate filter functions by name, rather than
+    by package.
+  
   [BUG FIXES]
   
   * Build.PL now removes names.txt and share/perl.h.cache. This is not
