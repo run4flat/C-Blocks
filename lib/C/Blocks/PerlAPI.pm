@@ -17,7 +17,7 @@ require DynaLoader;
 our @ISA = qw( DynaLoader );
 *import = \&C::Blocks::libloader::import;
 
-our $VERSION = '0.41_01';
+our $VERSION = '0.42';
 bootstrap C::Blocks::PerlAPI $VERSION;
 $VERSION = eval $VERSION;
 
