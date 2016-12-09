@@ -35,9 +35,9 @@ for my $log_n (1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6) {
 		$start = time;
 		$inline_result = Inline_rng();
 		$inline_duration += time() - $start;
-		if ($cblocks_result != $inline_result) {
-			print "For cblocks I got $cblocks_result but for inline I got $inline_result\n";
-		}
+#		if ($cblocks_result != $inline_result) {
+#			print "For cblocks I got $cblocks_result but for inline I got $inline_result\n";
+#		}
 	}
 	print "CBlocks: $cblocks_duration wallclock seconds\n";
 	print " Inline: $inline_duration  wallclock seconds\n";
@@ -74,7 +74,7 @@ sub setup_random_data {
 		}
 		
 		/* reset state */
-		x = 123456789, y = 362436000, z = 521288629, c = 7654321;
+//		x = 123456789, y = 362436000, z = 521288629, c = 7654321;
 	}
 }
 
