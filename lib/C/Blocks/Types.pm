@@ -147,10 +147,6 @@ package C::Blocks::Type::char_array;
 our @ISA = qw(C::Blocks::Type::double_array);
 sub data_type { 'char' }
 
-# Other types:
-# int2ptr
-# uint2ptr
-
 __END__
 
 =head1 NAME
@@ -200,3 +196,5 @@ to provide type packages, and short names, for basic C data types like
 L<double> and L<short>, as well as rudimentary packed arrays.
 
 ... must document provided types as well as "length_" variables.
+
+Note: For pointers you should use L<C::Blocks::Types::Pointers>.
