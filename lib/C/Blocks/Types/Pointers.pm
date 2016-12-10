@@ -32,11 +32,14 @@ sub generate_init_cleanup {
 	return sub {
 		my ($package, $C_name, $sigil_type, $pad_offset) = @_;
 		
-		my $init_code = "$sigil_type * SV_$C_name = ($sigil_type*)PAD_SV($pad_offset); "
-			. "$pointer_type $C_name = INT2PTR($pointer_type, SvUV(SV_$C_name)); ";
-		my $cleanup_code = "sv_setuv(SV_$C_name, PTR2UV($C_name));";
+		my $init_code = qq{
+			$sigil_type * SV_$C_name = ($sigil_type*)PAD_SV($pad_offset);
+			#define $C_name (*POINTER_TO_$C_name)
+			if (!SvIOK(SV_$C_name)) SvUPGRADE(SV_$C_name, SVt_IV);
+			$pointer_type * POINTER_TO_$C_name = INT2PTR($pointer_type *, &SvIVX(SV_$C_name));
+		};
 		
-		return ($init_code, $cleanup_code);
+		return $init_code;
 	};
 }
 
