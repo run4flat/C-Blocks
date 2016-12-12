@@ -38,6 +38,14 @@ use C::Blocks;
 	or diag "**Error message was** $@";
 
 	ok(eval q{
+		unless (1) {}
+		clex { int foo() {} }
+		cblock { foo(); }
+		1;
+	}, "Declarations in clex immediately following unless block are visible")
+	or diag "**Error message was** $@";
+	
+	ok(eval q{
 		if (0) {}
 		elsif (0) {}
 		clex { int foo() {} }
@@ -75,8 +83,18 @@ ok(eval q{
 	clex { int foo() {} }
 	cblock { foo(); }
 	1;
-}, "Declarations in clex immediately following bare block are visible")
+}, "Declarations in clex immediately following bare block with continue are visible")
 or diag "**Error message was** $@";
 
+ok(eval q{
+	SOME_LABEL: {
+		my $a = 5;
+		next SOME_LABEL if $a > 6;
+	}
+	clex { int foo() {} }
+	cblock { foo(); }
+	1;
+}, "Declarations in clex immediately following bare block are visible")
+or diag "**Error message was** $@";
 
 done_testing;
