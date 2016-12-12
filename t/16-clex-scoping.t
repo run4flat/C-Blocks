@@ -67,23 +67,20 @@ eval q{
 	like($@, qr/undeclared function/, 'Cannot call a function outside its lexical scope');
 };
 
-TODO: {
-	local $TODO = 'Importing a C::Blocks module clobbers clex????!!!';
-	eval q{
-		use C::Blocks::PerlAPI;
-		copy_numbers_to_msg;  # send data
-		cblock {
-			double * numbers = get_numbers();                 // get data
-			double result = subtract(numbers[0], numbers[1]); // subtract
-			c_blocks_send_bytes(&result, sizeof(double));     // send result
-		}
-		
-		BEGIN { pass 'inner cblock compiles fine' }
-		
-		my $answer = unpack('d', $C::Blocks::_msg);
-		is($answer, $numbers[0] - $numbers[1], 'C::Blocks::PerlAPI does not clobber clex');
+eval q{
+	use C::Blocks::PerlAPI;
+	copy_numbers_to_msg;  # send data
+	cblock {
+		double * numbers = get_numbers();                 // get data
+		double result = subtract(numbers[0], numbers[1]); // subtract
+		c_blocks_send_bytes(&result, sizeof(double));     // send result
 	}
-	or fail('C::Blocks::PerlAPI does not clobber clex');
+	
+	BEGIN { pass 'inner cblock compiles fine' }
+	
+	my $answer = unpack('d', $C::Blocks::_msg);
+	is($answer, $numbers[0] - $numbers[1], 'C::Blocks::PerlAPI does not clobber clex');
 }
+or fail('C::Blocks::PerlAPI does not clobber clex');
 
 done_testing;

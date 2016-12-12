@@ -360,7 +360,6 @@ typedef struct c_blocks_data {
 	char * xs_c_name;
 	char * xs_perl_name;
 	char * xsub_name;
-	COPHH* hints_hash;
 	SV * exsymtabs;
 	SV * add_test_SV;
 	SV * code_top;
@@ -859,10 +858,12 @@ void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
 		SvPVbyte_nolen(data->code_main), SvPVbyte_nolen(data->code_bottom));
 	
 	/* Apply the different filters */
-	SV * filters_SV = cophh_fetch_pvs(data->hints_hash, "C::Blocks/filters", 0);
-	if (filters_SV != &PL_sv_placeholder) {
+
+	SV ** filters_SV_p = hv_fetch(GvHV(PL_hintgv), "C::Blocks/filters",
+		17, 0);
+	if (filters_SV_p) {
 		dSP;
-		char * filters = SvPVbyte_nolen(filters_SV);
+		char * filters = SvPVbyte_nolen(*filters_SV_p);
 		char * start = filters;
 		char backup;
 		while(1) {
@@ -913,7 +914,6 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	 * loaded. */
 	data->has_loaded_perlapi = 0;
 	
-	data->hints_hash = CopHINTHASH_get(PL_curcop);
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
 	data->code_top = newSVpvn("", 0);
 	data->code_main = newSVpvn("", 0);
@@ -923,8 +923,12 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	/* This is called after we have cleared out whitespace, so just assign */
 	data->end = PL_bufptr;
 	
-	/* Get the current exsymtabs list. If this doesn't exist, we'll have */
-	data->exsymtabs = cophh_fetch_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", 0);
+	/* Get the current exsymtabs list. If it doesn't exist, set
+	 * exsymtabs to null to indicate as much. */
+	gv_HVadd(PL_hintgv); /* Make sure the hints hash entry is valid */
+	SV** exsymtabs_p = hv_fetch(GvHV(PL_hintgv), "C::Blocks/extended_symtab_tables",
+		32, 0);
+	data->exsymtabs = exsymtabs_p ? *exsymtabs_p : 0;
 }
 
 void add_function_signature_to_block(pTHX_ c_blocks_data* data) {
@@ -940,7 +944,7 @@ void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	SvREFCNT_dec(data->code_bottom);
 	/* Bottom and top, if they were even used, should have been
 	 * de-allocated already. */
-	//if (SvPOK(data->exsymtabs)) SvREFCNT_dec(data->exsymtabs);
+	//if (data->exsymtabs) SvREFCNT_dec(data->exsymtabs);
 	Safefree(data->xs_c_name);
 	Safefree(data->xs_perl_name);
 	Safefree(data->xsub_name);
@@ -969,7 +973,7 @@ void ensure_perlapi(pTHX_ c_blocks_data * data) {
 	 * symtabs are searched in reverse order, so this will ensure that
 	 * the PerlAPI symtab is checked last. That prevents the PerlAPI
 	 * symtab from potentially masking declarations. */
-	if (SvPOK(old_symtabs)) sv_catsv(data->exsymtabs, old_symtabs);
+	if (old_symtabs) sv_catsv(data->exsymtabs, old_symtabs);
 	
 	data->has_loaded_perlapi = 1;
 }
@@ -1120,8 +1124,10 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	/* Set the extended callback handling */
 	extended_symtab_callback_data callback_data = { state, aTHX_ NULL, 0 };
 	
-	/* Set the extended symbol table lists if they exist */
-	if (SvPOK(data->exsymtabs) && SvCUR(data->exsymtabs)) {
+	/* Set the extended symbol table lists if they exist. We could skip
+	 * this if exsymtabs is an empty string, but this'll work as-is
+	 * because it'll set N_tables to 0. */
+	if (data->exsymtabs) {
 		callback_data.N_tables = SvCUR(data->exsymtabs) / sizeof(available_extended_symtab);
 		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(data->exsymtabs);
 	}
@@ -1236,15 +1242,21 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	}
 	
 	/* add the serialized pointer address to the hints hash entry */
-	if (SvPOK(data->exsymtabs)) {
-		data->exsymtabs = newSVsv(data->exsymtabs);
+	if (data->exsymtabs) {
+		data->exsymtabs = newSVsv(data->exsymtabs); /* XXX memory leak? */
 		sv_catpvn(data->exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
 	}
 	else {
 		data->exsymtabs = newSVpvn((char*)&new_table, sizeof(available_extended_symtab));
 	}
-	data->hints_hash = cophh_store_pvs(data->hints_hash, "C::Blocks/extended_symtab_tables", data->exsymtabs, 0);
-	CopHINTHASH_set(PL_curcop, data->hints_hash);
+	PL_hints |= HINT_LOCALIZE_HH;
+	SV** exsymtab_p = hv_store(GvHV(PL_hintgv), "C::Blocks/extended_symtab_tables",
+		32, data->exsymtabs, 0);
+	if(exsymtab_p) {
+		SvSETMAGIC(*exsymtab_p);
+	} else {
+		SvREFCNT_dec(data->exsymtabs);
+	}
 	
 	/* add the serialized pointer address to the package symtab list */
 	if (keyword_type == IS_CSHARE) {
