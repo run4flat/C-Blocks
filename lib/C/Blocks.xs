@@ -1387,14 +1387,6 @@ CODE:
 	if (PL_keyword_plugin != my_keyword_plugin) {
 		PL_keyword_plugin = my_keyword_plugin;
 	}
-	
-	/*
-	COPHH* hints_hash = CopHINTHASH_get(PL_curcop);
-	SV * extended_symtab_tables_SV = cophh_fetch_pvs(hints_hash, "C::Blocks/extended_symtab_tables", 0);
-	if (extended_symtab_tables_SV == &PL_sv_placeholder) extended_symtab_tables_SV = newSVpvn("", 0);
-	hints_hash = cophh_store_pvs(hints_hash, "C::Blocks/extended_symtab_tables", extended_symtab_tables_SV, 0);
-	*/
-
 
 void
 unimport(...)
