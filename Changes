@@ -2,6 +2,24 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in chronological order, i.e. oldest at the top
 
+0.43  Ddd, Mth #, 201#
+
+  [API CHANGES]
+  
+  * The package C::Blocks::libloader contained only a single import function.
+    That function has been renamed to C::Blocks::load_lib.
+  
+  [BUG FIXES]
+  
+  * The hints hash manipulation now uses the correct C API, so that symbol
+    tables from clex blocks do not get clobbered by modules using standard
+    hints hash manipulation.
+  
+  [NEW FEATURES]
+  
+  * C::Blocks::Types::Pointers! It is now easy to declare pointers of
+    specified types without writing a whole type class.
+
 0.42  Fri, Dec 9, 2016
 
   [NEW FEATURES]

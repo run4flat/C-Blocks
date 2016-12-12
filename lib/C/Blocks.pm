@@ -396,20 +396,27 @@ issue a warning and refrain from injecting the method.
 If your module needs to provide its own import functionality, you can still get
 the code sharing with something like this:
 
- no warnings 'C::Blocks::import';
- sub import {
-  ... your code here
-  C::Blocks::libloader::import(__PACKAGE__);
+ {
+   no warnings 'C::Blocks::import', 'redefine';
+   sub import {
+     ... your code here
+     C::Blocks::load_lib(__PACKAGE__);
+   }
  }
 
 This will perform the requisite magic to make the code from your
 C<cshare> blocks visible to whichever packages C<use> your module, and
 avoid the warning.
 
-WARNING: At least for now, be sure to declare your C<import> method
-I<before> any C<cshare> blocks in your package. Declaring them after a
-C<cshare> block causes Perl to crash, probably because I'm not doing
-something right.
+NOTE: You only need one of those two warnings. If you declare your
+C<import> method before the first C<cshare> block then you should
+disable C<C::Blocks::import> warnings. If you declare your C<import>
+method after the first C<cshare> block, then you should disable warnings
+on redefinitions.
+
+WARNING: Declaring the C<import> method after the first C<cshare> block
+used to cause segfaults. It seems to be OK now, but I'm not quite sure
+why. Proceed with caution!
 
 =head2 XSUBs
 
