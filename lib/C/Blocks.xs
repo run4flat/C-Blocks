@@ -1044,15 +1044,15 @@ void add_msg_function_decl(pTHX_ c_blocks_data * data) {
 	}
 }
 
-/* inject C::Blocks::libloader's import method into the current package */
+/* inject C::Blocks::load_lib as import method in the current package */
 void inject_import(pTHX) {
 	char * warn_message = "no warning (yet)";
 	SV * name = NULL;
-	/* Get CV for C::Blocks::libloader::import */
+	/* Get CV for C::Blocks::load_lib */
 	CV * import_method_to_inject
-		= get_cvn_flags("C::Blocks::libloader::import", 28, 0);
+		= get_cvn_flags("C::Blocks::load_lib", 19, 0);
 	if (!import_method_to_inject) {
-		warn_message = "could not load C::Blocks::libloader::import";
+		warn_message = "could not load C::Blocks::load_lib";
 		goto fail;
 	}
 	

@@ -40,14 +40,13 @@ sub warnif {
 	warnings::warnif($category, $message);
 }
 
-# The XS code for the keyword parser makes sure that if a module invokes cshare,
-# it is also a descendent of C::Blocks::libloader. The only reason it does that
-# is to make sure that this function has a good chance of getting invoked when
-# somebody tries to use the module. This function adds its module's symtab list
-# (a series of pointers) to the calling lexical scope's hints hash. These
-# symtabs are consulted during compilation of cblock declarations in the calling
-# lexical scope.
-sub C::Blocks::libloader::import {
+# This function adds its module's symtab list (a series of pointers) to
+# the calling lexical scope's hints hash. These symtabs are consulted
+# during compilation of cblock declarations in the calling lexical
+# scope. The keyword parser injects this function into module as its
+# "import" sub if the module has one or more cshare blocks, and if the
+# module does not already have an "import" sub.
+sub C::Blocks::load_lib {
 	# Get the name of the module that is being imported.
 	my ($module) = @_;
 	
