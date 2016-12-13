@@ -66,7 +66,7 @@ typedef struct _extended_symtab_callback_data {
 	TCCState * state;
 	C_BLOCKS_THX_DECL__
 	available_extended_symtab * available_extended_symtabs;
-	int N_tables;
+	STRLEN N_tables;
 } extended_symtab_callback_data;
 
 /******************************/
@@ -859,8 +859,7 @@ void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
 	
 	/* Apply the different filters */
 
-	SV ** filters_SV_p = hv_fetch(GvHV(PL_hintgv), "C::Blocks/filters",
-		17, 0);
+	SV ** filters_SV_p = hv_fetchs(GvHV(PL_hintgv), "C::Blocks/filters", 0);
 	if (filters_SV_p) {
 		dSP;
 		char * filters = SvPVbyte_nolen(*filters_SV_p);
@@ -925,9 +924,9 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	
 	/* Get the current exsymtabs list. If it doesn't exist, set
 	 * exsymtabs to null to indicate as much. */
+	PL_hints |= HINT_LOCALIZE_HH;
 	gv_HVadd(PL_hintgv); /* Make sure the hints hash entry is valid */
-	SV** exsymtabs_p = hv_fetch(GvHV(PL_hintgv), "C::Blocks/extended_symtab_tables",
-		32, 0);
+	SV** exsymtabs_p = hv_fetchs(GvHV(PL_hintgv), "C::Blocks/extended_symtab_tables", 0);
 	data->exsymtabs = exsymtabs_p ? *exsymtabs_p : 0;
 }
 
@@ -1128,8 +1127,9 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	 * this if exsymtabs is an empty string, but this'll work as-is
 	 * because it'll set N_tables to 0. */
 	if (data->exsymtabs) {
-		callback_data.N_tables = SvCUR(data->exsymtabs) / sizeof(available_extended_symtab);
-		callback_data.available_extended_symtabs = (available_extended_symtab*) SvPV_nolen(data->exsymtabs);
+		callback_data.available_extended_symtabs
+			= (available_extended_symtab*) SvPV(data->exsymtabs, callback_data.N_tables);
+		callback_data.N_tables /= sizeof(available_extended_symtab);
 	}
 	tcc_set_extended_symtab_callbacks(state, &my_symtab_lookup_by_name,
 		&my_symtab_sym_used, &my_prep_table, &callback_data);
@@ -1241,21 +1241,21 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 		av_push(dll_list, newSViv(PTR2IV(new_table.dlls)));
 	}
 	
-	/* add the serialized pointer address to the hints hash entry */
-	if (data->exsymtabs) {
-		data->exsymtabs = newSVsv(data->exsymtabs); /* XXX memory leak? */
-		sv_catpvn(data->exsymtabs, (char*)&new_table, sizeof(available_extended_symtab));
+	/* add the serialized pointer address to the hints hash entry. Note
+	 * the current contents of data->exsymtabs may have the Perl API
+	 * added, so pull a fresh copy of the exsymtabs from the hints hash. */
+	SV** exsymtab_p = hv_fetchs(GvHV(PL_hintgv), "C::Blocks/extended_symtab_tables", 1);
+	if (exsymtab_p) {
+		if (SvPOK(*exsymtab_p)) {
+			sv_catpvn_mg(*exsymtab_p, (char*)&new_table, sizeof(available_extended_symtab));
+		}
+		else {
+			sv_setpvn_mg(*exsymtab_p, (char*)&new_table, sizeof(available_extended_symtab));
+		}
 	}
 	else {
-		data->exsymtabs = newSVpvn((char*)&new_table, sizeof(available_extended_symtab));
-	}
-	PL_hints |= HINT_LOCALIZE_HH;
-	SV** exsymtab_p = hv_store(GvHV(PL_hintgv), "C::Blocks/extended_symtab_tables",
-		32, data->exsymtabs, 0);
-	if(exsymtab_p) {
-		SvSETMAGIC(*exsymtab_p);
-	} else {
-		SvREFCNT_dec(data->exsymtabs);
+		warn("C::Blocks internal warning: Unable to retrieve or append "
+			"to hints hash entry for extended symbol table list\n");
 	}
 	
 	/* add the serialized pointer address to the package symtab list */
