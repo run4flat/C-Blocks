@@ -1380,9 +1380,6 @@ int my_keyword_plugin(pTHX_
 	cleanup_c_blocks_data(aTHX_ &data);
 	tcc_delete(state);
 	
-	/* insert a semicolon to make the parser happy */
-	lex_stuff_pvn(";", 1, 0);
-	
 	/* Make the parser count the number of lines correctly */
 	int i;
 	for (i = 0; i < data.N_newlines; i++) lex_stuff_pv("\n", 0);
