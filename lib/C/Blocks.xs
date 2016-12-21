@@ -1279,6 +1279,45 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	}
 }
 
+typedef struct executable_memory executable_memory;
+struct executable_memory {
+	uintptr_t curr_address;
+	uintptr_t bytes_remaining;
+	executable_memory * next;
+	char base_address[0];
+};
+executable_memory * my_mem_root;
+executable_memory * my_mem_tail;
+
+void * my_mem_alloc (size_t n_bytes) {
+	if (n_bytes > my_mem_tail->bytes_remaining) {
+		/* allocate requested plus 16K of memory */
+		my_mem_tail->next = malloc(sizeof(executable_memory) + n_bytes + 16384);
+		my_mem_tail = my_mem_tail->next;
+		my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
+		my_mem_tail->bytes_remaining = n_bytes + 16384;
+		/* check alignment */
+		if ((my_mem_tail->curr_address & 63) != 0) {
+			my_mem_tail->curr_address &= ~63;
+			my_mem_tail->curr_address += 64;
+			my_mem_tail->bytes_remaining
+				-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
+		}
+		my_mem_tail->next = 0;
+	}
+	void * to_return = (void*)my_mem_tail->curr_address;
+	
+	/* update and align curr_address */
+	my_mem_tail->curr_address += n_bytes;
+	if ((my_mem_tail->curr_address & 63) != 0) {
+		my_mem_tail->curr_address &= ~63;
+		my_mem_tail->curr_address += 64;
+	}
+	my_mem_tail->bytes_remaining
+		-= my_mem_tail->curr_address - (uintptr_t)to_return;
+	return to_return;
+}
+
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
@@ -1341,18 +1380,23 @@ int my_keyword_plugin(pTHX_
 	 * more memory than we need so that we can align the code at the start of
 	 * the page. */
 	int machine_code_size = tcc_relocate(state, 0);
+	sv_setiv(get_sv("C::Blocks::_last_machine_code_size", GV_ADD | GV_ADDMULTI),
+		machine_code_size);
 	if (machine_code_size > 0) {
-		/* XXX uses hard-coded page sizes. This could stand to be cleaned up, I suspect */
-		SV * machine_code_SV = newSV(machine_code_size + 4096);
+		void * machine_code = my_mem_alloc(machine_code_size);
+#if 0
+		/* Add enough bytes to align on cache line size */
+		SV * machine_code_SV = newSV(machine_code_size + 63);
 		AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
 		uintptr_t machine_code_loc = (uintptr_t)SvPVX(machine_code_SV);
-		unsigned int PAGESIZE = 4096;
-		if ((machine_code_loc & 0xfff) != 0) {
-			machine_code_loc &= ~0xfff;
-			machine_code_loc += 4096;
+		if ((machine_code_loc & 0x63) != 0) {
+			machine_code_loc &= ~0x63;
+			machine_code_loc += 64;
 		}
 		int relocate_returned = tcc_relocate(state, (void*)machine_code_loc);
 		av_push(machine_code_cache, machine_code_SV);
+#endif
+		int relocate_returned = tcc_relocate(state, machine_code);
 		if (SvPOK(data.error_msg_sv)) {
 			/* Look for errors and croak */
 			if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
@@ -1408,9 +1452,7 @@ CODE:
 void
 _cleanup()
 CODE:
-	/* Remove all of the extended symol tables. Note that the code pages
-	 * were stored directly into Perl SV's, which were pushed into an
-	 * array, so they are cleaned up for us automatically. */
+	/* Remove all of the extended symol tables. */
 	AV * cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
 	int i;
 	SV ** elem_p;
@@ -1433,11 +1475,29 @@ CODE:
 			warn("C::Blocks had trouble freeing dll list, index %d", i);
 		}
 	}
+	/* Remove all the code pages */
+	executable_memory * to_cleanup = my_mem_root;
+	while(to_cleanup) {
+		executable_memory * tmp = to_cleanup->next;
+		free(to_cleanup);
+		to_cleanup = tmp;
+	}
 	
 
 BOOT:
 	/* Set up the keyword plugin to a useful initial value. */
 	next_keyword_plugin = PL_keyword_plugin;
+	
+	my_mem_tail = my_mem_root = malloc(sizeof(executable_memory) + 16384);
+	my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
+	my_mem_tail->bytes_remaining = 16384;
+	if ((my_mem_tail->curr_address & 0x63) != 0) {
+		my_mem_tail->curr_address &= ~63;
+		my_mem_tail->curr_address += 64;
+		my_mem_tail->bytes_remaining
+			-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
+	}
+	my_mem_tail->next = 0;
 	
 	/* Set up the custom op */
 	XopENTRY_set(&tcc_xop, xop_name, "tccop");
