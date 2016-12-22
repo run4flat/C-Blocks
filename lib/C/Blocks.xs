@@ -1281,40 +1281,41 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 
 typedef struct executable_memory executable_memory;
 struct executable_memory {
-	uintptr_t curr_address;
-	uintptr_t bytes_remaining;
 	executable_memory * next;
-	char base_address[0];
+	void * base_address;
+	uintptr_t curr_address;
+	uintptr_t end_address;
 };
 executable_memory * my_mem_root;
 executable_memory * my_mem_tail;
 
+#define page_align(addr) do { \
+	if ((addr & 63) != 0) { \
+		addr &= ~63; \
+		addr += 64; \
+	} \
+} while (0)
+
+#include <sys/mman.h>
+
 void * my_mem_alloc (size_t n_bytes) {
-	if (n_bytes > my_mem_tail->bytes_remaining) {
-		/* allocate requested plus 16K of memory */
-		my_mem_tail->next = malloc(sizeof(executable_memory) + n_bytes + 16384);
+	page_align(my_mem_tail->curr_address);
+	if (n_bytes > my_mem_tail->end_address - my_mem_tail->curr_address) {
+		/* allocate next block */
+		my_mem_tail->next = malloc(sizeof(executable_memory));
 		my_mem_tail = my_mem_tail->next;
+		/* mem-map requested plus 16K of memory */
+		my_mem_tail->base_address = mmap(NULL,
+			n_bytes + 16384,
+			PROT_WRITE | PROT_READ | PROT_EXEC,
+			MAP_PRIVATE | MAP_ANONYMOUS,
+			-1, 0);
 		my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
-		my_mem_tail->bytes_remaining = n_bytes + 16384;
-		/* check alignment */
-		if ((my_mem_tail->curr_address & 63) != 0) {
-			my_mem_tail->curr_address &= ~63;
-			my_mem_tail->curr_address += 64;
-			my_mem_tail->bytes_remaining
-				-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
-		}
-		my_mem_tail->next = 0;
+		my_mem_tail->end_address = my_mem_tail->curr_address + n_bytes + 16384; /* XXX off-by-one? */
+		my_mem_tail->next = NULL;
 	}
 	void * to_return = (void*)my_mem_tail->curr_address;
-	
-	/* update and align curr_address */
 	my_mem_tail->curr_address += n_bytes;
-	if ((my_mem_tail->curr_address & 63) != 0) {
-		my_mem_tail->curr_address &= ~63;
-		my_mem_tail->curr_address += 64;
-	}
-	my_mem_tail->bytes_remaining
-		-= my_mem_tail->curr_address - (uintptr_t)to_return;
 	return to_return;
 }
 
@@ -1479,25 +1480,26 @@ CODE:
 	executable_memory * to_cleanup = my_mem_root;
 	while(to_cleanup) {
 		executable_memory * tmp = to_cleanup->next;
+		munmap(to_cleanup->base_address,
+			to_cleanup->end_address - (uintptr_t)to_cleanup->base_address);
 		free(to_cleanup);
 		to_cleanup = tmp;
 	}
-	
 
 BOOT:
 	/* Set up the keyword plugin to a useful initial value. */
 	next_keyword_plugin = PL_keyword_plugin;
 	
-	my_mem_tail = my_mem_root = malloc(sizeof(executable_memory) + 16384);
+	my_mem_tail = my_mem_root = malloc(sizeof(executable_memory));
+	/* mem-map requested plus 16K of memory */
+	my_mem_tail->base_address = mmap(NULL,
+		16384,
+		PROT_WRITE | PROT_READ | PROT_EXEC,
+		MAP_PRIVATE | MAP_ANONYMOUS,
+		-1, 0);
 	my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
-	my_mem_tail->bytes_remaining = 16384;
-	if ((my_mem_tail->curr_address & 0x63) != 0) {
-		my_mem_tail->curr_address &= ~63;
-		my_mem_tail->curr_address += 64;
-		my_mem_tail->bytes_remaining
-			-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
-	}
-	my_mem_tail->next = 0;
+	my_mem_tail->end_address = my_mem_tail->curr_address + 16384; /* XXX off-by-one? */
+	my_mem_tail->next = NULL;
 	
 	/* Set up the custom op */
 	XopENTRY_set(&tcc_xop, xop_name, "tccop");
