@@ -1321,8 +1321,8 @@ void * my_mem_alloc (size_t n_bytes) {
 
 
 /* See below: my_keyword_plugin is a shim around this function */
-STATIC int _my_keyword_plugin(pTHX_
-	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr, int keyword_type
+STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
+	STRLEN keyword_len, OP **op_ptr, int keyword_type, c_blocks_data * data
 ) {
 	/**********************/
 	/*   Initialization   */
@@ -1331,30 +1331,23 @@ STATIC int _my_keyword_plugin(pTHX_
 	 * initialization so that the assignment of the end pointer is correct. */
 	lex_read_space(0);
 	
-	/* Create the compilation data struct */
-	c_blocks_data data;
-	initialize_c_blocks_data(aTHX_ &data);
-	/* Note: Since we're passing a pointer to a struct on the stack, the LEAVE
-	 * that triggers this callback MUST happen before the end of THIS function. */
-	SAVEDESTRUCTOR_X(cleanup_c_blocks_data, &data);
-
-	add_msg_function_decl(aTHX_ &data);
-	if (keyword_type == IS_CBLOCK) add_function_signature_to_block(aTHX_ &data);
-	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ &data);
+	add_msg_function_decl(aTHX_ data);
+	if (keyword_type == IS_CBLOCK) add_function_signature_to_block(aTHX_ data);
+	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
-		data.keep_curly_brackets = 0;
+		data->keep_curly_brackets = 0;
 	}
 	
 	/************************/
 	/* Extract and compile! */
 	/************************/
 	
-	extract_C_code(aTHX_ &data, keyword_type);
-	run_filters(aTHX_ &data, keyword_type);
+	extract_C_code(aTHX_ data, keyword_type);
+	run_filters(aTHX_ data, keyword_type);
 	
 	TCCState * state = tcc_new();
 	if (!state) croak("Unable to create C::TinyCompiler state!\n");
-	setup_compiler(aTHX_ state, &data);
+	setup_compiler(aTHX_ state, data);
 	
 	/* Ask to save state if it's a cshare or clex block*/
 	if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
@@ -1362,14 +1355,14 @@ STATIC int _my_keyword_plugin(pTHX_
 	}
 	
 	/* Compile the extracted code */
-	execute_compiler(aTHX_ state, &data, keyword_type);
+	execute_compiler(aTHX_ state, data, keyword_type);
 	
 	/******************************************/
 	/* Apply the list of symbols and relocate */
 	/******************************************/
 	
 	/* test symbols */
-	if (SvOK(data.add_test_SV)) {
+	if (SvOK(data->add_test_SV)) {
 		tcc_add_symbol(state, "c_blocks_send_msg", _c_blocks_send_msg);
 		tcc_add_symbol(state, "c_blocks_send_bytes", _c_blocks_send_bytes);
 		tcc_add_symbol(state, "c_blocks_get_msg", _c_blocks_get_msg);
@@ -1397,13 +1390,13 @@ STATIC int _my_keyword_plugin(pTHX_
 		av_push(machine_code_cache, machine_code_SV);
 #endif
 		int relocate_returned = tcc_relocate(state, machine_code);
-		if (SvPOK(data.error_msg_sv)) {
+		if (SvPOK(data->error_msg_sv)) {
 			/* Look for errors and croak */
-			if (strstr(SvPV_nolen(data.error_msg_sv), "error")) {
-				croak("C::Blocks linker error:\n%s", SvPV_nolen(data.error_msg_sv));
+			if (strstr(SvPV_nolen(data->error_msg_sv), "error")) {
+				croak("C::Blocks linker error:\n%s", SvPV_nolen(data->error_msg_sv));
 			}
 			/* Otherwise report warnings */
-			my_warnif(aTHX_ "linker", sv_2mortal(newSVsv(data.error_msg_sv)));
+			my_warnif(aTHX_ "linker", sv_2mortal(newSVsv(data->error_msg_sv)));
 		}
 		if (relocate_returned < 0) {
 			croak("C::Blocks linker error: unable to relocate\n");
@@ -1415,9 +1408,9 @@ STATIC int _my_keyword_plugin(pTHX_
 	/********************************************************/
 
 	*op_ptr = build_op(aTHX_ state, keyword_type);
-	if (keyword_type == IS_CSUB) extract_xsub(aTHX_ state, &data);
+	if (keyword_type == IS_CSUB) extract_xsub(aTHX_ state, data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
-		serialize_symbol_table(aTHX_ state, &data, keyword_type);
+		serialize_symbol_table(aTHX_ state, data, keyword_type);
 	}
 	
 	/* cleanup */
@@ -1426,7 +1419,7 @@ STATIC int _my_keyword_plugin(pTHX_
 	
 	/* Make the parser count the number of lines correctly */
 	int i;
-	for (i = 0; i < data.N_newlines; i++) lex_stuff_pv("\n", 0);
+	for (i = 0; i < data->N_newlines; i++) lex_stuff_pv("\n", 0);
 
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
@@ -1446,13 +1439,22 @@ int my_keyword_plugin(pTHX_
 	if (!keyword_type)
 		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
 
+	/* Create the compilation data struct */
+	c_blocks_data data;
+	initialize_c_blocks_data(aTHX_ &data);
+
 	/* We protect the entire execution of the keyword plugin with a Perl
 	 * pseudo-block ENTER/LEAVE pair. This allows us to simplify memory
 	 * management significantly in the face of exceptions by simply
 	 * registering cleanup handlers instead of manually trapping all
 	 * possible exceptions. */
 	ENTER;
-	int retval = _my_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr, keyword_type);
+	
+	/* Note: Since we're passing a pointer to a struct on the stack, the LEAVE
+	 * that triggers this callback MUST happen before the end of THIS function. */
+	SAVEDESTRUCTOR_X(cleanup_c_blocks_data, &data);
+	int retval = _my_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr, keyword_type, &data);
+	
 	LEAVE;
 	return retval;
 }
