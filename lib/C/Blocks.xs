@@ -936,7 +936,8 @@ void add_function_signature_to_block(pTHX_ c_blocks_data* data) {
 	sv_catpv_nomg(data->code_top, "void op_func(C_BLOCKS_THX_DECL) {");
 }
 
-void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
+void cleanup_c_blocks_data(pTHX_ void* data_vp) {
+	c_blocks_data * data = (c_blocks_data *)data_vp;
 	SvREFCNT_dec(data->error_msg_sv);
 	SvREFCNT_dec(data->code_top);
 	SvREFCNT_dec(data->code_main);
@@ -947,11 +948,6 @@ void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	Safefree(data->xs_c_name);
 	Safefree(data->xs_perl_name);
 	Safefree(data->xsub_name);
-}
-
-/* This is the right function type for passing to perl's SAVEDESTRUCTOR_X */
-void cleanup_c_blocks_data_callback(pTHX_ void* data) {
-	cleanup_c_blocks_data(aTHX_ (c_blocks_data *)data);
 }
 
 void ensure_perlapi(pTHX_ c_blocks_data * data) {
@@ -1340,7 +1336,7 @@ STATIC int _my_keyword_plugin(pTHX_
 	initialize_c_blocks_data(aTHX_ &data);
 	/* Note: Since we're passing a pointer to a struct on the stack, the LEAVE
 	 * that triggers this callback MUST happen before the end of THIS function. */
-	SAVEDESTRUCTOR_X(cleanup_c_blocks_data_callback, &data);
+	SAVEDESTRUCTOR_X(cleanup_c_blocks_data, &data);
 
 	add_msg_function_decl(aTHX_ &data);
 	if (keyword_type == IS_CBLOCK) add_function_signature_to_block(aTHX_ &data);
