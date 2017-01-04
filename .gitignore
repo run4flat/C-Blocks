@@ -12,3 +12,5 @@ names.txt
 bench/mandelbrot/mandelbrot.perl
 *.bin
 *.bin.hdr
+*.swp
+*.swo
