@@ -1323,25 +1323,14 @@ void * my_mem_alloc (size_t n_bytes) {
 	return to_return;
 }
 
-int my_keyword_plugin(pTHX_
-	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
+
+/* See below: my_keyword_plugin is a shim around this function */
+STATIC int _my_keyword_plugin(pTHX_
+	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr, int keyword_type
 ) {
-	/* See if this is a keyword we know */
-	int keyword_type = identify_keyword(keyword_ptr, keyword_len);
-	if (!keyword_type)
-		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
-	
 	/**********************/
 	/*   Initialization   */
 	/**********************/
-
-	/* We protect the entire execution of the keyword plugin with a Perl
-	 * pseudo-block ENTER/LEAVE pair. This allows us to simplify memory
-	 * management significantly in the face of exceptions by simply
-	 * registering cleanup handlers instead of manually trapping all
-	 * possible exceptions. */
-	ENTER;
-	
 	/* Clear out any leading whitespace, including comments. Do this before
 	 * initialization so that the assignment of the end pointer is correct. */
 	lex_read_space(0);
@@ -1424,7 +1413,7 @@ int my_keyword_plugin(pTHX_
 			croak("C::Blocks linker error: unable to relocate\n");
 		}
 	}
-	
+
 	/********************************************************/
 	/* Build op tree or serialize the symbol table; cleanup */
 	/********************************************************/
@@ -1443,11 +1432,33 @@ int my_keyword_plugin(pTHX_
 	int i;
 	for (i = 0; i < data.N_newlines; i++) lex_stuff_pv("\n", 0);
 
-	/* Trigger auto-cleanup by ending the Perl pseudo-block. */
-	LEAVE;
-
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
+}
+
+
+/* This wrapper around the real keyword plugin implementation is to
+ * prevent accidentally return()ing out of the ENTER/LEAVE pair without
+ * executing LEAVE. */
+int my_keyword_plugin(pTHX_
+	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
+) {
+	/* Shouldn't execute next_keyword_plugin() within our ENTER/LEAVE. */
+
+	/* See if this is a keyword we know */
+	int keyword_type = identify_keyword(keyword_ptr, keyword_len);
+	if (!keyword_type)
+		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
+
+	/* We protect the entire execution of the keyword plugin with a Perl
+	 * pseudo-block ENTER/LEAVE pair. This allows us to simplify memory
+	 * management significantly in the face of exceptions by simply
+	 * registering cleanup handlers instead of manually trapping all
+	 * possible exceptions. */
+	ENTER;
+	int retval = _my_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr, keyword_type);
+	LEAVE;
+	return retval;
 }
 
 MODULE = C::Blocks       PACKAGE = C::Blocks
