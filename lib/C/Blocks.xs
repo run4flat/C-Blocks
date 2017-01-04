@@ -1206,6 +1206,7 @@ OP * build_op(pTHX_ TCCState * state, int keyword_type) {
 	NewOp(1101, o, 1, OP);
 
 	o->op_type = (OPCODE)OP_CUSTOM;
+	o->op_next = (OP*)o;
 	o->op_private = 0;
 	o->op_flags = 0;
 	o->op_targ = (PADOFFSET)PTR2UV(sym_pointer);
