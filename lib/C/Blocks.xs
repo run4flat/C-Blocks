@@ -949,6 +949,11 @@ void cleanup_c_blocks_data(pTHX_ c_blocks_data* data) {
 	Safefree(data->xsub_name);
 }
 
+/* This is the right function type for passing to perl's SAVEDESTRUCTOR_X */
+void cleanup_c_blocks_data_callback(pTHX_ void* data) {
+	cleanup_c_blocks_data(aTHX_ (c_blocks_data *)data);
+}
+
 void ensure_perlapi(pTHX_ c_blocks_data * data) {
 	if (data->has_loaded_perlapi) return;
 	
@@ -1329,6 +1334,13 @@ int my_keyword_plugin(pTHX_
 	/**********************/
 	/*   Initialization   */
 	/**********************/
+
+	/* We protect the entire execution of the keyword plugin with a Perl
+	 * pseudo-block ENTER/LEAVE pair. This allows us to simplify memory
+	 * management significantly in the face of exceptions by simply
+	 * registering cleanup handlers instead of manually trapping all
+	 * possible exceptions. */
+	ENTER;
 	
 	/* Clear out any leading whitespace, including comments. Do this before
 	 * initialization so that the assignment of the end pointer is correct. */
@@ -1337,7 +1349,10 @@ int my_keyword_plugin(pTHX_
 	/* Create the compilation data struct */
 	c_blocks_data data;
 	initialize_c_blocks_data(aTHX_ &data);
-	
+	/* Note: Since we're passing a pointer to a struct on the stack, the LEAVE
+	 * that triggers this callback MUST happen before the end of THIS function. */
+	SAVEDESTRUCTOR_X(cleanup_c_blocks_data_callback, &data);
+
 	add_msg_function_decl(aTHX_ &data);
 	if (keyword_type == IS_CBLOCK) add_function_signature_to_block(aTHX_ &data);
 	else if (keyword_type == IS_CSUB) fixup_xsub_name(aTHX_ &data);
@@ -1421,13 +1436,16 @@ int my_keyword_plugin(pTHX_
 	}
 	
 	/* cleanup */
-	cleanup_c_blocks_data(aTHX_ &data);
+	/* Note: The c_blocks_data is cleaned up automatically by LEAVE. */
 	tcc_delete(state);
 	
 	/* Make the parser count the number of lines correctly */
 	int i;
 	for (i = 0; i < data.N_newlines; i++) lex_stuff_pv("\n", 0);
-	
+
+	/* Trigger auto-cleanup by ending the Perl pseudo-block. */
+	LEAVE;
+
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;
 }
