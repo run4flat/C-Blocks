@@ -1338,6 +1338,42 @@ void * my_mem_alloc (size_t n_bytes) {
 }
 
 
+/* Global C::Blocks cleanup handler - executed using Perl_call_atexit. Any
+ * C::Blocks code executed after this will break badly. */
+void c_blocks_final_cleanup(pTHX_ void *ptr) {
+	/* Remove all of the extended symol tables. */
+	AV * cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
+	int i;
+	SV ** elem_p;
+	for (i = 0; i < av_len(cache); i++) {
+		elem_p = av_fetch(cache, i, 0);
+		if (elem_p != 0) {
+			tcc_delete_extended_symbol_table(INT2PTR(extended_symtab_p, SvIV(*elem_p)));
+		}
+		else {
+			warn("C::Blocks had trouble freeing extended symbol table, index %d", i);
+		}
+	}
+	cache = get_av("C::Blocks::__dll_list_array", GV_ADDMULTI | GV_ADD);
+	for (i = 0; i < av_len(cache); i++) {
+		elem_p = av_fetch(cache, i, 0);
+		if (elem_p != 0) {
+			Safefree(INT2PTR(void*, SvIV(*elem_p)));
+		}
+		else {
+			warn("C::Blocks had trouble freeing dll list, index %d", i);
+		}
+	}
+	/* Remove all the code pages */
+	executable_memory * to_cleanup = my_mem_root;
+	while(to_cleanup) {
+		executable_memory * tmp = to_cleanup->next;
+		free(to_cleanup);
+		to_cleanup = tmp;
+	}
+}
+
+
 /* See below: my_keyword_plugin is a shim around this function */
 STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	STRLEN keyword_len, OP **op_ptr, int keyword_type, c_blocks_data * data
@@ -1493,40 +1529,6 @@ CODE:
 	 * for now and see if switching to Devel::CallChecker and
 	 * Devel::CallParser fix it. */
 	PL_keyword_plugin = next_keyword_plugin;
-
-void
-_cleanup()
-CODE:
-	/* Remove all of the extended symol tables. */
-	AV * cache = get_av("C::Blocks::__symtab_cache_array", GV_ADDMULTI | GV_ADD);
-	int i;
-	SV ** elem_p;
-	for (i = 0; i < av_len(cache); i++) {
-		elem_p = av_fetch(cache, i, 0);
-		if (elem_p != 0) {
-			tcc_delete_extended_symbol_table(INT2PTR(extended_symtab_p, SvIV(*elem_p)));
-		}
-		else {
-			warn("C::Blocks had trouble freeing extended symbol table, index %d", i);
-		}
-	}
-	cache = get_av("C::Blocks::__dll_list_array", GV_ADDMULTI | GV_ADD);
-	for (i = 0; i < av_len(cache); i++) {
-		elem_p = av_fetch(cache, i, 0);
-		if (elem_p != 0) {
-			Safefree(INT2PTR(void*, SvIV(*elem_p)));
-		}
-		else {
-			warn("C::Blocks had trouble freeing dll list, index %d", i);
-		}
-	}
-	/* Remove all the code pages */
-	executable_memory * to_cleanup = my_mem_root;
-	while(to_cleanup) {
-		executable_memory * tmp = to_cleanup->next;
-		free(to_cleanup);
-		to_cleanup = tmp;
-	}
 	
 
 BOOT:
@@ -1554,3 +1556,6 @@ BOOT:
 	XopENTRY_set(&tcc_xop, xop_class, OA_BASEOP);
 
 	Perl_custom_op_register(aTHX_ Perl_tcc_pp, &tcc_xop);
+
+        /* Register our cleanup handler to run as late as possible. */
+        Perl_call_atexit(aTHX_ c_blocks_final_cleanup, NULL);
