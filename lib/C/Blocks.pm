@@ -60,10 +60,6 @@ sub C::Blocks::load_lib {
 	$^H{"C::Blocks/extended_symtab_tables"} .= $symtab_list;
 }
 
-END {
-	_cleanup();
-}
-
 1;
 
 __END__
