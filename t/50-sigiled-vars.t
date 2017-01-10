@@ -113,4 +113,26 @@ eval q{
 	diag($@);
 };
 
+
+TODO: {
+	our $test_name = '"our $bar" gets detected as a package var';
+	local $TODO = "pad_find_my returns a pad slot for package vars declared with our() (it's an alias of sorts)";
+	unless(eval qq[
+			use C::Blocks::Types qw(double);
+			our double \$bar = 12;
+			cblock {
+				\$bar = 13;
+			}
+			is(\$bar, 13, '$::test_name: desired output');
+			1;
+		])
+	{
+		fail($test_name);
+		diag($@);
+	}
+	else {
+		pass($test_name);
+	}
+}
+
 done_testing;
