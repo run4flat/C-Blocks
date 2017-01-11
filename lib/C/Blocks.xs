@@ -30,6 +30,7 @@
 #define pad_compname_type(a)	Perl_pad_compname_type(aTHX_ a)
 #endif
 
+#include <cb_mem_mgmt.h>
 #include <cb_custom_op.h>
 
 
@@ -1253,44 +1254,7 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	}
 }
 
-typedef struct executable_memory executable_memory;
-struct executable_memory {
-	uintptr_t curr_address;
-	uintptr_t bytes_remaining;
-	executable_memory * next;
-	char base_address[0];
-};
-executable_memory * my_mem_root;
-executable_memory * my_mem_tail;
 
-void * my_mem_alloc (size_t n_bytes) {
-	if (n_bytes > my_mem_tail->bytes_remaining) {
-		/* allocate requested plus 16K of memory */
-		my_mem_tail->next = malloc(sizeof(executable_memory) + n_bytes + 16384);
-		my_mem_tail = my_mem_tail->next;
-		my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
-		my_mem_tail->bytes_remaining = n_bytes + 16384;
-		/* check alignment */
-		if ((my_mem_tail->curr_address & 63) != 0) {
-			my_mem_tail->curr_address &= ~63;
-			my_mem_tail->curr_address += 64;
-			my_mem_tail->bytes_remaining
-				-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
-		}
-		my_mem_tail->next = 0;
-	}
-	void * to_return = (void*)my_mem_tail->curr_address;
-	
-	/* update and align curr_address */
-	my_mem_tail->curr_address += n_bytes;
-	if ((my_mem_tail->curr_address & 63) != 0) {
-		my_mem_tail->curr_address &= ~63;
-		my_mem_tail->curr_address += 64;
-	}
-	my_mem_tail->bytes_remaining
-		-= my_mem_tail->curr_address - (uintptr_t)to_return;
-	return to_return;
-}
 
 
 /* Global C::Blocks cleanup handler - executed using Perl_call_atexit. Any
@@ -1319,13 +1283,8 @@ void c_blocks_final_cleanup(pTHX_ void *ptr) {
 			warn("C::Blocks had trouble freeing dll list, index %d", i);
 		}
 	}
-	/* Remove all the code pages */
-	executable_memory * to_cleanup = my_mem_root;
-	while(to_cleanup) {
-		executable_memory * tmp = to_cleanup->next;
-		free(to_cleanup);
-		to_cleanup = tmp;
-	}
+
+	cb_mem_mgmt_cleanup();
 }
 
 
@@ -1385,7 +1344,7 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	sv_setiv(get_sv("C::Blocks::_last_machine_code_size", GV_ADD | GV_ADDMULTI),
 		machine_code_size);
 	if (machine_code_size > 0) {
-		void * machine_code = my_mem_alloc(machine_code_size);
+		void * machine_code = cb_mem_alloc(machine_code_size);
 #if 0
 		/* Add enough bytes to align on cache line size */
 		SV * machine_code_SV = newSV(machine_code_size + 63);
@@ -1501,17 +1460,7 @@ BOOT:
 	next_keyword_plugin = PL_keyword_plugin;
 	
         cb_init_custom_op(aTHX);
-
-	my_mem_tail = my_mem_root = malloc(sizeof(executable_memory) + 16384);
-	my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
-	my_mem_tail->bytes_remaining = 16384;
-	if ((my_mem_tail->curr_address & 0x63) != 0) {
-		my_mem_tail->curr_address &= ~63;
-		my_mem_tail->curr_address += 64;
-		my_mem_tail->bytes_remaining
-			-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
-	}
-	my_mem_tail->next = 0;
+	cb_mem_mgmt_init();
 	
         /* Register our cleanup handler to run as late as possible. */
         Perl_call_atexit(aTHX_ c_blocks_final_cleanup, NULL);
