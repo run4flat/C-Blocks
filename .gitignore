@@ -1,4 +1,3 @@
-*.c
 *.o
 Build
 _build
@@ -14,3 +13,5 @@ bench/mandelbrot/mandelbrot.perl
 *.bin.hdr
 *.swp
 *.swo
+lib/C/Blocks.c
+lib/C/Blocks/PerlAPI.c
