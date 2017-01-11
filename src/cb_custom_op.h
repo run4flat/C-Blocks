@@ -9,7 +9,8 @@
 
 extern XOP tcc_xop;
 
-PP(tcc_pp);
+/* Create a new OP that'll execute the given symbol pointer. */
+OP * cb_build_op(pTHX_ void *sym_pointer);
 
 /* Sets up the global state related to our custom OP(s).
  * To be called once before using any of them (eg. BEGIN time of C::Blocks) */

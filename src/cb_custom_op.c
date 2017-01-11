@@ -25,6 +25,24 @@ op_free_hook(pTHX_ OP *o) {
 	}
 }
 
+OP * cb_build_op(pTHX_ void *sym_pointer) {
+	/* create new OP that gets the sym_pointer from its op_targ slot
+	 * and invokes it */
+	OP * o;
+	NewOp(1101, o, 1, OP);
+
+	o->op_type = (OPCODE)OP_CUSTOM;
+	o->op_next = (OP*)o;
+	o->op_private = 0;
+	o->op_flags = 0;
+	o->op_targ = (PADOFFSET)PTR2UV(sym_pointer);
+	o->op_ppaddr = Perl_tcc_pp;
+	
+	return o;
+}
+
+
+
 
 void cb_init_custom_op(pTHX) {
 	/* Setup our callback for cleaning up OPs during global cleanup */

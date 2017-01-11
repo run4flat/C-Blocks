@@ -1170,31 +1170,6 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	}
 }
 
-OP * build_op(pTHX_ TCCState * state, int keyword_type) {
-	/* build a null op if not creating a cblock */
-	if (keyword_type != IS_CBLOCK) return newOP(OP_NULL, 0);
-	
-	/* get the function pointer for the block */
-	void *sym_pointer = tcc_get_symbol(state, "op_func");
-	if (sym_pointer == NULL) {
-		croak("C::Blocks internal error: got null pointer for op function!");
-	}
-	
-	/* create new OP that gets the sym_pointer from its op_targ slot
-	 * and invokes it */
-	OP * o;
-	NewOp(1101, o, 1, OP);
-
-	o->op_type = (OPCODE)OP_CUSTOM;
-	o->op_next = (OP*)o;
-	o->op_private = 0;
-	o->op_flags = 0;
-	o->op_targ = (PADOFFSET)PTR2UV(sym_pointer);
-	o->op_ppaddr = Perl_tcc_pp;
-	
-	return o;
-}
-
 void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
 	/* Extract the xsub */
 	XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data->xs_c_name);
@@ -1441,7 +1416,17 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	/* Build op tree or serialize the symbol table; cleanup */
 	/********************************************************/
 
-	*op_ptr = build_op(aTHX_ state, keyword_type);
+        /* build a null op if not creating a cblock */
+	if (keyword_type != IS_CBLOCK)
+		*op_ptr = newOP(OP_NULL, 0);
+	else {
+		/* get the function pointer for the block */
+		void *sym_pointer = tcc_get_symbol(state, "op_func");
+		if (sym_pointer == NULL)
+			croak("C::Blocks internal error: got null pointer for op function!");
+		*op_ptr = cb_build_op(aTHX_ sym_pointer);
+	}
+
 	if (keyword_type == IS_CSUB) extract_xsub(aTHX_ state, data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		serialize_symbol_table(aTHX_ state, data, keyword_type);
