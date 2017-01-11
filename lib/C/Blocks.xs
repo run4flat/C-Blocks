@@ -30,36 +30,16 @@
 #define pad_compname_type(a)	Perl_pad_compname_type(aTHX_ a)
 #endif
 
-int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
+#include <cb_custom_op.h>
 
-typedef void (*my_void_func)(pTHX);
+
+int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 
 typedef struct _available_extended_symtab {
 	extended_symtab_p exsymtab;
 	void ** dlls;
 } available_extended_symtab;
 
-XOP tcc_xop;
-PP(tcc_pp) {
-	dSP;
-	void *ptr = INT2PTR(my_void_func, (UV)PL_op->op_targ);
-	my_void_func p_to_call = ptr;
-	p_to_call(aTHX);
-	RETURN;
-}
-
-Perl_ophook_t original_opfreehook;
-
-void
-op_free_hook(pTHX_ OP *o)
-{
-	if (original_opfreehook != NULL)
-		original_opfreehook(aTHX_ o);
-
-	if (o->op_ppaddr == Perl_tcc_pp) {
-		o->op_targ = 0; /* important or Perl will use it to access the pad */
-	}
-}
 
 #ifdef PERL_IMPLICIT_CONTEXT
 	/* according to perl.h, these macros only exist we have
@@ -1535,9 +1515,7 @@ BOOT:
 	/* Set up the keyword plugin to a useful initial value. */
 	next_keyword_plugin = PL_keyword_plugin;
 	
-	/* Setup our callback for cleaning up OPs during global cleanup */
-	original_opfreehook = PL_opfreehook;
-	PL_opfreehook = op_free_hook;
+        cb_init_custom_op(aTHX);
 
 	my_mem_tail = my_mem_root = malloc(sizeof(executable_memory) + 16384);
 	my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
@@ -1550,12 +1528,5 @@ BOOT:
 	}
 	my_mem_tail->next = 0;
 	
-	/* Set up the custom op */
-	XopENTRY_set(&tcc_xop, xop_name, "tccop");
-	XopENTRY_set(&tcc_xop, xop_desc, "Op to run jit-compiled C code");
-	XopENTRY_set(&tcc_xop, xop_class, OA_BASEOP);
-
-	Perl_custom_op_register(aTHX_ Perl_tcc_pp, &tcc_xop);
-
         /* Register our cleanup handler to run as late as possible. */
         Perl_call_atexit(aTHX_ c_blocks_final_cleanup, NULL);
