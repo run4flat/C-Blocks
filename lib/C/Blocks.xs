@@ -1486,7 +1486,14 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 int my_keyword_plugin(pTHX_
 	char *keyword_ptr, STRLEN keyword_len, OP **op_ptr
 ) {
-	/* Shouldn't execute next_keyword_plugin() within our ENTER/LEAVE. */
+	/* Note: We shouldn't execute next_keyword_plugin() within our ENTER/LEAVE,
+	 * so all checking on "does our keyword apply" needs to happen before the
+	 * ENTER. */
+
+	HV *hints;
+	/* Enforce lexical scope of this keyword plugin */
+	if (!(hints = GvHV(PL_hintgv)) || !(hv_fetchs(hints, "C::Blocks/keywords", 0)))
+		return next_keyword_plugin(aTHX_ keyword_ptr, keyword_len, op_ptr);
 
 	/* See if this is a keyword we know */
 	int keyword_type = identify_keyword(keyword_ptr, keyword_len);
@@ -1515,25 +1522,10 @@ int my_keyword_plugin(pTHX_
 
 MODULE = C::Blocks       PACKAGE = C::Blocks
 
-void
-_import()
-CODE:
-	if (PL_keyword_plugin != my_keyword_plugin) {
-		PL_keyword_plugin = my_keyword_plugin;
-	}
-
-void
-unimport(...)
-CODE:
-	/* This appears to be broken. But I'll put it on the backburner
-	 * for now and see if switching to Devel::CallChecker and
-	 * Devel::CallParser fix it. */
-	PL_keyword_plugin = next_keyword_plugin;
-	
-
 BOOT:
 	/* Set up the keyword plugin to a useful initial value. */
 	next_keyword_plugin = PL_keyword_plugin;
+	PL_keyword_plugin = my_keyword_plugin;
 	
 	/* Setup our callback for cleaning up OPs during global cleanup */
 	original_opfreehook = PL_opfreehook;
