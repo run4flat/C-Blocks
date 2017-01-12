@@ -30,8 +30,17 @@ sub import {
 	*{$caller.'::csub'} = sub () {};
 	*{$caller.'::cshare'} = sub () {};
 	*{$caller.'::clex'} = sub () {};
-	_import();
+
+	# Enable keywords in lexical scope ("C::Blocks/keywords" isn't
+	# a magical choice of hints hash entry, it just needs to match XS)
+	$^H{"C::Blocks/keywords"} = 1;
 }
+
+sub unimport {
+	# and disable keywords!
+	delete $^H{"C::Blocks/keywords"};
+}
+
 
 # Provided so I can call warnings::warnif from Blocks.xs. Why can't I
 # just call warnings::warnif from that code directly????  XXX
