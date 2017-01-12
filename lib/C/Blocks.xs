@@ -30,36 +30,17 @@
 #define pad_compname_type(a)	Perl_pad_compname_type(aTHX_ a)
 #endif
 
-int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
+#include <cb_mem_mgmt.h>
+#include <cb_custom_op.h>
 
-typedef void (*my_void_func)(pTHX);
+
+int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
 
 typedef struct _available_extended_symtab {
 	extended_symtab_p exsymtab;
 	void ** dlls;
 } available_extended_symtab;
 
-XOP tcc_xop;
-PP(tcc_pp) {
-	dSP;
-	void *ptr = INT2PTR(my_void_func, (UV)PL_op->op_targ);
-	my_void_func p_to_call = ptr;
-	p_to_call(aTHX);
-	RETURN;
-}
-
-Perl_ophook_t original_opfreehook;
-
-void
-op_free_hook(pTHX_ OP *o)
-{
-	if (original_opfreehook != NULL)
-		original_opfreehook(aTHX_ o);
-
-	if (o->op_ppaddr == Perl_tcc_pp) {
-		o->op_targ = 0; /* important or Perl will use it to access the pad */
-	}
-}
 
 #ifdef PERL_IMPLICIT_CONTEXT
 	/* according to perl.h, these macros only exist we have
@@ -1190,31 +1171,6 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	}
 }
 
-OP * build_op(pTHX_ TCCState * state, int keyword_type) {
-	/* build a null op if not creating a cblock */
-	if (keyword_type != IS_CBLOCK) return newOP(OP_NULL, 0);
-	
-	/* get the function pointer for the block */
-	void *sym_pointer = tcc_get_symbol(state, "op_func");
-	if (sym_pointer == NULL) {
-		croak("C::Blocks internal error: got null pointer for op function!");
-	}
-	
-	/* create new OP that gets the sym_pointer from its op_targ slot
-	 * and invokes it */
-	OP * o;
-	NewOp(1101, o, 1, OP);
-
-	o->op_type = (OPCODE)OP_CUSTOM;
-	o->op_next = (OP*)o;
-	o->op_private = 0;
-	o->op_flags = 0;
-	o->op_targ = (PADOFFSET)PTR2UV(sym_pointer);
-	o->op_ppaddr = Perl_tcc_pp;
-	
-	return o;
-}
-
 void extract_xsub (pTHX_ TCCState * state, c_blocks_data * data) {
 	/* Extract the xsub */
 	XSUBADDR_t xsub_fcn_ptr = tcc_get_symbol(state, data->xs_c_name);
@@ -1298,44 +1254,7 @@ void serialize_symbol_table(pTHX_ TCCState * state, c_blocks_data * data, int ke
 	}
 }
 
-typedef struct executable_memory executable_memory;
-struct executable_memory {
-	uintptr_t curr_address;
-	uintptr_t bytes_remaining;
-	executable_memory * next;
-	char base_address[0];
-};
-executable_memory * my_mem_root;
-executable_memory * my_mem_tail;
 
-void * my_mem_alloc (size_t n_bytes) {
-	if (n_bytes > my_mem_tail->bytes_remaining) {
-		/* allocate requested plus 16K of memory */
-		my_mem_tail->next = malloc(sizeof(executable_memory) + n_bytes + 16384);
-		my_mem_tail = my_mem_tail->next;
-		my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
-		my_mem_tail->bytes_remaining = n_bytes + 16384;
-		/* check alignment */
-		if ((my_mem_tail->curr_address & 63) != 0) {
-			my_mem_tail->curr_address &= ~63;
-			my_mem_tail->curr_address += 64;
-			my_mem_tail->bytes_remaining
-				-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
-		}
-		my_mem_tail->next = 0;
-	}
-	void * to_return = (void*)my_mem_tail->curr_address;
-	
-	/* update and align curr_address */
-	my_mem_tail->curr_address += n_bytes;
-	if ((my_mem_tail->curr_address & 63) != 0) {
-		my_mem_tail->curr_address &= ~63;
-		my_mem_tail->curr_address += 64;
-	}
-	my_mem_tail->bytes_remaining
-		-= my_mem_tail->curr_address - (uintptr_t)to_return;
-	return to_return;
-}
 
 
 /* Global C::Blocks cleanup handler - executed using Perl_call_atexit. Any
@@ -1364,13 +1283,8 @@ void c_blocks_final_cleanup(pTHX_ void *ptr) {
 			warn("C::Blocks had trouble freeing dll list, index %d", i);
 		}
 	}
-	/* Remove all the code pages */
-	executable_memory * to_cleanup = my_mem_root;
-	while(to_cleanup) {
-		executable_memory * tmp = to_cleanup->next;
-		free(to_cleanup);
-		to_cleanup = tmp;
-	}
+
+	cb_mem_mgmt_cleanup();
 }
 
 
@@ -1430,7 +1344,7 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	sv_setiv(get_sv("C::Blocks::_last_machine_code_size", GV_ADD | GV_ADDMULTI),
 		machine_code_size);
 	if (machine_code_size > 0) {
-		void * machine_code = my_mem_alloc(machine_code_size);
+		void * machine_code = cb_mem_alloc(machine_code_size);
 #if 0
 		/* Add enough bytes to align on cache line size */
 		SV * machine_code_SV = newSV(machine_code_size + 63);
@@ -1461,7 +1375,17 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	/* Build op tree or serialize the symbol table; cleanup */
 	/********************************************************/
 
-	*op_ptr = build_op(aTHX_ state, keyword_type);
+        /* build a null op if not creating a cblock */
+	if (keyword_type != IS_CBLOCK)
+		*op_ptr = newOP(OP_NULL, 0);
+	else {
+		/* get the function pointer for the block */
+		void *sym_pointer = tcc_get_symbol(state, "op_func");
+		if (sym_pointer == NULL)
+			croak("C::Blocks internal error: got null pointer for op function!");
+		*op_ptr = cb_build_op(aTHX_ sym_pointer);
+	}
+
 	if (keyword_type == IS_CSUB) extract_xsub(aTHX_ state, data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		serialize_symbol_table(aTHX_ state, data, keyword_type);
@@ -1535,27 +1459,8 @@ BOOT:
 	/* Set up the keyword plugin to a useful initial value. */
 	next_keyword_plugin = PL_keyword_plugin;
 	
-	/* Setup our callback for cleaning up OPs during global cleanup */
-	original_opfreehook = PL_opfreehook;
-	PL_opfreehook = op_free_hook;
-
-	my_mem_tail = my_mem_root = malloc(sizeof(executable_memory) + 16384);
-	my_mem_tail->curr_address = (uintptr_t)my_mem_tail->base_address;
-	my_mem_tail->bytes_remaining = 16384;
-	if ((my_mem_tail->curr_address & 0x63) != 0) {
-		my_mem_tail->curr_address &= ~63;
-		my_mem_tail->curr_address += 64;
-		my_mem_tail->bytes_remaining
-			-= my_mem_tail->curr_address - (uintptr_t)my_mem_tail->base_address;
-	}
-	my_mem_tail->next = 0;
+        cb_init_custom_op(aTHX);
+	cb_mem_mgmt_init();
 	
-	/* Set up the custom op */
-	XopENTRY_set(&tcc_xop, xop_name, "tccop");
-	XopENTRY_set(&tcc_xop, xop_desc, "Op to run jit-compiled C code");
-	XopENTRY_set(&tcc_xop, xop_class, OA_BASEOP);
-
-	Perl_custom_op_register(aTHX_ Perl_tcc_pp, &tcc_xop);
-
         /* Register our cleanup handler to run as late as possible. */
         Perl_call_atexit(aTHX_ c_blocks_final_cleanup, NULL);

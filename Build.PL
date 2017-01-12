@@ -35,9 +35,10 @@ my $build = Module::Build->new(
 		'File::ShareDir' => 0,
 		'File::Spec' => 0,
 	},
+        c_source => 'src',
 	needs_compiler => 1,
 	dynamic_config => 1,
-	include_dirs => [Alien::TinyCCx->libtcc_include_path, '.'],
+	include_dirs => [Alien::TinyCCx->libtcc_include_path, '.', 'src'],
 	extra_linker_flags => [Alien::TinyCCx->MB_linker_flags],
 	meta_merge => {
 		resources  => {
