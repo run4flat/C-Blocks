@@ -7,7 +7,20 @@ use Alien::TinyCCx;
 
 #### --( Make the builder )-- ####
 
-my $build = Module::Build->new(
+my $build = Module::Build->subclass(code => q{
+	sub link_c {
+		my ($self, $spec) = @_;
+		if ($spec->{module_name} eq 'C::Blocks') {
+			return $self->SUPER::link_c($spec, @_);
+		}
+		else {
+			# Don't link C source file objects to anything but the main lib
+			local $self->{properties}->{objects} = [];
+			return $self->SUPER::link_c($spec, @_);
+		}
+	}
+
+})->new(
 	module_name => 'C::Blocks',
 	license  => 'perl',
 	dist_author         => q{David Mertens <dcmertens.perl@gmail.com>},
