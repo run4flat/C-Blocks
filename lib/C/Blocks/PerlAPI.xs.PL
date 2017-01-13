@@ -110,8 +110,6 @@ HEADER_CONTENTS
 	}
 		
 	unlink $perl_h_file;
-	Module::Build->current->add_to_cleanup($share_file_location);
-	Module::Build->current->add_to_cleanup('names.txt');
 }
 
 ################################################
