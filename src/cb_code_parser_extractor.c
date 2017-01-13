@@ -6,6 +6,10 @@
 #include <ppport.h>
 
 
+/********************************/
+/**** Types and declarations ****/
+/********************************/
+
 typedef struct _parse_state parse_state;
 typedef int (*parse_func_t)(pTHX_ parse_state *);
 
@@ -34,6 +38,53 @@ enum {
 	PR_EXCEPTION,       /* interpolation block threw an exception */
 };
 
+
+/*********************************************/
+/**** File internal function declarations ****/
+/*********************************************/
+
+static inline int is_id_cont (char to_check) {
+	if('_' == to_check || ('0' <= to_check && to_check <= '9')
+		|| ('A' <= to_check && to_check <= 'Z')
+		|| ('a' <= to_check && to_check <= 'z')
+		|| ':' == to_check) return 1;
+	return 0;
+}
+
+static inline int is_whitespace_char(char to_check) {
+	if (' ' == to_check || '\n' == to_check || '\r' == to_check || '\t' == to_check) {
+		return 1;
+	}
+	return 0;
+}
+
+
+static int process_next_char_no_vars (pTHX_ parse_state * pstate);
+
+/* FIXME: The following functions are UNIMPLEMENTED */
+/* static int process_next_char_sigiled_block (pTHX_ parse_state * pstate); */
+/* static int process_next_char_sigil_blocks_ok (pTHX_ parse_state * pstate); */
+
+static int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate);
+static int process_next_char_delimited (pTHX_ parse_state * pstate);
+static int process_next_char_C_comment (pTHX_ parse_state * pstate);
+static int process_next_char_post_sigil (pTHX_ parse_state * pstate);
+static int process_next_char_sigiled_var (pTHX_ parse_state * pstate);
+
+static int process_next_char_colon(pTHX_ parse_state * pstate);
+static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate);
+
+static int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
+	char * type, char * long_name, int var_offset);
+
+static void ensure_perlapi(pTHX_ c_blocks_data * data);
+static int direct_replace_double_colons(char * to_check);
+
+static void find_end_of_xsub_name(pTHX_ c_blocks_data * data);
+
+/************************/
+/**** Implementation ****/
+/************************/
 
 /* XXX contents should be added to code_main here, rather than copied
  * with LEX_KEEP_PREVIOUS. That's a relic of a previous approach. */
@@ -84,6 +135,111 @@ int cb_identify_keyword (char * keyword_ptr, STRLEN keyword_len) {
 	return 0;
 }
 
+void cb_fixup_xsub_name(pTHX_ c_blocks_data * data) {
+	/* Find where the name ends, copy it, and replace it with the correct
+	 * declaration */
+	
+	/* Find the name */
+	find_end_of_xsub_name(aTHX_ data);
+	data->xsub_name = savepvn(PL_bufptr, data->end - PL_bufptr);
+	
+	/* create the package name */
+	char * name_buffer = form("%s::%s", SvPVbyte_nolen(PL_curstname),
+		data->xsub_name);
+	data->xs_perl_name = savepv(name_buffer);
+	int perl_name_length = strlen(name_buffer);
+	
+	/* create the related, munged c function name. */
+	Newx(data->xs_c_name, perl_name_length + 4, char);
+	data->xs_c_name[0] = 'x';
+	data->xs_c_name[1] = 's';
+	data->xs_c_name[2] = '_';
+	int i;
+	for (i = 0; i <= perl_name_length; i++) {
+		if (data->xs_perl_name[i] == ':')
+			data->xs_c_name[i+3] = '_';
+		else
+			data->xs_c_name[i+3] = data->xs_perl_name[i];
+	}
+	
+	/* copy also into the main code container */
+	sv_catpvf(data->code_main, "XSPROTO(%s) {", data->xs_c_name);
+	
+	/* remove the name from the buffer */
+	lex_unstuff(data->end);
+}
+
+char * cb_replace_double_colons_with_double_underscores(pTHX_ SV * to_replace) {
+	/* Replace any double-colons with double-underscores */
+	int is_in_string;
+	STRLEN i, len;
+	char * to_return;
+	
+	to_return = SvPV(to_replace, len);
+	is_in_string = to_return[0] == '"';
+	for (i = 1; i < len; i++) {
+		if (is_in_string) {
+			if (to_return[i] == '"' && to_return[i-1] != '\\') {
+				is_in_string = 0;
+			}
+		}
+		else {
+			if (to_return[i-1] == ':' && to_return[i] == ':') {
+				to_return[i-1] = to_return[i] = '_';
+			}
+		}
+	}
+	return to_return;
+}
+
+
+
+void cb_extract_c_code(pTHX_ c_blocks_data * data, int keyword_type) {
+	/* copy data out of the buffer until we encounter the matching
+	 * closing bracket, accounting for brackets that may occur in
+	 * comments and strings. Process sigiled variables as well. */
+	
+	/* Set up the parser state */
+	parse_state my_parse_state;
+	my_parse_state.data = data;
+	my_parse_state.sigil_start = 0;
+	my_parse_state.bracket_count = 0;
+	my_parse_state.interpolation_bracket_count_start = 0;
+	if (keyword_type == IS_CBLOCK) {
+		my_parse_state.process_next_char = process_next_char_sigil_vars_ok;
+		my_parse_state.default_next_char = process_next_char_sigil_vars_ok;
+	}
+	else {
+		my_parse_state.process_next_char = process_next_char_no_vars;
+		my_parse_state.default_next_char = process_next_char_no_vars;
+	}
+	
+	
+	data->end = PL_bufptr;
+	int still_working;
+	do {
+		ENSURE_LEX_BUFFER(data->end, "C::Blocks expected closing curly brace but did not find it");
+		
+		if (*data->end == '\n') data->N_newlines++;
+		still_working = my_parse_state.process_next_char(aTHX_ &my_parse_state);
+		if (still_working == PR_EXCEPTION) {
+			/* XXX working here - if an exception in Perl block, must clean up! */
+		}
+		data->end++;
+	} while (still_working);
+	
+	/* Finish by moving the (remaining) contents of the lexical buffer
+	 * into the main code container. Don't copy the final bracket, so
+	 * that bottom's code can be appended later. */
+	sv_catpvn(data->code_main, PL_bufptr, data->end - PL_bufptr - 1);
+	/* end points to the first character after the closing bracket, so
+	 * don't copy (or unstuff) that. */
+	lex_unstuff(data->end);
+	data->end = PL_bufptr;
+	/* Add the closing bracket to the end, if appropriate */
+	if (data->keep_curly_brackets) sv_catpvn(data->code_bottom, "}", 1);
+}
+
 /* TODO arguably, this should live in some as-yet-nonexistant file that
  * is all about the symbol table stuff. */
 static void ensure_perlapi(pTHX_ c_blocks_data * data) {
@@ -128,43 +284,13 @@ static int direct_replace_double_colons(char * to_check) {
 }
 
 
-static inline int is_id_cont (char to_check) {
-	if('_' == to_check || ('0' <= to_check && to_check <= '9')
-		|| ('A' <= to_check && to_check <= 'Z')
-		|| ('a' <= to_check && to_check <= 'z')
-		|| ':' == to_check) return 1;
-	return 0;
-}
-
-static inline int is_whitespace_char(char to_check) {
-	if (' ' == to_check || '\n' == to_check || '\r' == to_check || '\t' == to_check) {
-		return 1;
-	}
-	return 0;
-}
-
-
-
-int process_next_char_no_vars (pTHX_ parse_state * pstate);
-int process_next_char_sigil_blocks_ok (pTHX_ parse_state * pstate);
-int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate);
-int process_next_char_delimited (pTHX_ parse_state * pstate);
-int process_next_char_C_comment (pTHX_ parse_state * pstate);
-int process_next_char_post_sigil (pTHX_ parse_state * pstate);
-int process_next_char_sigiled_var (pTHX_ parse_state * pstate);
-int process_next_char_sigiled_block (pTHX_ parse_state * pstate);
-int process_next_char_colon(pTHX_ parse_state * pstate);
-static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate);
-static int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
-	char * type, char * long_name, int var_offset);
-
 /* Base parser, and default text parser for clex and cshare. This parser
  * does not handle variables, but it does track where $-sigils are found
  * because interpolation blocks can be used anywhere. This is written
  * such that the variable-handling parsers call this function first, and
  * perform follow-ups if they get PR_MAYBE_SIGIL. Reinstates normal
  * parsing after interpolation blocks have been identified. */
-int process_next_char_no_vars (pTHX_ parse_state * pstate) {
+static int process_next_char_no_vars (pTHX_ parse_state * pstate) {
 	switch (pstate->data->end[0]) {
 		case '{':
 			pstate->bracket_count++;
@@ -229,54 +355,8 @@ int process_next_char_no_vars (pTHX_ parse_state * pstate) {
 	return PR_MAYBE_SIGIL;
 }
 
-void cb_extract_c_code(pTHX_ c_blocks_data * data, int keyword_type) {
-	/* copy data out of the buffer until we encounter the matching
-	 * closing bracket, accounting for brackets that may occur in
-	 * comments and strings. Process sigiled variables as well. */
-	
-	/* Set up the parser state */
-	parse_state my_parse_state;
-	my_parse_state.data = data;
-	my_parse_state.sigil_start = 0;
-	my_parse_state.bracket_count = 0;
-	my_parse_state.interpolation_bracket_count_start = 0;
-	if (keyword_type == IS_CBLOCK) {
-		my_parse_state.process_next_char = process_next_char_sigil_vars_ok;
-		my_parse_state.default_next_char = process_next_char_sigil_vars_ok;
-	}
-	else {
-		my_parse_state.process_next_char = process_next_char_no_vars;
-		my_parse_state.default_next_char = process_next_char_no_vars;
-	}
-	
-	
-	data->end = PL_bufptr;
-	int still_working;
-	do {
-		ENSURE_LEX_BUFFER(data->end, "C::Blocks expected closing curly brace but did not find it");
-		
-		if (*data->end == '\n') data->N_newlines++;
-		still_working = my_parse_state.process_next_char(aTHX_ &my_parse_state);
-		if (still_working == PR_EXCEPTION) {
-			/* XXX working here - if an exception in Perl block, must clean up! */
-		}
-		data->end++;
-	} while (still_working);
-	
-	/* Finish by moving the (remaining) contents of the lexical buffer
-	 * into the main code container. Don't copy the final bracket, so
-	 * that bottom's code can be appended later. */
-	sv_catpvn(data->code_main, PL_bufptr, data->end - PL_bufptr - 1);
-	/* end points to the first character after the closing bracket, so
-	 * don't copy (or unstuff) that. */
-	lex_unstuff(data->end);
-	data->end = PL_bufptr;
-	/* Add the closing bracket to the end, if appropriate */
-	if (data->keep_curly_brackets) sv_catpvn(data->code_bottom, "}", 1);
-}
-
 /* Default text parser for cblock */
-int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate) {
+static int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate) {
 	int no_vars_result = process_next_char_no_vars(aTHX_ pstate);
 	if (no_vars_result != PR_MAYBE_SIGIL) return no_vars_result;
 	if (*pstate->data->end == '@' || *pstate->data->end == '%') {
@@ -294,7 +374,7 @@ int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate) {
 	return PR_NON_SIGIL;
 }
 
-int process_next_char_delimited (pTHX_ parse_state * pstate) {
+static int process_next_char_delimited (pTHX_ parse_state * pstate) {
 	if (pstate->data->end[0] == pstate->delimiter && pstate->data->end[-1] != '\\') {
 		/* Reset to normal parse state */
 		pstate->process_next_char = pstate->default_next_char;
@@ -306,7 +386,7 @@ int process_next_char_delimited (pTHX_ parse_state * pstate) {
 	return PR_NON_SIGIL;
 }
 
-int process_next_char_C_comment (pTHX_ parse_state * pstate) {
+static int process_next_char_C_comment (pTHX_ parse_state * pstate) {
 	if (pstate->data->end[0] == '/' && pstate->data->end[-1] == '*') {
 		/* Found comment closer. Reset to normal parse state */
 		pstate->process_next_char = pstate->default_next_char;
@@ -314,7 +394,7 @@ int process_next_char_C_comment (pTHX_ parse_state * pstate) {
 	return PR_NON_SIGIL;
 }
 
-int process_next_char_colon(pTHX_ parse_state * pstate) {
+static int process_next_char_colon(pTHX_ parse_state * pstate) {
 	/* No matter what, reset to the default parser. */
 	pstate->process_next_char = pstate->default_next_char;
 	if (pstate->data->end[0] == ':') {
@@ -329,7 +409,7 @@ int process_next_char_colon(pTHX_ parse_state * pstate) {
 	return pstate->default_next_char(aTHX_ pstate);
 }
 
-int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
+static int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
 	/* Only called on the first character after the sigil. */
 	
 	/* If the sigil is a dollar sign and the next character is an
@@ -358,7 +438,7 @@ int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
 	return pstate->default_next_char(aTHX_ pstate);
 }
 
-int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
+static int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 	/* keep collecting if the current character looks like a valid
 	 * identifier character */
 	if (is_id_cont(pstate->data->end[0])) return PR_NON_SIGIL;
@@ -546,64 +626,6 @@ static void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
 		data->end++;
 	}
 }
-
-void cb_fixup_xsub_name(pTHX_ c_blocks_data * data) {
-	/* Find where the name ends, copy it, and replace it with the correct
-	 * declaration */
-	
-	/* Find the name */
-	find_end_of_xsub_name(aTHX_ data);
-	data->xsub_name = savepvn(PL_bufptr, data->end - PL_bufptr);
-	
-	/* create the package name */
-	char * name_buffer = form("%s::%s", SvPVbyte_nolen(PL_curstname),
-		data->xsub_name);
-	data->xs_perl_name = savepv(name_buffer);
-	int perl_name_length = strlen(name_buffer);
-	
-	/* create the related, munged c function name. */
-	Newx(data->xs_c_name, perl_name_length + 4, char);
-	data->xs_c_name[0] = 'x';
-	data->xs_c_name[1] = 's';
-	data->xs_c_name[2] = '_';
-	int i;
-	for (i = 0; i <= perl_name_length; i++) {
-		if (data->xs_perl_name[i] == ':')
-			data->xs_c_name[i+3] = '_';
-		else
-			data->xs_c_name[i+3] = data->xs_perl_name[i];
-	}
-	
-	/* copy also into the main code container */
-	sv_catpvf(data->code_main, "XSPROTO(%s) {", data->xs_c_name);
-	
-	/* remove the name from the buffer */
-	lex_unstuff(data->end);
-}
-
-char * cb_replace_double_colons_with_double_underscores(pTHX_ SV * to_replace) {
-	/* Replace any double-colons with double-underscores */
-	int is_in_string;
-	STRLEN i, len;
-	char * to_return;
-	
-	to_return = SvPV(to_replace, len);
-	is_in_string = to_return[0] == '"';
-	for (i = 1; i < len; i++) {
-		if (is_in_string) {
-			if (to_return[i] == '"' && to_return[i-1] != '\\') {
-				is_in_string = 0;
-			}
-		}
-		else {
-			if (to_return[i-1] == ':' && to_return[i] == ':') {
-				to_return[i-1] = to_return[i] = '_';
-			}
-		}
-	}
-	return to_return;
-}
-
 
 static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 	/* Temporarily replace the closing bracket with null so we can
