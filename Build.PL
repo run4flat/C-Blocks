@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 
+use File::Spec;
 use Module::Build;
 use Alien::TinyCCx;
 
@@ -25,6 +26,7 @@ my $build = Module::Build->new(
 		'ExtUtils::Config' => 0,
 		'ExtUtils::Embed' => 0,
 		'ExtUtils::ParseXS' => 3.0,
+		'File::Spec' => 0,
 		'File::Basename' => 0,
 		'File::Temp' => 0,
 		'File::Spec' => 0,
@@ -35,7 +37,7 @@ my $build = Module::Build->new(
 		'File::ShareDir' => 0,
 		'File::Spec' => 0,
 	},
-        c_source => 'src',
+	c_source => 'src',
 	needs_compiler => 1,
 	dynamic_config => 1,
 	include_dirs => [Alien::TinyCCx->libtcc_include_path, '.', 'src'],
@@ -50,10 +52,10 @@ my $build = Module::Build->new(
 		},
 	},
 	share_dir => 'share',
+	add_to_cleanup => [
+		'names.txt',
+		File::Spec->catfile(qw(share perl.h.cache)),
+	],
 );
-
-use File::Spec;
-unlink('names.txt');
-unlink File::Spec->catfile(qw(share perl.h.cache));
 
 $build->create_build_script;
