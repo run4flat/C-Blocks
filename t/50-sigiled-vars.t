@@ -123,15 +123,13 @@ TODO: {
 			cblock {
 				\$bar = 13;
 			}
-			is(\$bar, 13, '$::test_name: desired output');
+			is(\$bar, 13, '$::test_name');
 			1;
 		])
 	{
-		fail($test_name);
+		# can only happen if the eval failed to compile:
+		fail("$test_name failed to compile");
 		diag($@);
-	}
-	else {
-		pass($test_name);
 	}
 }
 
