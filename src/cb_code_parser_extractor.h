@@ -10,6 +10,15 @@
 
 #include <cb_c_blocks_data.h>
 
+/* ---- pad_findmy_pv ---- */
+#ifndef pad_findmy_pv
+# if PERL_VERSION_GE(5,11,2)
+#  define pad_findmy_pv(name, flags) pad_findmy(name, strlen(name), flags)
+# else /* <5.11.2 */
+#  define pad_findmy_pv(name, flags) pad_findmy(name)
+# endif /* <5.11.2 */
+#endif /* !pad_findmy_pv */
+
 enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB } keyword_type_list;
 
 int cb_identify_keyword (char * keyword_ptr, STRLEN keyword_len);

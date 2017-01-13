@@ -19,15 +19,6 @@
 #define PERL_VERSION_GE(r,v,s) \
         (PERL_DECIMAL_VERSION >= PERL_VERSION_DECIMAL(r,v,s))
 
-/* ---- pad_findmy_pv ---- */
-#ifndef pad_findmy_pv
-# if PERL_VERSION_GE(5,11,2)
-#  define pad_findmy_pv(name, flags) pad_findmy(name, strlen(name), flags)
-# else /* <5.11.2 */
-#  define pad_findmy_pv(name, flags) pad_findmy(name)
-# endif /* <5.11.2 */
-#endif /* !pad_findmy_pv */
-
 #ifndef GvCV_set
 #define GvCV_set(gv, cv) (GvCV(gv) = (CV*)(cv))
 #endif
