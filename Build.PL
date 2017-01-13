@@ -72,3 +72,7 @@ my $build = Module::Build->subclass(code => q{
 );
 
 $build->create_build_script;
+
+# Explicit cleanup of these, just in case, to avoid unnecessary confusion
+unlink('names.txt');
+unlink File::Spec->catfile(qw(share perl.h.cache));
