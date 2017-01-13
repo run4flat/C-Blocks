@@ -10,6 +10,13 @@
 
 #include <cb_c_blocks_data.h>
 
+/* ---- Zephram's book of preprocessor hacks ---- */
+#define PERL_VERSION_DECIMAL(r,v,s) (r*1000000 + v*1000 + s)
+#define PERL_DECIMAL_VERSION \
+        PERL_VERSION_DECIMAL(PERL_REVISION,PERL_VERSION,PERL_SUBVERSION)
+#define PERL_VERSION_GE(r,v,s) \
+        (PERL_DECIMAL_VERSION >= PERL_VERSION_DECIMAL(r,v,s))
+
 /* ---- pad_findmy_pv ---- */
 #ifndef pad_findmy_pv
 # if PERL_VERSION_GE(5,11,2)
@@ -18,6 +25,10 @@
 #  define pad_findmy_pv(name, flags) pad_findmy(name)
 # endif /* <5.11.2 */
 #endif /* !pad_findmy_pv */
+
+#ifndef pad_compname_type
+#define pad_compname_type(a)	Perl_pad_compname_type(aTHX_ a)
+#endif
 
 enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB } keyword_type_list;
 

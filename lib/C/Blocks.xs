@@ -12,19 +12,8 @@
 
 #include "libtcc.h"
 
-/* ---- Zephram's book of preprocessor hacks ---- */
-#define PERL_VERSION_DECIMAL(r,v,s) (r*1000000 + v*1000 + s)
-#define PERL_DECIMAL_VERSION \
-        PERL_VERSION_DECIMAL(PERL_REVISION,PERL_VERSION,PERL_SUBVERSION)
-#define PERL_VERSION_GE(r,v,s) \
-        (PERL_DECIMAL_VERSION >= PERL_VERSION_DECIMAL(r,v,s))
-
 #ifndef GvCV_set
 #define GvCV_set(gv, cv) (GvCV(gv) = (CV*)(cv))
-#endif
-
-#ifndef pad_compname_type
-#define pad_compname_type(a)	Perl_pad_compname_type(aTHX_ a)
 #endif
 
 #include <cb_mem_mgmt.h>
