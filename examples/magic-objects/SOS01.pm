@@ -82,8 +82,15 @@ cshare {
 		printf("leaving %s\n", name);
 	}
 	
+	/*******************************************************************
+	 * vtable and object layouts (structs) must be defined as early
+	 * as possible. The actual vtable for this class (as distinct from
+	 * its layout) will be declared and defined near the end, after
+	 * the methods have been defined (or at least declared). Order
+	 * matters for this, it must come first!!
+	 ******************************************************************/
 	typedef struct SOS01_t * SOS01;
-	
+
 	/* vtable struct declaration */
 	typedef struct SOS01::VTABLE_LAYOUT_t {
 		// memory management
@@ -98,7 +105,6 @@ cshare {
 		HV * (*get_HV)(pTHX_ SOS01 self);
 		void (*attach_SV)(SOS01 self, pTHX_ SV* to_attach);
 	} SOS01::VTABLE_LAYOUT;
-	SOS01::VTABLE_LAYOUT SOS01::VTABLE_INSTANCE;
 	
 	/* object layout */
 	struct SOS01_t {
@@ -106,7 +112,12 @@ cshare {
 		HV * perl_obj;
 	};
 	
-	/* MAGIC function to invoke object destruction */
+	/*******************************************************************
+	 * MAGIC stuff needed to invoke object destruction when the HV's
+	 * refcount drops to zero.
+	 ******************************************************************/
+	
+	/* free method just calls the object's destroy method */
 	int SOS01::Magic::free(pTHX_ SV* sv, MAGIC* mg) {
 		entering;
 		SOS01 obj = (SOS01)(mg->mg_ptr);
@@ -114,6 +125,7 @@ cshare {
 		leaving;
 		return 1;
 	}
+	
 	/* magic vtable, copied almost verbatim from C::Blocks::Object::Magic */
 	MGVTBL SOS01::Magic::Vtable = {
 		NULL, /* get */
@@ -132,22 +144,13 @@ cshare {
 	#endif /* MGf_LOCAL */
 	};
 	
-	/* new */
-	SOS01 SOS01::_alloc(SOS01::VTABLE_LAYOUT * class) {
-		entering;
-		/* allocate memory for object */
-		SOS01 to_return = malloc(class->_class_size);
-		to_return->methods = class;
-		to_return->perl_obj = NULL;
-		leaving;
-		return to_return;
-	}
-	#define SOS01::alloc(classname) (classname)SOS01::_alloc(&classname##::VTABLE_INSTANCE)
-	SOS01 SOS01::new() {
-		/* no members, so just allocate memory for object */
-		return SOS01::alloc(SOS01);
-	}
+	/*******************************************************************
+	 * C -> Perl methods
+	 ******************************************************************/
 	
+	/* Only create the HV if needed. When that happens, attach the
+	 * package stash to the HV, that is, bless it into the Perl-side
+	 * package. */
 	HV * SOS01::get_HV (pTHX_ SOS01 self) {
 		entering;
 		/* Create the HV if it does not already exist */
@@ -179,6 +182,10 @@ printf("** Attached magic, with self located at %p\n", self);
 		leaving;
 	}
 	
+	/*******************************************************************
+	 * refcounting and memory cleanup
+	 ******************************************************************/
+	
 	/* refcounting. If there is no affiliated Perl object, then the
 	 * refcount is implicitly one. Incrementing means we get the HV,
 	 * possibly creating it in the process. Decrementing means we either
@@ -209,26 +216,53 @@ printf("** Attached magic, with self located at %p\n", self);
 		free(self);
 		leaving;
 	}
+	
+	/* General-purpose object allocator, to be used by subclasses via
+	 * the macro defined a the end of this function */
+	SOS01 SOS01::_alloc(SOS01::VTABLE_LAYOUT * class) {
+		entering;
+		/* allocate memory for object */
+		SOS01 to_return = malloc(class->_class_size);
+		to_return->methods = class;
+		to_return->perl_obj = NULL;
+		leaving;
+		return to_return;
+	}
+	#define SOS01::alloc(classname) (classname)SOS01::_alloc((SOS01::VTABLE_LAYOUT *)&classname##::VTABLE_INSTANCE)
+	
+	/*******************************************************************
+	 * constructor and vtable layout. Order matters for this: it must
+	 * come after all the methods have been defined (or at least
+	 * declared) above.
+	 ******************************************************************/
+	
+	/* must be declared before VTABLE_INSTANCE, and defined afterward */
+	SOS01 SOS01::new();
+	
+	/* actual vtable for SOS01. Define as much as we can statically */
+	SOS01::VTABLE_LAYOUT SOS01::VTABLE_INSTANCE = {
+		SOS01::new,
+		SOS01::refcount_inc,
+		SOS01::refcount_dec,
+		SOS01::destroy,
+		sizeof(struct SOS01_t),
+		NULL, /* package stash, to be assigned later */
+		SOS01::get_HV,
+		SOS01::attach_SV
+	};
+	
+	/* new, defined once the VTABLE_INSTANCE has been declared */
+	SOS01 SOS01::new() {
+		/* no members, so just allocate memory for object */
+		return SOS01::alloc(SOS01);
+	}
 }
 
 cblock {
 	_entering("Initialization block");
-	/* Initialize the elements of the table */
-	SOS01::VTABLE_INSTANCE.new = SOS01::new;
-	SOS01::VTABLE_INSTANCE._class_size
-		= sizeof(struct SOS01_t);
+	/* Initialize the class's Perl-related stash */
 	SOS01::VTABLE_INSTANCE._class_stash
 		= gv_stashpv("SOS01", GV_ADD);
-	SOS01::VTABLE_INSTANCE.refcount_inc
-		= SOS01::refcount_inc;
-	SOS01::VTABLE_INSTANCE.refcount_dec
-		= SOS01::refcount_dec;
-	SOS01::VTABLE_INSTANCE.destroy
-		= SOS01::destroy;
-	SOS01::VTABLE_INSTANCE.get_HV
-		= SOS01::get_HV;
-	SOS01::VTABLE_INSTANCE.attach_SV	
-		= SOS01::attach_SV;
 	_leaving("Initialization block");
 }
 
