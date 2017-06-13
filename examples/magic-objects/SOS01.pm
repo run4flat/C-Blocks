@@ -115,7 +115,7 @@ cshare {
 		return 1;
 	}
 	/* magic vtable, copied almost verbatim from C::Blocks::Object::Magic */
-	STATIC MGVTBL SOS01::Magic::Vtable = {
+	MGVTBL SOS01::Magic::Vtable = {
 		NULL, /* get */
 		NULL, /* set */
 		NULL, /* len */

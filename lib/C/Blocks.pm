@@ -894,6 +894,35 @@ for how you could use cleanup code together with initialization code.
 a C struct, including all necessary cshare statements, so that the
 init code's call to special functions make sense.)
 
+=head1 TROUBLESHOOTING
+
+The simplest answer to troubleshooting, of course, is to cut out
+potentially offending segments of code and to sprinkle in print
+statements. However, certain errors warrant more specific advice:
+
+=head2 Null pointer for op function
+
+The following error is one of the most irksome:
+
+ C::Blocks internal error: got null pointer for op function!
+
+It gives no advice for how what tripped the problem, mostly because by
+the time this error is tripped the compiler can't say what went wrong.
+I believe this can be triggered in a handful of circumstances, including
+
+=over
+
+=item attempting to use a statically scoped variable
+
+C::Blocks automatically removes the "static" marker on functions, but
+not on global variables. A global variable marked as static is known to
+the compiler but is not to be accessible outside the compilation unit.
+Because it is known, the compiler does not issue any warnings or errors
+about unknown identifiers; but because it is static, the compiler does
+not link to it, and so the relocation step of compilation fails.
+
+=back
+
 =head1 SEE ALSO
 
 This module uses a special fork of the Tiny C Compiler. The fork is 

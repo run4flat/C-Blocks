@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use C::Blocks;
+use SOS01;
 use SOS02;
 use C::Blocks::Filter;
 use C::Blocks::Filter::BlockArrowMethods;
