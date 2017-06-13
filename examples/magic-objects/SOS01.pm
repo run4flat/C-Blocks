@@ -228,7 +228,8 @@ printf("** Attached magic, with self located at %p\n", self);
 		leaving;
 		return to_return;
 	}
-	#define SOS01::alloc(classname) (classname)SOS01::_alloc((SOS01::VTABLE_LAYOUT *)&classname##::VTABLE_INSTANCE)
+	#define SOS01::alloc(classname) (classname)SOS01::_alloc(\
+		(SOS01::VTABLE_LAYOUT *)&classname##::VTABLE_INSTANCE)
 	
 	/*******************************************************************
 	 * constructor and vtable layout. Order matters for this: it must
