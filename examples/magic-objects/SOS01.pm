@@ -156,6 +156,7 @@ cshare {
 printf("** Attached magic, with self located at %p\n", self);
 			sv_magicext((SV*)self->perl_obj, NULL, PERL_MAGIC_ext,
 				&SOS01::Magic::Vtable, (char*)self, 0 );
+			SvSTASH_set((SV*)self->perl_obj, self->methods->_class_stash);
 		}
 		leaving;
 		return self->perl_obj;
@@ -167,12 +168,14 @@ printf("** Attached magic, with self located at %p\n", self);
 		SV * to_attach)
 	{
 		entering;
-		/* create a new reference, then copy it */
 		HV * my_HV = self->methods->get_HV(aTHX_ self);
-		SV * to_copy = newRV_inc((SV*)my_HV);
-		sv_setsv(to_attach, to_copy);
-		sv_bless(to_attach, self->methods->_class_stash);
-		SvREFCNT_dec(to_copy);
+		/* upgrade the SV that we're attaching to a RV */
+		SvUPGRADE(to_attach, SVt_RV);
+		/* have to_attach point to my_HV */
+		SvROK_on(to_attach);
+		SvRV_set(to_attach, (SV*)my_HV);
+		/* must increment reference count of my_HV manually */
+		SvREFCNT_inc(my_HV);
 		leaving;
 	}
 	
