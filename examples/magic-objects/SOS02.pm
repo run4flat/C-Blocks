@@ -12,6 +12,10 @@ C copy of a SOS01 object, but I can't get the C-representation in a
 C<cblock> to perform that action! I need to add the ability to retrieve
 the C pointer given the C<SV*>. How do I do that?
 
+My solution is to cobble some pieces from XS::Object::Magic (via 
+C::Blocks::Object::Magic) to retrieve the data pointer from the
+underlying magic hash.
+
 =cut
 
 package SOS02;
@@ -47,15 +51,9 @@ cshare {
 
 =head1 RESULTS
 
-After *lots* of trial and error I have finally got this basic test of 
-things working.
+After learning about the pitfalls of using static global variables, I 
+have finally got this thing working.
 
-Had to copy all of sos01, no "inheritance" or simple glomming on.
+See F<sos-02-refcount-inc.pl> for specific tests and analysis.
 
-WHY NOT? This is worthy of a test!
-
-
-F<sos-01-create-destroy.pl> exercises the basic 
-creation and destruction behavior and illustrates that everything works 
-without a hitch, and that the call stack is not very deep in any of 
-this.
+=cut

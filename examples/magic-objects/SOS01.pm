@@ -251,7 +251,4 @@ sub new {
 =head1 RESULTS
 
 After lots of trial and error I have finally got this basic test of 
-things working. F<sos-01-create-destroy.pl> exercises the basic 
-creation and destruction behavior and illustrates that everything works 
-without a hitch, and that the call stack is not very deep in any of 
-this.
+things working. See F<sos-01-create-destroy.pl> for the results.
