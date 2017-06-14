@@ -177,6 +177,8 @@ printf("** Attached magic, with self located at %p\n", self);
 		/* have to_attach point to my_HV */
 		SvROK_on(to_attach);
 		SvRV_set(to_attach, (SV*)my_HV);
+		/* bless */
+		sv_bless(to_attach, self->methods->_class_stash);
 		/* must increment reference count of my_HV manually */
 		SvREFCNT_inc(my_HV);
 		leaving;
