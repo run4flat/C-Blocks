@@ -159,7 +159,6 @@ cshare {
 printf("** Attached magic, with self located at %p\n", self);
 			sv_magicext((SV*)self->perl_obj, NULL, PERL_MAGIC_ext,
 				&SOS01::Magic::Vtable, (char*)self, 0 );
-			SvSTASH_set((SV*)self->perl_obj, self->methods->_class_stash);
 		}
 		leaving;
 		return self->perl_obj;
