@@ -102,7 +102,7 @@ cshare {
 		// mapping C class to Perl class
 		// to get the package name, use HvNAME
 		HV * _class_stash;
-		HV * (*get_HV)(pTHX_ SOS01 self);
+		HV * (*get_HV)(SOS01 self);
 		void (*attach_SV)(SOS01 self, pTHX_ SV* to_attach);
 	} SOS01::VTABLE_LAYOUT;
 	
@@ -151,8 +151,9 @@ cshare {
 	/* Only create the HV if needed. When that happens, attach the
 	 * package stash to the HV, that is, bless it into the Perl-side
 	 * package. */
-	HV * SOS01::get_HV (pTHX_ SOS01 self) {
+	HV * SOS01::get_HV (SOS01 self) {
 		entering;
+		dTHX;
 		/* Create the HV if it does not already exist */
 		if (!self->perl_obj) {
 			self->perl_obj = newHV();
@@ -170,7 +171,7 @@ printf("** Attached magic, with self located at %p\n", self);
 		SV * to_attach)
 	{
 		entering;
-		HV * my_HV = self->methods->get_HV(aTHX_ self);
+		HV * my_HV = self=>get_HV();
 		/* upgrade the SV that we're attaching to a RV */
 		SvUPGRADE(to_attach, SVt_RV);
 		/* have to_attach point to my_HV */
@@ -195,8 +196,7 @@ printf("** Attached magic, with self located at %p\n", self);
 	 * destruction. */
 	void SOS01::refcount_inc(SOS01 self) {
 		entering;
-		dTHX;
-		HV * perl_obj = self->methods->get_HV(aTHX_ self);
+		HV * perl_obj = self=>get_HV();
 		SvREFCNT_inc((SV*)perl_obj);
 		leaving;
 	}
