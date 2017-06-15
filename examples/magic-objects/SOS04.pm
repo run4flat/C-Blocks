@@ -157,6 +157,17 @@ cblock {
 
 F<sos-04-new-attribute.pl> verifies that this works. The answer to my
 question is that it takes about 130 lines of code to create a subclass
-that adds a new C method to a previous class.
+that adds a new C attribute to a previous class.
+
+Far and away the most verbose portions of these 130 lines are the
+Perl-side xsubs. It is important to remember, however, that these xsubs
+are "thunks" that will call the C-side method under all circumstances.
+If a derived class overrides a previous class with a C implementation,
+it can reuse this thunk. Thus, I can implement a single Perl thunk for
+each attribute the first time it is declared, and later classes with C
+implementations can copy this method into their packages.
+
+Presumably, the same kind of approach should work for C-calling-Perl
+thunks.
 
 =cut

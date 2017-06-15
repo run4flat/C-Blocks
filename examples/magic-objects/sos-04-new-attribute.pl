@@ -33,8 +33,8 @@ print "=== All done! ===\n";
 
 =head1 RESULTS
 
-Everything works as expected. The SOS01 object is created and destroyed
-as expected. The SOS03 object utilizes the SOS01 methods for most of its
-functionality, but calls SOS03::refcount_dec at the appropriate time.
+Everything works as expected. The SOS04 object's new methods are called 
+from Perl-space as they should be. All refcounting works, as evidenced
+by destruction at the proper moment.
 
 =cut
