@@ -1,6 +1,10 @@
 use strict;
 use warnings;
 
+# c_blocks_unpack_SV(SV => C_name, $cname_already_declared)
+# c_blocks_pack_SV(name => SV, $SV_already_declared)
+# c_blocks_data_type
+
 package C::Blocks::Types;
 our $VERSION = '0.42';
 $VERSION = eval $VERSION;
@@ -56,64 +60,87 @@ sub c_blocks_init_cleanup {
 	return ($init_code, $cleanup_code);
 }
 
+sub c_blocks_pack_SV {
+	my ($package, $C_name, $SV_name, $must_declare_SV) = @_;
+	return "SV * $SV_name = " . $package->make_new . "($C_name);"
+		if $must_declare_SV;
+	return $package->setter . "($SV_name, $C_name);";
+}
+
+sub c_blocks_new_SV {
+	my ($package, $C_name) = @_;
+	return $package->make_new . "($C_name)";
+}
+
+sub c_blocks_unpack_SV {
+	my ($package, $SV_name, $C_name, $must_declare_name) = @_;
+	my $declaration = '';
+	$declaration = $package->c_blocks_data_type . ' ' if $must_declare_name;
+	my $getter = $package->getter;
+	return "$declaration$C_name = $getter($SV_name);";
+}
+
 ########################################################################
 #                   Floating point
 ########################################################################
 package C::Blocks::Type::NV;
 our @ISA = qw(C::Blocks::PerlAPI::Type);
-sub data_type { 'NV' }
+sub c_blocks_data_type { 'NV' }
 sub getter { 'SvNV' }
 sub setter { 'sv_setnv' }
+sub make_new { 'newSVnv' }
 
 package C::Blocks::Type::double;
 our @ISA = qw(C::Blocks::Type::NV);
-sub data_type { 'double' }
+sub c_blocks_data_type { 'double' }
 
 package C::Blocks::Type::float;
 our @ISA = qw(C::Blocks::Type::NV);
-sub data_type { 'float' }
+sub c_blocks_data_type { 'float' }
 
 ########################################################################
 #               Signed Integers
 ########################################################################
 package C::Blocks::Type::IV;
 our @ISA = qw(C::Blocks::PerlAPI::Type);
-sub data_type { 'IV' }
+sub c_blocks_data_type { 'IV' }
 sub getter { 'SvIV' }
 sub setter { 'sv_setiv' }
+sub make_new { 'newSViv' }
 
 package C::Blocks::Type::int;
 our @ISA = qw(C::Blocks::Type::IV);
-sub data_type { 'int' }
+sub c_blocks_data_type { 'int' }
 
 package C::Blocks::Type::short;
 our @ISA = qw(C::Blocks::Type::IV);
-sub data_type { 'short' }
+sub c_blocks_data_type { 'short' }
 
 package C::Blocks::Type::long;
 our @ISA = qw(C::Blocks::Type::IV);
-sub data_type { 'long' }
+sub c_blocks_data_type { 'long' }
 
 ########################################################################
 #               Unsigned Integers
 ########################################################################
 package C::Blocks::Type::UV;
 our @ISA = qw(C::Blocks::PerlAPI::Type);
-sub data_type { 'UV' }
+sub c_blocks_data_type { 'UV' }
 sub getter { 'SvUV' }
 sub setter { 'sv_setuv' }
+sub make_new { 'newSVuv' }
 
 package C::Blocks::Type::uint;
 our @ISA = qw(C::Blocks::Type::UV);
-sub data_type { 'unsigned int' }
+sub c_blocks_data_type { 'unsigned int' }
 
 package C::Blocks::Type::ushort;
 our @ISA = qw(C::Blocks::Type::UV);
-sub data_type { 'unsigned short' }
+sub c_blocks_data_type { 'unsigned short' }
 
 package C::Blocks::Type::ulong;
 our @ISA = qw(C::Blocks::Type::UV);
-sub data_type { 'unsigned long' }
+sub c_blocks_data_type { 'unsigned long' }
 
 ########################################################################
 #               Arrays

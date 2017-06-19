@@ -923,6 +923,24 @@ not link to it, and so the relocation step of compilation fails.
 
 =back
 
+=head2 Segmentation Fault
+
+There seem to be ways in which you can trigger a segmentation fault with
+valid C code. It is likely that there are many such paths, but the known
+paths include:
+
+=over
+
+=item definition of a function called "new"
+
+For reasons that are not clear to me, defining a function called "new"
+without a preceding declaration blows things up. Oddly, if you declare
+the function first, then define it, there are no apparent problems. This
+seems likely to be a bug in TCC, but more investigations are needed
+before I can say anything definitive.
+
+=back
+
 =head1 SEE ALSO
 
 This module uses a special fork of the Tiny C Compiler. The fork is 
