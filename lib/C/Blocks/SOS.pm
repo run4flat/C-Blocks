@@ -467,6 +467,7 @@ sub _gen_struct_decl {
 		$to_return .= "typedef struct $class->{C_vtable_layout}_t $class->{C_vtable_layout};\n";
 		$to_return .= "struct $class->{C_vtable_layout}_t {\n";
 		for my $entry (@{$class->{vtable}}) {
+			$to_return .= "\t";
 			if ($entry->{isa}) {
 				$to_return .= $class->_gen_attribute($entry);
 			}
@@ -481,7 +482,7 @@ sub _gen_struct_decl {
 	if ($class->{needs_new_object}) {
 		$to_return .= "$class->{C_obj_layout} {\n";
 		for my $entry (@{$class->{attributes}}) {
-			$to_return .= $class->_gen_attribute($entry) . ";\n";
+			$to_return .= "\t" . $class->_gen_attribute($entry) . ";\n";
 		}
 		$to_return .= "};\n";
 	}
@@ -562,7 +563,7 @@ sub _gen_func_decl {
 sub _gen_Perl_to_C_thunk {
 	my ($self, $entry) = @_;
 	return '' if $entry->{language} eq 'C-only';
-	my $to_return .= "XSPROTO($entry->{Perl_to_C_thunk}) {\n";
+	my $to_return .= "XSPROTO($entry->{Perl_to_C_thunk}) {\n\tdTHX;\n";
 	# Unpack the Perl stack
 	my @args = @{$entry->{expects}};
 	my $arg_names;
@@ -573,18 +574,18 @@ sub _gen_Perl_to_C_thunk {
 		# Now we have the bona-fide package name for this type
 		# Use its unpack code. Final arg of one means unpack needs to
 		# include a declaration of $name in its returned string.
-		$to_return .= $type_package->c_blocks_unpack_SV("ST($stack_index)"
-			=> $name, 1);
+		$to_return .= "\t" . $type_package->c_blocks_unpack_SV("ST($stack_index)"
+			=> $name, 1) . "\n";;
 		$arg_names .= ", " if $arg_names;
 		$arg_names .= $name;
 	}
 	
 	# generate return value variable declaration (if needed)
-	my $capture_returned = '';
+	my $capture_returned = "\t";
 	if ($entry->{returns} ne 'void') {
-		$to_return .= $self->_get_data_type_for($entry->{returns})
+		$to_return .= "\t" . $self->_get_data_type_for($entry->{returns})
 			. " TO_RETURN;\n";
-		$capture_returned = "TO_RETURN =";
+		$capture_returned .= "TO_RETURN =";
 	}
 	# Call the method
 	$to_return .= "$capture_returned self->methods->$entry->{name}($arg_names);\n";
@@ -592,17 +593,17 @@ sub _gen_Perl_to_C_thunk {
 	# Push return value onto the stack
 	if ($entry->{returns} eq 'void') {
 		# Return empty if it's a void function
-		$to_return .= "XSRETURN_EMPTY;\n";
+		$to_return .= "\tXSRETURN_EMPTY;\n";
 	}
 	else {
 		my $return_package = $entry->{returns};
 		$return_package = $return_package->($self) if ref ($return_package);
 		# Wrap value in an SV and push it onto the stack
-		$to_return .= "XSprePUSH;\n";
-		$to_return .= "SV * SV_TO_RETURN = sv_newmortal();\n";
-		$to_return .= $return_package->c_blocks_pack_SV($entry->{name} => "SV_TO_RETURN") . ";\n";
-		$to_return .= "XPUSHs(SV_TO_RETURN);\n";
-		$to_return .= "XSRETURN(1);\n";
+		$to_return .= "\tXSprePUSH;\n";
+		$to_return .= "\tSV * SV_TO_RETURN = sv_newmortal();\n";
+		$to_return .= "\t" . $return_package->c_blocks_pack_SV('TO_RETURN' => "SV_TO_RETURN") . ";\n";
+		$to_return .= "\tXPUSHs(SV_TO_RETURN);\n";
+		$to_return .= "\tXSRETURN(1);\n";
 	}
 	$to_return .= "}\n";
 	return $to_return;
@@ -619,27 +620,27 @@ sub _gen_C_to_Perl_thunk {
 	my @args = @{$entry->{expects}};
 	my $N_args = @args / 2;
 	$to_return .= "{
-		dSP;
-		int count;
-		ENTER;
-		SAVETMPS;
-		PUSHMARK(SP);
-		EXTEND(SP, $N_args);\n";
+	dSP;
+	int count;
+	ENTER;
+	SAVETMPS;
+	PUSHMARK(SP);
+	EXTEND(SP, $N_args);\n";
 	
 	# pack the Perl stack
 	for (my $i = 0; $i < @args; $i += 2) {
 		my ($type_package, $name) = @args[$i, $i+1];
 		$type_package = $type_package->($self) if ref($type_package);
 		# Now we have the bona-fide package name for this type
-		$to_return .= "PUSHs(sv_2mortal("
+		$to_return .= "\tPUSHs(sv_2mortal("
 			. $type_package->c_blocks_new_SV($name) . "));\n";
 	}
-	$to_return .= "PUTBACK;\n";
+	$to_return .= "\tPUTBACK;\n";
 	
 	# Find and call the method
 	my $return_type = $entry->{returns};
 	my $flags = $return_type eq 'void' ? 'G_VOID' : 'G_SCALAR';
-	$to_return .= "CV * to_call = GvCV(gv_fetchmethod_autoload(
+	$to_return .= "\tCV * to_call = GvCV(gv_fetchmethod_autoload(
 		self->methods->_class_stash, \"$self->{package}::$entry->{name}\",
 		1));
 	count = call_sv(to_call, $flags);\n";
@@ -648,21 +649,21 @@ sub _gen_C_to_Perl_thunk {
 	if ($return_type ne 'void') {
 		$return_type = $return_type->($self) if ref ($return_type);
 		# reset the stack pointer
-		$to_return .= "SPAGAIN;\n";
+		$to_return .= "\tSPAGAIN;\n";
 		
 		# XXX check return count some day?
 		
 		# Pop the value off the stack and put it onto TO_RETURN
-		$to_return .= $return_type->c_blocks_unpack_SV('POPs', 'TO_RETURN', 1);
+		$to_return .= "\t" . $return_type->c_blocks_unpack_SV('POPs', 'TO_RETURN', 1);
 		
-		$to_return .= "PUTBACK;\n";
+		$to_return .= "\n\tPUTBACK;\n";
 	}
 	
 	# Close everything out
-	$to_return .= "FREETMPS;
+	$to_return .= "\tFREETMPS;
 	LEAVE;\n";
 	
-	$to_return .= "return TO_RETURN;\n" if $return_type ne 'void';
+	$to_return .= "\n\treturn TO_RETURN;\n" if $return_type ne 'void';
 	
 	return $to_return . "}\n";
 }
@@ -671,6 +672,7 @@ sub _gen_vtable_def {
 	my $self = shift;
 	my $to_return = "$self->{C_vtable_layout} $self->{C_vtable_instance} = {\n";
 	for my $entry (@{$self->{vtable}}) {
+		$to_return .= "\t";
 		if ($entry->{isa}) {
 			# an attribute, always initialized to zero
 			$to_return .= "0";
