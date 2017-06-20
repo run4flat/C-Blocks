@@ -21,24 +21,23 @@ use C::Blocks::PerlAPI;
 use C::Blocks::Filter::BlockArrowMethods;
 #use C::Blocks::Filter;
 use C::Blocks::SOS sub {
-	my $c = shift;
-	$c->has (x => isa => float);
-	$c->has (y => isa => float);
-	$c->method (add =>
+	has (x => isa => float);
+	has (y => isa => float);
+	method (add =>
 		returns => 'SOS05',
 		expects => ['SOS05' => 'other_point'],
 		language => 'C',
 	);
-	$c->method (subtract =>
+	method (subtract =>
 		returns => 'SOS05',
 		expects => ['SOS05' => 'other_point'],
 		language => 'C',
 	);
-	$c->method (magnitude =>
+	method (magnitude =>
 		returns => float,
 		language => 'C',
 	);
-	$c->method (direction =>
+	method (direction =>
 		returns => float,
 		language => 'C',
 	);

@@ -73,25 +73,31 @@ sub import {
 		C_class_type      => undef, # pkg (typedef'd as pointer to obj_layout)
 	};
 	
-	# execute the code block that declares the class layout. Temporarily
-	# inject some subrefs into the calling class to make it a valid type
+	# execute the code block that declares the class layout.
 	{
 		no strict 'refs';
+		# inject some temporary subrefs into the calling class to make
+		# it a valid type. Actually, we should only inject these if
+		# they do not yet exist, still temporary, and let inheritance
+		# handle the rest. This would let the user define these methods
+		# either before or after the "use C::Blocks::SOS" declaration.
+		# XXX working here.
 		local *{"$package\::c_blocks_init_cleanup"} = \&C::Blocks::SOS::Base::c_blocks_init_cleanup;
 		local *{"$package\::c_blocks_pack_SV"} = \&C::Blocks::SOS::Base::c_blocks_pack_SV;
 		local *{"$package\::c_blocks_new_SV"} = \&C::Blocks::SOS::Base::c_blocks_new_SV;
 		local *{"$package\::c_blocks_unpack_SV"} = \&C::Blocks::SOS::Base::c_blocks_unpack_SV;
+		# inject some temporary subrefs into the calling package so that
+		# they can use keyword-like syntax:
+		local *{"$package\::has"} = sub { $class_obj->has(@_) };
+		local *{"$package\::method"} = sub { $class_obj->method(@_) };
+		local *{"$package\::extends"} = sub { $class_obj->extends(@_) };
+		local *{"$package\::with"} = sub { $class_obj->with(@_) };
+		
+		# Run it! Still pass in the class object in case they want to
+		# work directly on it. Generally not advised, but there just in
+		# case we need to do something drastic.
 		$subref->($class_obj);
 	}
-	# execute the code block that declares the class layout
-#	{
-#		no strict 'refs';
-#		local *{"$package\::has"} = sub { $class_obj->has(@_) };
-#		local *{"$package\::method"} = sub { $class_obj->method(@_) };
-#		local *{"$package\::extends"} = sub { $class_obj->extends(@_) };
-#		local *{"$package\::with"} = sub { $class_obj->with(@_) };
-#		$subref->();
-#	}
 
 	# Set default ISA
 	$class_obj->extends('C::Blocks::SOS::Base')
@@ -740,29 +746,29 @@ BEGIN {
 	C::Blocks::SOS->import (sub {
 		my $c = shift;
 		$c->{C_class_type} = 'C::Blocks::SOS::Class';
-		$c->has (_class_stash =>
+		has (_class_stash =>
 			isa        => '^HV*',
 			accessors  => 0,
 			class_attr => 1,
 			C_init => sub { 'gv_stashpv("' . (shift->{package}) . '", GV_ADD)' },
 		);
-		$c->method (_new => 
+		method (_new => 
 			returns => sub { shift->{C_class_type} },
 			class_method => 1,
 			language => 'C-only',
 		);
-		$c->method (destroy => 
+		method (destroy => 
 			returns => 'void',
 			language => 'C-only',
 			C_code => q{ free(self); },
 		);
-		$c->has (_size =>
+		has (_size =>
 			isa => UV,
 			accessors => 0,
 			class_attr => 1,
 			C_init => sub { 'sizeof(' . (shift->{C_obj_layout}) . ')' }
 		);
-		$c->has (methods =>
+		has (methods =>
 			isa => sub { shift->{C_vtable_layout}.'*' },
 			accessors => 0,
 		);
@@ -795,10 +801,10 @@ use C::Blocks::Filter::BlockArrowMethods;
 BEGIN {
 	C::Blocks::SOS->import (sub {
 		my $c = shift;
-		$c->extends('C::Blocks::SOS::Class');
+		extends('C::Blocks::SOS::Class');
 		
 		# Core attributes
-		$c->has (perl_obj =>
+		has (perl_obj =>
 			isa       => '^HV*',
 			C_init    => 'NULL',
 			accessors => 0, # we'll add get_HV later...
@@ -809,16 +815,16 @@ BEGIN {
 		#### Methods
 		# get_HV produces the cached HV, or creates a new one if there is
 		# none yet cached. Attaches "free" magic to the HV.
-		$c->method ( get_HV => returns => '^HV*', language => 'C-only');
+		method ( get_HV => returns => '^HV*', language => 'C-only');
 		
 		# refcounting methods
-		$c->method ( refcount_inc => returns => 'void', language => 'C-only');
-		$c->method ( refcount_dec => returns => 'void', language => 'C-only');
+		method ( refcount_inc => returns => 'void', language => 'C-only');
+		method ( refcount_dec => returns => 'void', language => 'C-only');
 		
 		# Produce a blessed SV ref to the object's HV, something which
 		# can be returned to Perl land. Could we revise things to allow
 		# for pTHX_ ??
-		$c->method (attach_SV => returns => 'void', language => 'C-only',
+		method (attach_SV => returns => 'void', language => 'C-only',
 			expects => ['^SV*' => 'to_attach']);
 	});
 }
