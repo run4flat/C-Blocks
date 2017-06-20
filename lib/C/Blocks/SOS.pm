@@ -721,7 +721,7 @@ sub _initialize {
 			$to_return .= "$class->{C_vtable_instance}.$entry->{name} = $init;\n";
 		}
 		elsif ($entry->{language} eq 'C') {
-			$to_return .= "newXS(\"$class\::$entry->{name}\", $entry->{Perl_to_C_thunk}, __FILE__);\n";
+			$to_return .= "newXS(\"$package\::$entry->{name}\", $entry->{Perl_to_C_thunk}, __FILE__);\n";
 		}
 	}
 	return $to_return;
