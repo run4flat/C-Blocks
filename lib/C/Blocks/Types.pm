@@ -49,7 +49,7 @@ our %EXPORT_TAGS = (
 
 sub c_blocks_init_cleanup {
 	my ($package, $C_name, $sigil_type, $pad_offset) = @_;
-	my $data_type = $package->data_type;
+	my $data_type = $package->c_blocks_data_type;
 	my $getter = $package->getter;
 	my $setter = $package->setter;
 	

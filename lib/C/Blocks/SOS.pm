@@ -643,7 +643,7 @@ sub _gen_C_to_Perl_thunk {
 		# XXX check return count some day?
 		
 		# Pop the value off the stack and put it onto TO_RETURN
-		$to_return .= $return_type->c_blocks_upack_SV('POPs', 'TO_RETURN', 1);
+		$to_return .= $return_type->c_blocks_unpack_SV('POPs', 'TO_RETURN', 1);
 		
 		$to_return .= "PUTBACK;\n";
 	}
