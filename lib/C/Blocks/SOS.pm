@@ -2,9 +2,6 @@ use strict;
 use warnings;
 use C::Blocks;
 
-package C::Blocks::SOS;
-use Carp;
-
 =head1 NAME
 
 C::Blocks::SOS - a Simple Object System for C::Blocks
@@ -50,6 +47,11 @@ C::Blocks::SOS - a Simple Object System for C::Blocks
 
 =cut
 
+########################################################################
+                  package C::Blocks::SOS;
+########################################################################
+use Carp;
+
 sub import {
 	my (undef, $subref) = @_;
 	croak("You must provide a sub to declare your class")
@@ -71,8 +73,16 @@ sub import {
 		C_class_type      => undef, # pkg (typedef'd as pointer to obj_layout)
 	};
 	
-	# execute the code block that declares the class layout
-	$subref->($class_obj);
+	# execute the code block that declares the class layout. Temporarily
+	# inject some subrefs into the calling class to make it a valid type
+	{
+		no strict 'refs';
+		local *{"$package\::c_blocks_init_cleanup"} = \&C::Blocks::SOS::Base::c_blocks_init_cleanup;
+		local *{"$package\::c_blocks_pack_SV"} = \&C::Blocks::SOS::Base::c_blocks_pack_SV;
+		local *{"$package\::c_blocks_new_SV"} = \&C::Blocks::SOS::Base::c_blocks_new_SV;
+		local *{"$package\::c_blocks_unpack_SV"} = \&C::Blocks::SOS::Base::c_blocks_unpack_SV;
+		$subref->($class_obj);
+	}
 	# execute the code block that declares the class layout
 #	{
 #		no strict 'refs';
@@ -965,6 +975,5 @@ sub c_blocks_unpack_SV {
 	$declaration = $package . ' ' if $must_declare_name;
 	return "$declaration$C_name = C::Blocks::SOS::Magic::obj_ptr_from_SV_ref(aTHX_ $SV_name);";
 }
-
 
 1;
