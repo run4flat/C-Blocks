@@ -563,7 +563,7 @@ sub _gen_func_decl {
 sub _gen_Perl_to_C_thunk {
 	my ($self, $entry) = @_;
 	return '' if $entry->{language} eq 'C-only';
-	my $to_return .= "XSPROTO($entry->{Perl_to_C_thunk}) {\n\tdTHX;\n";
+	my $to_return .= "XSPROTO($entry->{Perl_to_C_thunk}) {\n\tdXSARGS;\n";
 	# Unpack the Perl stack
 	my @args = @{$entry->{expects}};
 	my $arg_names;
@@ -620,7 +620,7 @@ sub _gen_C_to_Perl_thunk {
 	my @args = @{$entry->{expects}};
 	my $N_args = @args / 2;
 	$to_return .= "{
-	dSP;
+	dTHX; dSP;
 	int count;
 	ENTER;
 	SAVETMPS;
