@@ -92,6 +92,7 @@ sub import {
 		local *{"$package\::method"} = sub { $class_obj->method(@_) };
 		local *{"$package\::extends"} = sub { $class_obj->extends(@_) };
 		local *{"$package\::with"} = sub { $class_obj->with(@_) };
+		local *{"$package\::super"} = sub { $class_obj->super(@_) };
 		
 		# Run it! Still pass in the class object in case they want to
 		# work directly on it. Generally not advised, but there just in
@@ -157,6 +158,13 @@ sub _get_package_ref {
 # extends and with - declaring parent classes and roles
 ######################################
 
+sub super {
+	my $self = shift;
+	my $super = $self->{extends};
+	return $super if $super;
+	croak("$self->{package} has not indicated a parent class");
+}
+
 # declare parent class: import methods
 sub extends {
 	return $_[0]->{extends} if @_ == 1;
@@ -221,9 +229,19 @@ sub extends {
 # roles must provide the "apply" method. This method should die, rather
 # than croak, when it encounters exceptional behavior.
 sub with {
-	my ($self, $role, @args) = @_;
+	my ($class_obj, $role, @args) = @_;
 	eval {
-		$role->apply($self, @args);
+		no strict 'refs';
+		# inject some temporary subrefs into the role package so that
+		# the keyword-like syntax resolves to the correct class:
+		local *{"$role\::has"} = sub { $class_obj->has(@_) };
+		local *{"$role\::method"} = sub { $class_obj->method(@_) };
+		local *{"$role\::extends"} = sub { $class_obj->extends(@_) };
+		local *{"$role\::with"} = sub { $class_obj->with(@_) };
+		local *{"$role\::requires"} = sub { $class_obj->requires(@_) };
+		
+		# Run the role application method!
+		$role->apply($class_obj, @args);
 		1;
 	} or do{
 		my $to_croak = $@;
@@ -449,7 +467,8 @@ sub _declare {
 	my ($package) = @_;
 	my $class = $package->_class;
 	
-	# Assemble the struct declarations
+	# Assemble the struct declarations, including the definition of
+	# super.
 	my $struct_decl = $class->_gen_struct_decl;
 	
 	# Get the function declarations (or definitions if we have C_code)
@@ -465,7 +484,9 @@ sub _declare {
 sub _gen_struct_decl {
 	my $class = shift;
 	# create object layout typedef (i.e. the class)
-	my $to_return = '';
+	my $to_return = "#ifdef super\n\t#undef super\n#endif\n";
+	$to_return .= "#define super " . $class->{extends}->_class->{C_vtable_instance} . "\n"
+		if $class->{package} ne 'C::Blocks::SOS::Class';
 	$to_return .= "typedef $class->{C_obj_layout} * $class->{C_class_type};\n"
 		if $class->{needs_new_object};
 	# create the vtable layout
