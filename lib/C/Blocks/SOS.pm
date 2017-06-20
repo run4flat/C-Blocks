@@ -643,7 +643,7 @@ sub _gen_C_to_Perl_thunk {
 	$to_return .= "\tCV * to_call = GvCV(gv_fetchmethod_autoload(
 		self->methods->_class_stash, \"$self->{package}::$entry->{name}\",
 		1));
-	count = call_sv(to_call, $flags);\n";
+	count = call_sv((SV*)to_call, $flags);\n";
 	
 	# Handle the return value
 	if ($return_type ne 'void') {
