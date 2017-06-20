@@ -171,8 +171,6 @@ sub extends {
 	# Update the attributes and methods.
 	for my $attr (reverse @{$parent->{attributes}}) {
 		my %copy = %$attr;
-print "self's attribute names are ", join(', ', keys %{$self->{attr_by_name}}), "\n"
-	if exists $self->{attr_by_name}{$copy{name}};
 		croak("Already-declared attribute `$copy{name}' shares name with inherited attribute")
 			if exists $self->{attr_by_name}{$copy{name}};
 		unshift @{$self->{attributes}}, \%copy;
