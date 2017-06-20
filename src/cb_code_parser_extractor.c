@@ -187,6 +187,9 @@ char * cb_replace_double_colons_with_double_underscores(pTHX_ SV * to_replace) {
 			if (to_return[i-1] == ':' && to_return[i] == ':') {
 				to_return[i-1] = to_return[i] = '_';
 			}
+			else if (to_return[i] == '"' && to_return[i-1] != '\\') {
+				is_in_string = 1;
+			}
 		}
 	}
 	return to_return;
