@@ -113,11 +113,13 @@ sub import {
 	*{"$package\::_signature"} = \&_signature;
 	*{"$package\::_initialize"} = \&_initialize;
 	
-#	if ($package ne 'C::Blocks::SOS::Base'
-#		and $package ne ''C::Blocks::SOS::Class')
-#	{
-#		C::Blocks::load_lib('C::Blocks::SOS::Base');
-#	}
+	if ($package ne 'C::Blocks::SOS::Base'
+		and $package ne 'C::Blocks::SOS::Class')
+	{
+		C::Blocks::load_lib('C::Blocks::SOS::Class');
+		C::Blocks::load_lib('C::Blocks::SOS::Base')
+			if $package->isa('C::Blocks::SOS::Base');
+	}
 }
 
 ######################################
