@@ -1,17 +1,28 @@
+# Combination of ignore and unignore to ignore files without extensions
+*
+!*.*
+!*/
+
+
 *.o
-Build
 _build
 blib
 MYMETA*
+META*
 inc/Alien/TinyCC.pm
 lib/C/Blocks/PerlAPI.xs
 MANIFEST.SKIP.bak
 share/
 names.txt
-bench/mandelbrot/mandelbrot.perl
 *.bin
 *.bin.hdr
 *.swp
 *.swo
 lib/C/Blocks.c
 lib/C/Blocks/PerlAPI.c
+
+# Mandelbrot benchmark-related files
+bench/mandelbrot/mandelbrot.perl
+bench/mandelbrot/mandelbrot.c
+bench/mandelbrot/_Inline/
+*.pbm
