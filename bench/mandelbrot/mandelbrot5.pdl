@@ -1,0 +1,62 @@
+use strict;
+use warnings;
+use PDL;
+use Inline 'Pdlpp';
+
+my $w = my $h = shift || 200;
+my $limit = 4;
+
+my $byte_width = $w % 8 == 0 ? $w / 8 : int($w / 8) + 1;
+
+my $data = zeros(byte, $byte_width, $h)->mandelbrot;
+print "P4\n$w $h\n"; # PBM image header
+print ${$data->get_dataref};
+
+__END__
+
+__Pdlpp__
+
+pp_def('mandelbrot',
+	Pars => 'input(b, h); [o]output(b, h)',
+	Code => q{
+		int i, x;
+		int height = $SIZE(h);
+		int iter = 50;
+		int byte_acc = 0;
+		int bit_num = 0;
+		double limit = 2.0;
+		double Zr, Zi, Tr, Ti, Cr, Ci;
+		loop (h) %{
+			for(x=0; x < height; ++x) {
+				Zr = Zi = Tr = Ti = 0.0;
+				Cr = (2.0 * x / height - 1.5);
+				Ci = (2.0 * h / height - 1.0);
+			
+				for (i = 0; i < iter && (Tr+Ti <= limit*limit); ++i) {
+					Zi = 2.0 * Zr * Zi + Ci;
+					Zr = Tr - Ti + Cr;
+					Tr = Zr * Zr;
+					Ti = Zi * Zi;
+				}
+		   
+				byte_acc <<= 1; 
+				if (Tr+Ti <= limit*limit) byte_acc |= 0x01;
+					
+				++bit_num; 
+
+				if (bit_num == 8) {
+					$output(b=>x/8) = byte_acc;
+					byte_acc = 0;
+					bit_num = 0;
+				}
+				else if (x == height - 1) {
+					byte_acc <<= (8-height%8);
+					$output(b=>x/8) = byte_acc;
+					byte_acc = 0;
+					bit_num = 0;
+				}
+			}
+		%}	
+	},
+);
+
