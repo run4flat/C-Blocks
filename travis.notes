@@ -1,0 +1,7 @@
+Look at the following travis config files:
+
+OS X only:
+https://github.com/agordon/pretest-macos-runs/blob/master/.travis.yml
+
+Linux and OS X together:
+https://github.com/agordon/tinycc-mirror/blob/mob/.travis.yml
