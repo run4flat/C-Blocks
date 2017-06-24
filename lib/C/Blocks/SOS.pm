@@ -755,8 +755,7 @@ sub _initialize {
 ########################################################################
                   package C::Blocks::SOS::Class;
 ########################################################################
-# Only the most rudimentary of functionality. It doesn't even have a
-# member for the vtable
+# Only the most rudimentary of functionality.
 use C::Blocks;
 use C::Blocks::PerlAPI;
 use C::Blocks::Filter::BlockArrowMethods;
