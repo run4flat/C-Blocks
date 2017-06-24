@@ -1,0 +1,81 @@
+XXX - fails: this is a re-implementation of the Perl version using
+C::Blocks, but it crashes hard at the moment. :-(
+# The Computer Language Benchmarks Game
+#  http://benchmarksgame.alioth.debian.org/
+#
+#  contributed by Mykola Zubach
+
+use strict;
+use threads;
+use threads::shared;
+use C::Blocks;
+use C::Blocks::PerlAPI;
+use C::Blocks::Types qw(Int double);
+
+use constant YMIN => -1;
+use constant WHITE => "\0";
+use constant BLACK => "\001";
+
+my ($h, @threads, $invN);
+my Int $w;
+my @jobs :shared;
+my @picture :shared;
+$w = $h = shift || 200;
+
+sub draw_line($) {
+	my Int $y = shift;
+	my $line;
+	my double $Ci = $y * $invN + YMIN;
+	for my Int $x (0 .. $w - 1) {
+		my Int $is_white = 0;
+
+		cblock {
+			double Zr = 0, Zi = 0, Tr = 0, Ti = 0;
+			double Cr = $x * 2.0 / $w - 1.5;
+			int i;
+			for (i = 0; i < 50; i++) {
+				Zi = Zi * 2 * Zr + $Ci;
+				Zr = Tr - Ti + Cr;
+				Ti = Zi * Zi;
+				Tr = Zr * Zr;
+				if (Tr + Ti > 4) {
+					$is_white = 1;
+					break;
+				}
+			}
+		}
+		$line .= $is_white ? WHITE : BLACK;
+	}
+	$picture[$y] = pack 'B*', $line;
+}
+
+sub process_queue() {
+   while(defined(my $y = pop @jobs)) {
+      draw_line($y);
+   }
+}
+
+sub num_cpus() {
+   open my $fh, '</proc/cpuinfo' or return 4;
+   my $cpus;
+   while(<$fh>) {
+      $cpus ++ if /^processor\s+:/;
+   }
+   return $cpus;
+}
+
+## MAIN()
+
+$invN = 2 / $w;
+@jobs = (0 .. $h - 1);
+
+for (1 .. num_cpus()) {
+   push @threads, threads->create(\&process_queue);
+}
+
+for (@threads) {
+   $_->join;
+}
+
+print "P4\n$w $h\n"; # PBM image header
+print @picture;
