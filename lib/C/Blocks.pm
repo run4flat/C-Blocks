@@ -4,7 +4,7 @@
 
 use strict;
 use warnings;
-use warnings::register qw(import compiler linker);
+use warnings::register qw(import compiler linker type);
 
 use Alien::TinyCCx;
 use XSLoader;
