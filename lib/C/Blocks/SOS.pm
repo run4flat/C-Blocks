@@ -2,51 +2,6 @@ use strict;
 use warnings;
 use C::Blocks;
 
-=head1 NAME
-
-C::Blocks::SOS - a Simple Object System for C::Blocks
-
-=head1 SYNOPSIS
-
- #######
- # implementing a point class
- #######
- package My::Point;
- use C::Blocks::SOS sub ($c) {
-     $c->extends 'Other::Class';
-     $c->has x => (isa => 'double');
-     $c->has y => (isa => 'double');
-     $c->method distance_from => (
-         expects => [My::Point => 'other_point'],
-         returns => 'double',
-         language => 'C',
-     );
-     $c->method distance_from_xy => (
-         expects => [double => 'x', double => 'y'],
-         returns => 'double'
-         language => 'Perl',
-     );
-     $c->class_has curr_canvas => (isa => 'My::Canvas');
- };
- 
- sub distance_from_xy ($self, $x, $y) {
-     return sqrt(($x - $self->x)**2 + ($y - $self->y)**2);
- };
- 
- use C::Blocks::Filter::BlockArrowMethods;
- cshare {
-     ${ My::Point->_declare }
-     
-     ${ My::Point->_signature('distance_from') } {
-         double dx = other_point=>x() - self=>x();
-         double dy = other_point=>y() - $self=>y();
-         return sqrt(dx*dx + dy*dy);
-     }
- }
- cblock { ${ My::Point->_initialize } }
-
-=cut
-
 ########################################################################
                   package C::Blocks::SOS;
 ########################################################################
@@ -1005,3 +960,201 @@ sub c_blocks_unpack_SV {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+C::Blocks::SOS - a Simple Object System for C::Blocks
+
+=head1 SYNOPSIS
+
+ #######
+ # implementing a point class
+ #######
+ package My::Point;
+ use C::Blocks;
+ use C::Blocks::Types qw<float>;
+ use C::Blocks::PerlAPI;
+ use C::Blocks::Filter::BlockArrowMethods;
+ 
+ ### Declare the class ###
+ use C::Blocks::SOS sub {
+     # implicitly extends C::Blocks::SOS::Base
+     has (x => isa => float);
+     has (y => isa => float);
+     method (add =>
+         returns => 'My::Point',
+         expects => ['My::Point' => 'other_point'],
+         language => 'C',
+     );
+     method (magnitude =>
+         returns => float,
+         language => 'C',
+         C_code => q{
+             float x = self=>get_x();
+             float y = self=>get_y();
+             return sqrt(x*x + y*y);
+		 },
+     );
+ };
+ 
+ ### Class initialization boilerplate,
+ ### and definition of "add" method
+ use C::Blocks::Filter::BlockArrowMethods;
+ cshare {
+     ${ My::Point->_declare }
+     
+     /* implementation of "add" */
+     ${ My::Point->_signature('add') } {
+         My::Point::new(My::Point, to_return);
+         to_return=>set_x(self=>get_x() + other_point=>get_x());
+         to_return=>set_y(self=>get_y() + other_point=>get_y());
+         return to_return;
+     }
+ }
+ cblock { ${ My::Point->_initialize } }
+ 
+ package main;
+ my $point = My::Point->new;
+
+=head1 DESCRIPTION
+
+While C<C::Blocks> is conceptually a nice tool, its utility hinges upon
+marshalling data between Perl and C. If that marshalling is easy, then
+C<C::Blocks> stands a chance of being useful for real tasks.
+
+=head1 OBJECT-ORIENTED PROGRAMMING IN C
+
+We can't get very far in this whole discussion without clarifying how
+to write object-oriented code in C.
+
+XXX to write
+
+A vtable is...
+
+=head1 DECLARATIONS
+
+Each class is constructed in the import sub with a sequence of
+declarations, consisting of C<extends>, C<with>, C<has>, and C<method>.
+
+=head2 has
+
+Declares an attribute. Key/value pairs for setup include:
+
+=over
+
+=item isa
+
+The C type for this attribute.
+
+=item accessors
+
+A string indicating which, if any, are to be created. Can be C<both>
+(the default), C<getter> for just the getter, C<setter> for just the
+setter, and false for none. Under all circumstances, this attribute can
+still be obtained directly by name in C code by direct dereference.
+
+=item class_attr
+
+A boolean (default is false) indicating if this attribute belongs to the
+class or to each object.
+
+=item C_init
+
+An optional C expression that generates a value to initialize this
+attribute.
+
+=back
+
+=head2 method
+
+Declares a method that is to be present in both C and Perl (or possibly
+just in C, but which can be overridden in later classes).  Also declares
+when a method is going to override a parent class's implementation.
+
+When overriding a parent class's implementation, the only allowed keys
+are
+
+=over
+
+=item language
+
+Specify whether the overriden function is implemented in Perl or in C.
+
+=item C_code
+
+If the override language will be C, this can contain a string of C code
+that implements the desired functionality.
+
+=back
+
+When declaring a new method, an number of basic bits of information are
+required:
+
+=over
+
+=item returns
+
+The C return type.
+
+=item language
+
+The implementation language for this method. Can be one of the three
+C<Perl>, C<C>, or C<C-only>.
+
+=item expects
+The list of type => name pairs in the function signature.
+
+=item C_code
+
+optional string of C code to define this method
+
+=item class_method
+
+boolean indicating if self or class is automatically
+added as the first argument
+
+=back
+
+=head1 BASE CLASSES
+
+There are two basic base classes provided by C::Blocks::SOS.
+L</C::Blocks::SOS::Class> provides the rudimentary structure for a
+vtable-backed class. L</C::Blocks::SOS::Base> derives from
+L</C::Blocks::SOS::Class> and adds the logic needed for reference
+counting and seemless flow of an object between Perl and C.
+
+=head2 C::Blocks::SOS::Class
+
+This class implements what is considered to be the bare minimum of any 
+C::Blocks::SOS class. In particular, it provides the following class
+attributes and methods, in this order:
+
+=over
+
+=item _class_stash
+
+=item _new
+
+=item destroy
+
+=item _size
+
+=back
+
+Any object of type C::Blocks::SOS::Class has the following attribute:
+
+=over
+
+=item methods
+
+This is a pointer to the object's vtable.
+
+=back
+
+=head2 C::Blocks::SOS::Base
+
+This class 
+
+=cut
