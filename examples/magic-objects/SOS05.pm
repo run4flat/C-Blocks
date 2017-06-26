@@ -61,9 +61,8 @@ cshare {
 	}
 	
 	${ SOS05->_signature('magnitude') } {
-		float x, y;
-		x = self=>get_x();
-		y = self=>get_y();
+		float x = self=>get_x();
+		float y = self=>get_y();
 		return sqrt(x*x + y*y); //**
 	}
 	
