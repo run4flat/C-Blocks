@@ -34,7 +34,10 @@ use C::Blocks;
 
 # Different package, different lexical scope, uninitialized variable.
 package Foo;
-use C::Blocks::Types::Struct Point => [];
+use C::Blocks::Types::Struct {
+	short_name => 'Point',
+	declared_package => 'main',
+};
 my Point $other_thing;
 cblock {
 	$other_thing.x = -10;
