@@ -14,6 +14,7 @@ use Carp;
 # methods and such, I think that would go under C::Blocks::Class::Struct
 # or similar.
 
+no warnings 'C::Blocks::import';
 sub import {
 	my ($package, @args) = @_;
 	my $caller_package = caller;
@@ -104,6 +105,7 @@ sub generate_struct_package {
 		1;
 	} or die $@;
 	no strict 'refs';
+	no warnings 'once';
 	@{"$struct->{package}::elements"} = @elements;
 }
 
