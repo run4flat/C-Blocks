@@ -1,112 +1,38 @@
 use strict;
 use warnings;
-use C::Blocks;
 
 ########################################################################
                 package C::Blocks::Types::Struct;
 ########################################################################
 use Carp;
 
-# I could emulate one of two interfaces. I have C::Blocks::SOS and
-# C::Blocks::Types::Pointers. For now, I am going to emulate
-# C::Blocks::Types::Pointers, as it is more aligned with the
-# data-munging spirit of the basic types. If I wanted to create accessor
-# methods and such, I think that would go under C::Blocks::Class::Struct
-# or similar.
-
-no warnings 'C::Blocks::import';
 sub import {
-	my ($package, @args) = @_;
+	my ($package, @structs) = @_;
 	my $caller_package = caller;
-	while (@args) {
-		# allow for either a typename => [elements] argument, or a
-		# hashref with more stuff.
-		my %struct;
-		if (ref($args[0]) and ref($args[0]) eq ref({})) {
-			%struct = %{ shift @args };
+	for my $struct_type (@structs) {
+		my $C_type = my $short_name = $struct_type;
+		# Unpack the two-tuple if so supplied.
+		if (ref($struct_type)) {
+			croak("Structs must be declared by name, or a name => C_type arrayref pair")
+				if ref($struct_type) ne ref([])
+					of @$struct_type != 2;
+			($short_name, $C_type) = @$struct_type;
 		}
-		elsif (ref($args[0])) {
-			croak("Arguments to C::Blocks::Types::Struct must be either "
-				. "a pair of name => [elements] or a hashref");
-		}
-		else {
-			$struct{short_name} = shift @args;
-			$struct{elements} = shift @args;
-		}
-		$struct{declared_package} ||= $caller_package;
 		
-		croak("Short name must be a simple bareword")
-			if $struct{short_name} and $struct{short_name} =~ /\W/;
+		# Check that the Perl-level type name is a bareword
+		$short_name =~ /^[a-zA-Z_]\w*$/
+			or croak("`$short_name' is not a valid type name");
 		
-		# set up the type information for this struct. The struct
-		# generation only does something if the package has not yet
-		# been created.
-		generate_struct_package(\%struct);
-		
-		# Types are in place. Load the struct into the caller's scope.
-		C::Blocks::load_lib($struct{package});
-		
-		if ($struct{short_name}) {
-			my $package = $struct{package};
+		# Build the struct's type package and inject the short name
+		# into the caller's package
+		{
+			my $struct_package = "$caller_package\::_struct::$short_name";
 			no strict 'refs';
-			*{"$caller_package\::$struct{short_name}"} = sub () { $package };
+			*{"$caller_package\::$short_name"} = sub () { $struct_package };
+			@{"$struct_package\::ISA"} = qw(C::Blocks::Types::Struct);
+			*{"$struct_package\::c_blocks_data_type"} = sub () { $C_type };
 		}
 	}
-}
-
-sub generate_struct_package {
-	my $struct = shift;
-	my $croak_name;
-	# check for existence of, or concoct, a C_type and package
-	if ($struct->{short_name}) {
-		$struct->{package} ||= "$struct->{declared_package}\::Struct::$struct->{short_name}";
-	}
-	elsif ($struct->{C_type}) {
-		$struct->{package} ||= "$struct->{declared_package}\::Struct::$struct->{C_type}";
-	}
-	$struct->{C_type} ||= $struct->{package};
-	$croak_name = $struct->{short_name} || $struct->{C_type};
-	
-	# Just return the package name if it's already generated.
-	return if $struct->{package}->can('c_blocks_init_cleanup');
-	
-	# Make sure they gave a valid list of elements
-	my $elements = $struct->{elements};
-	croak("Elements of struct `$croak_name' must be given with array reference of `type => name' pairs")
-		if not $elements or not ref($elements)
-			or ref($elements) ne ref([])
-			or @$elements % 2 == 1;
-	
-	# Handle struct "declarations", which presume that the layout was
-	# declared elsewhere. Note: we would have already returned if the
-	# struct's package existed.
-	my @elements = @$elements;
-	croak("Declaration of struct '$croak_name' without prior definition")
-		if @elements == 0;
-	
-	# We need to build the struct package. Assemble the member
-	# declarations:
-	my $member_declarations = '';
-	for (my $i = 0; $i < @elements; $i += 2) {
-		my ($type, $name) = @elements[$i, $i+1];
-		$member_declarations .= "\t\t\t\t$type $name;\n";
-	}
-	
-	eval qq{
-		package $struct->{package};
-		our \@ISA = qw(C::Blocks::Types::Struct);
-		use C::Blocks;
-		use C::Blocks::PerlAPI;
-		sub c_blocks_data_type { "$struct->{C_type}" }
-		cshare {
-			typedef struct $struct->{C_type}_t {\n$member_declarations
-			} $struct->{C_type};
-		}
-		1;
-	} or die $@;
-	no strict 'refs';
-	no warnings 'once';
-	@{"$struct->{package}::elements"} = @elements;
 }
 
 sub c_blocks_init_cleanup {
@@ -128,6 +54,7 @@ sub c_blocks_init_cleanup {
 	return $init_code;
 }
 
+# The next few methods may someday be used when I add signatures to csubs...
 sub c_blocks_pack_SV {
 	my ($type_package, $C_name, $SV_name, $must_declare_SV) = @_;
 	my $C_type = $type_package->c_blocks_data_type;
@@ -155,18 +82,37 @@ sub c_blocks_unpack_SV {
 
 __END__
 
+XXX working with pointers; allocation for interpolated variables;
+*not* represented as pointer because you can't change it's address
+
 =head1 NAME
 
-C::Blocks::Types::Struct - struct types that play well with packed data
+C::Blocks::Types::Struct - simple interface for declaring struct types
 
 =head1 SYNOPSIS
 
  use C::Blocks;
- use C::Blocks::Types::Struct;
-   Point => [
-     int => 'x',
-     int => 'y',
-   ];
+ use C::Blocks::Types::Struct
+   [Point => 'C_Point'],
+   'Point2',
+   ['Point3' => 'struct Point3'];
+ 
+ clex {
+   typedef struct C_Point_t {
+     int x;
+     int y;
+   } C_Point;
+   
+   typedef struct Point2_t {
+     int x;
+     int y;
+   } Point2;
+   
+   struct Point3 {
+     int x;
+     int y;
+   };
+ }
  
  my Point $thing = pack('ii', 3, 4);
  cblock {
@@ -176,8 +122,86 @@ C::Blocks::Types::Struct - struct types that play well with packed data
 =head1 DESCRIPTION
 
 It is possible to get all kinds of data into Perl, including scalars 
-containing byte representations of structured data. 
-C::Blocks::Types::Struct provides a convenient means of declaring that 
+containing byte representations of structured data. It's easy to declare
+structs in C<cshare> and C<clex> blocks, and C::Blocks::Types::Struct is
+a simple utility to generate C::Blocks types for those structs.
+
+Note that the types created using this module are not easily shared.
+If you want to declare types for others to use generally, you should
+see L<C::Blocks::Types::IsaStruct>.
+
+The two steps necessary for declaring your struct type are to (1) generate
+the Perl package for your type using this module and (2) declare the
+struct layout using a C<clex> or C<cshare> block.
+
+The arguments for the C<use> statement of this package are individual
+type descriptions, which are either simple strings or arrayrefs of the
+Perl type name and the C type name:
+
+=over
+
+=item Single String
+
+If you simply provide a string, this will be the short name (on the Perl
+side) for your type, and it will be assumed that you have C<typedef>'d
+a struct to this same name. The single string must be a valid bareword:
+no double-colons, spaces, or symbols apart from the underscore. The
+first character may not be a number.
+
+For example:
+
+  use C::Blocks::Type::Struct 'MyStruct';
+  ...
+  cblock {
+      typedef struct MyStruct_t {
+          int a;
+          double b;
+      } MyStruct;
+  }
+  ...
+  my MyStruct $my_struct;
+  ...
+  cblock {
+      ...
+      $my_struct.a = 5;
+      ...
+  }
+
+=item Arrayref Pair
+
+If you provide an arrayref with a pair of strings, then the first
+element will be the Perl type (as for the single string argument
+described above) while the second string will be the C type. This is
+helpful if you want to use a Perl type name that differs from the C
+C<typedef>'d name, or if you don't want to use a C<typedef>d alias for
+the struct and just want to call it C<struct some_thing>.
+
+
+For example:
+
+  use C::Blocks::Type::Struct [MyStruct => 'struct SomeStruct'];
+  ...
+  cblock {
+      struct SomeStruct {
+          int a;
+          double b;
+      };
+  }
+  ...
+  my MyStruct $my_struct;
+  ...
+  cblock {
+      ...
+      $my_struct.a = 5;
+      ...
+  }
+
+=back
+
+
+
+
+provides a convenient means of declaring that 
 layout so that you can get a usable Type for the struct. This then 
 makes it possible to transparently interact with the C representation 
 of the data in your C<cblock>s, while keeping the binary representation 
