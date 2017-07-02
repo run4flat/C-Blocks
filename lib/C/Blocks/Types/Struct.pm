@@ -15,7 +15,7 @@ sub import {
 		if (ref($struct_type)) {
 			croak("Structs must be declared by name, or a name => C_type arrayref pair")
 				if ref($struct_type) ne ref([])
-					of @$struct_type != 2;
+					or @$struct_type != 2;
 			($short_name, $C_type) = @$struct_type;
 		}
 		
@@ -82,12 +82,9 @@ sub c_blocks_unpack_SV {
 
 __END__
 
-XXX working with pointers; allocation for interpolated variables;
-*not* represented as pointer because you can't change it's address
-
 =head1 NAME
 
-C::Blocks::Types::Struct - simple interface for declaring struct types
+C::Blocks::Types::Struct - a simple interface for declaring struct types
 
 =head1 SYNOPSIS
 
@@ -118,17 +115,35 @@ C::Blocks::Types::Struct - simple interface for declaring struct types
  cblock {
    printf("thing's x is %d\n", $thing.x);
  }
+ 
+ my Point $thing2;
+ cblock {
+   // $thing2's memory is allocated for us!!
+   $thing2.x = 5;
+   $thing2.y = 10;
+ }
 
 =head1 DESCRIPTION
 
 It is possible to get all kinds of data into Perl, including scalars 
-containing byte representations of structured data. It's easy to declare
-structs in C<cshare> and C<clex> blocks, and C::Blocks::Types::Struct is
-a simple utility to generate C::Blocks types for those structs.
+containing byte representations of structured data. It's also easy to
+declare structs in C<cshare> and C<clex> blocks. C::Blocks::Types::Struct
+is a simple utility to generate the SV-to-C-type mapping, i.e. the
+C::Blocks types, for those structs.
 
-Note that the types created using this module are not easily shared.
-If you want to declare types for others to use generally, you should
-see L<C::Blocks::Types::IsaStruct>.
+Just like C<C::Blocks::Types::Pointers>, this module does not create a 
+full-blown class for your struct. In particular, it does not create 
+Perl methods to access and modify members of the struct. Instead, it 
+takes a very lean approach. Just like a scalar built using Perl's 
+C<pack>, your Perl variable that has been typed to one of these structs 
+should be thought of as an opaque buffer. The contents can only be 
+modified within a C<cblock>, but the type system provides for fluid
+transitions between C and Perl code.
+
+Furthermore, the types created using this module are not meant to be 
+shared: they are only meant for local use. If you want to declare types 
+for others to use generally, you should see 
+L<C::Blocks::Types::IsaStruct>.
 
 The two steps necessary for declaring your struct type are to (1) generate
 the Perl package for your type using this module and (2) declare the
@@ -198,58 +213,45 @@ For example:
 
 =back
 
+=head1 ALLOCATION AND MEMBER ACCESS
 
+C::Blocks::Types::Struct tries to make allocation and de-allocation 
+seemless. It accomplishes this by utelizing the scalar's PV buffer for 
+the struct data. In the examples above, the typed variables were not 
+initialized in any way, so there was nothing in the Perl code that 
+would have allocated any memory for the struct. However, the 
+initialization code for the type (which is responsible for translating 
+from the Perl SV to a variable of the given C type) checks that the 
+scalar has enough space for your struct. If it is not the correct SV 
+type, it'll be converted to being a PV scalar; if it doesn't have 
+enough room, more space will be allocated.
 
+In short, any time you use a typed and sigiled variable in a cblock,
+it'll always have enough memory and you should not need to worry about
+memory-access-related segmentation faults.
 
-provides a convenient means of declaring that 
-layout so that you can get a usable Type for the struct. This then 
-makes it possible to transparently interact with the C representation 
-of the data in your C<cblock>s, while keeping the binary representation 
-stored in a Perl scalar.
+Second, data members are accessed with direct member dereference, i.e.
+with the C<.> operator. If a struct contains the member C<x>, it is 
+accessed via ".x" below:
 
-Just like C<C::Blocks::Types::Pointers>, this module does not create a
-full-blown class for your struct. In particular, it does not create
-Perl methods to access and modify members of the struct. For that, a
-full-blown class system is really in order.
+  $thing.x = 5;
 
-=head2 Defining Struct Types
+As you probaby know about C, if this were a pointer we would need to use
+the arrow operator, i.e. 
 
-To declare a struct type, simply provide a short name for your struct
-type and an arrayref of the struct layout. The arrayref should contain
-pairs in the form of C<< C-type => name >>. The C type is not checked;
-it is assumed you know what you are doing.
+  pointer_to_struct->x = 5;
 
-For example, this C struct:
+Of course, C::Blocks::Types::Struct is using a pointer under the hood, 
+so how does it manage to provide an interface with direct member 
+access? The actual means for accessing the struct involves a convoluted 
+macro-wrapped dereferenced access to a pointer. I take this approach
+because of the similarities between a C struct declared in automatic
+memory (on the stack) and one of these structs. In either case, you (the
+programmer) are explicitly forbidden from managing the memory. You can
+access and change struct I<members>, but you cannot set the memory
+location of the struct itself. (In this case, if you had direct
+access to the pointer in the SV's PVX slot then you could change it,
+breaking a number of assumptions about the SV internals.) By
+providing an access that hides the nature of the pointer, I strongly
+discourage these sorts of mistakes from cropping up.
 
-  typede struct {
-      int x;
-      int y;
-  } Point;
-
-is equivalent to saying:
-
-  use C::Blocks::Types::Struct
-    Point => [
-        int => 'x',
-        int => 'y',
-    ];
-
-The key difference between a C<cshare> block with the first and the
-declaration of the second is that that second provides all of the type
-information and marshalling you need to directly us a perl C<$scalar> in
-your cblock.
-
-=head2 Reusing Previously Defined Types
-
-If you know that a struct layout has already been defined, you can
-simply pull in its layout by passing an empty array-ref:
-
- use C::Blocks::Types::Struct Point => [];
-
-This will check that underlying package has indeed been defined already,
-then perform the rest of the necessary setup for you lexical scope.
-
-
-** short_name must be a valid Perl identifier
-** hashref form: short_name, elements, declared_package, package,
-   C_type
