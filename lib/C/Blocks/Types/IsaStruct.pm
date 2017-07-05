@@ -34,8 +34,10 @@ sub import {
 		# Add this package to caller's @ISA
 		push @{"$caller_package\::ISA"}, 'C::Blocks::Types::Struct';
 		
-		# Set up a method that produces the default short name
-		*{"$caller_package\::default_short_name"} = sub () { $short_name };
+		# Set up a method that produces the default short name; make
+		# copy of short_name to suppress warnings for const subs
+		my $short_name2 = $short_name;
+		*{"$caller_package\::default_short_name"} = sub () { $short_name2 };
 		
 		# Explicitly inject import method into calling package
 		*{"$caller_package\::import"} = \&C::Blocks::Types::IsaStruct::Base::import;
@@ -60,7 +62,9 @@ sub import {
 	# install this type's short name in caller's package
 	my $short_name = $args{short_name} || $package->default_short_name;
 	no strict 'refs';
-	*{"$caller_package\::$short_name"} = sub () { $package };
+	# Suppress a warning by making a very local variable
+	my $package_const = $package;
+	*{"$caller_package\::$short_name"} = sub () { $package_const };
 	
 	# Load this package's shared code if there is any
 	my $symtab = ${"$package\::__cblocks_extended_symtab_list"};

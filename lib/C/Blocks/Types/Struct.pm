@@ -30,7 +30,9 @@ sub import {
 			no strict 'refs';
 			*{"$caller_package\::$short_name"} = sub () { $struct_package };
 			@{"$struct_package\::ISA"} = qw(C::Blocks::Types::Struct);
-			*{"$struct_package\::c_blocks_data_type"} = sub () { $C_type };
+			# Suppress a warning by making a very local variable
+			my $C_type2 = $C_type;
+			*{"$struct_package\::c_blocks_data_type"} = sub () { $C_type2 };
 		}
 	}
 }
