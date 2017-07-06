@@ -9,6 +9,10 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   * The package C::Blocks::libloader contained only a single import function.
     That function has been renamed to C::Blocks::load_lib.
   
+  * C::Blocks now includes the Perl API by default. This cleans up a fair bit
+    of code that auto-loaded it when sigils were detected, and provides C
+    functions that any reasonable Perl programmer would have expected.
+  
   [BUG FIXES]
   
   * The hints hash manipulation now uses the correct C API, so that symbol
@@ -19,6 +23,13 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   
   * C::Blocks::Types::Pointers! It is now easy to declare pointers of
     specified types without writing a whole type class.
+  
+  * C::Blocks::SOS, the Simple Object System, provides one way to create a
+    basic class heierarchy with symmetric Perl and C methods.
+  
+  * C::Blocks::Types::Struct streamlines creating a type for packed data;
+    C::Blocks::Types::IsaStruct makes it easy to create a sharable package
+    with this sort of type information.
 
 0.42  Fri, Dec 9, 2016
 
