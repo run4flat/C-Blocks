@@ -11,7 +11,7 @@ use Test::More;
 eval q{
 #line 9 "t/03-error-reporting.t"
 	# Should croak with the appropriate line
-	use C::Blocks;
+	use C::Blocks -noPerlAPI;
 	cblock {
 		int i 5
 	}
@@ -35,7 +35,7 @@ like($@, qr/:12:/, 'Error is reported from the correct line');
 eval q{
 #line 9 "t/03-error-reporting.t"
 	# Should croak with the appropriate line
-	use C::Blocks;
+	use C::Blocks -noPerlAPI;
 	cblock {
 		int i = 5;
 	}

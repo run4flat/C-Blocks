@@ -5,7 +5,7 @@ use warnings;
 use Test::More tests => 3;
 
 SCOPE: {
-	use C::Blocks;
+	use C::Blocks -noPerlAPI;
 	ok(
 		eval q[cblock { int i; } 1],
 		"Compiled C block within C::Blocks scope"

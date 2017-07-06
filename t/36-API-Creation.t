@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Test::More;
 use C::Blocks;
-use C::Blocks::PerlAPI;
 
 cblock {
 	SV * my_sv = newSV(10);

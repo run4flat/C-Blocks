@@ -6,7 +6,6 @@ package mgpoint;
 ########################################################################
 # The package using Object::Magic, which we will exercise shortly
 use C::Blocks;
-use C::Blocks::PerlAPI;
 use C::Blocks::Object::Magic;
 use C::Blocks::Types qw(double);
 

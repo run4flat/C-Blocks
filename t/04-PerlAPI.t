@@ -11,7 +11,6 @@ use Test::More;
 
 # Load cblocks and PerlAPI
 use C::Blocks;
-use C::Blocks::PerlAPI;
 
 # Work with package globals for now
 our $shuttle;

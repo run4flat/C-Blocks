@@ -77,7 +77,6 @@ static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate);
 static int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
 	char * type, char * long_name, int var_offset);
 
-static void ensure_perlapi(pTHX_ c_blocks_data * data);
 static int direct_replace_double_colons(char * to_check);
 
 static void find_end_of_xsub_name(pTHX_ c_blocks_data * data);
@@ -241,36 +240,6 @@ void cb_extract_c_code(pTHX_ c_blocks_data * data, int keyword_type) {
 	data->end = PL_bufptr;
 	/* Add the closing bracket to the end, if appropriate */
 	if (data->keep_curly_brackets) sv_catpvn(data->code_bottom, "}", 1);
-}
-
-/* TODO arguably, this should live in some as-yet-nonexistant file that
- * is all about the symbol table stuff. */
-static void ensure_perlapi(pTHX_ c_blocks_data * data) {
-	if (data->has_loaded_perlapi) return;
-	
-	/* XXX This will add a second perlapi symtab entry to the symtab
-	 * list if the user already explicitly loaded PerlAPI. So this could
-	 * be streamlined with a check for existenct of PerlAPI in current
-	 * symtab list. */
-	
-	/* Load libperl and append to *just* *this* exsymtab list */
-	SV * perlapi_module_name = newSVpvn("C::Blocks::PerlAPI", 18);
-	load_module(PERL_LOADMOD_NOIMPORT, perlapi_module_name, NULL);
-/* XXX Unnecessary? SvREFCNT is zero, according to tests... */
-//	SvREFCNT_dec(perlapi_module_name);
-	
-	/* Make sure the PerlAPI symtab is available */
-	SV * old_symtabs = data->exsymtabs;
-	SV * perlapi_symtab = get_sv("C::Blocks::PerlAPI::__cblocks_extended_symtab_list",
-			GV_ADDMULTI);
-	data->exsymtabs = newSVsv(perlapi_symtab);
-	/* If we had other symtabs, put them after the PerlAPI one. The
-	 * symtabs are searched in reverse order, so this will ensure that
-	 * the PerlAPI symtab is checked last. That prevents the PerlAPI
-	 * symtab from potentially masking declarations. */
-	if (old_symtabs) sv_catsv(data->exsymtabs, old_symtabs);
-	
-	data->has_loaded_perlapi = 1;
 }
 
 /* Replace :: with __  in NUL terminated string */
@@ -446,9 +415,6 @@ static int process_next_char_sigiled_var(pTHX_ parse_state * pstate) {
 	 * identifier character */
 	if (is_id_cont(pstate->data->end[0])) return PR_NON_SIGIL;
 	
-	/* make sure we have the PerlAPI loaded */
-	ensure_perlapi(aTHX_ pstate->data);
-	
 	/* We just identified the character that is one past the end of our
 	 * Perl variable name. Identify the type and construct the mangled
 	 * name for the C-side variable. */
@@ -607,7 +573,6 @@ static int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
 
 static void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
 	data->end = PL_bufptr;
-	ensure_perlapi(aTHX_ data);
 	
 	/* extract the function name */
 	while (1) {

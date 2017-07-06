@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Test::More;
 use C::Blocks;
-use C::Blocks::PerlAPI;
 
 our ($scalar, $result);
 

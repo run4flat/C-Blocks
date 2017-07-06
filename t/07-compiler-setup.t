@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 
 # Load cblocks
-use C::Blocks;
+use C::Blocks -noPerlAPI;
 
 # Does -D work?
 BEGIN {

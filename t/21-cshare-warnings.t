@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More;
-use C::Blocks;
+use C::Blocks -noPerlAPI;
 use Test::Warn;
 
 # This tests how warnings are issued when injecting the import method

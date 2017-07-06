@@ -18,7 +18,6 @@ typedef struct c_blocks_data {
 	SV * error_msg_sv;
 	int N_newlines;
 	int keep_curly_brackets;
-	int has_loaded_perlapi;
 } c_blocks_data;
 
 

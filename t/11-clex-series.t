@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More;
-use C::Blocks;
+use C::Blocks -noPerlAPI;
 
 # Tell C::Blocks to add rudimentary communications functions for testing
 BEGIN { $C::Blocks::_add_msg_functions = 1 }

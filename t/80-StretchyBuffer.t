@@ -3,7 +3,6 @@ use warnings;
 use Test::More;
 use C::Blocks;
 
-use C::Blocks::PerlAPI;
 use C::Blocks::StretchyBuffer;
 BEGIN { pass 'StretchyBuffer imports without trouble' }
 

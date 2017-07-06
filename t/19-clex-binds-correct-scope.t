@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More;
-use C::Blocks;
+use C::Blocks -noPerlAPI;
 
 {
 	local $TODO = 'Fix visiblity for clex following loop';

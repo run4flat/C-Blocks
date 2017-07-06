@@ -125,6 +125,10 @@ C::Blocks::Types::Struct - a simple interface for declaring struct types
    $thing2.y = 10;
  }
 
+=head1 WHEN TO USE
+
+This may not be the right module for your purposes.
+
 =head1 DESCRIPTION
 
 It is possible to get all kinds of data into Perl, including scalars 

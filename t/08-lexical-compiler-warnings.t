@@ -1,7 +1,7 @@
 use strict;
 use Test::More;
 use Test::Warn;
-use C::Blocks;
+use C::Blocks -noPerlAPI;
 
 
 

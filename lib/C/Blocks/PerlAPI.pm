@@ -32,21 +32,36 @@ C::Blocks::PerlAPI - C interface for interacting with Perl
 
 =head1 SYNOPSIS
 
- use strict;
- use warnings;
+ # implicitly loaded with C::Blocks:
  use C::Blocks;
- use C::Blocks::PerlAPI;
  
  cshare {
      void say_hi() {
          PerlIO_stdoutf("hi!");
      }
  }
+ 
+ # Can be explicitly not loaded with C::Blocks via
+ use C::Blocks -noPerlAPI;
+ 
+ # Can later be explicitly loaded via
+ use C::Blocks::PerlAPI;
+
 
 =head1 DESCRIPTION
 
-This C::Blocks module provides access to the Perl C library. It is roughly
-equivalent to including these lines at the top of your cblocks:
+This C::Blocks module provides access to the Perl C library. The Perl C
+library includes most of the C standard library, and so is a convenient
+means for pulling in that functionality.
+
+Originally the PerlAPI was not loaded automatically, except when a
+sigiled variable was detected. It has become clear that the presence of
+the PerlAPI is the rule, not the exception. As such, it is automatically
+loaded when you C<use C::Blocks>, unless you explicitly request it not
+load with C<use C::Blocks -noPerlAPI>.
+
+Using C::Blocks::PerlaPI is roughly equivalent to including these lines
+at the top of your cblocks:
 
  #define PERL_NO_GET_CONTEXT
  #include "EXTERN.h"

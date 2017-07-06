@@ -34,6 +34,12 @@ sub import {
 	# Enable keywords in lexical scope ("C::Blocks/keywords" isn't
 	# a magical choice of hints hash entry, it just needs to match XS)
 	$^H{"C::Blocks/keywords"} = 1;
+	
+	# Automatically import the PerlAPI, unless explicitly told otherwise
+	unless (grep /-noPerlAPI/, @_) {
+		require C::Blocks::PerlAPI;
+		C::Blocks::load_lib('C::Blocks::PerlAPI')
+	}
 }
 
 sub unimport {
@@ -82,7 +88,6 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  use strict;
  use warnings;
  use C::Blocks;
- use C::Blocks::PerlAPI; # for printf
  
  print "Before block\n";
  
@@ -185,20 +190,48 @@ goals and milestones, see the distribution's README.
 
 =head1 DESCRIPTION
 
-Perl is great, but sometimes I find myself reaching for C to do some of 
-my computational heavy lifting. There are many tools that help you 
-interface Perl and C. This module differs from most others out there by 
-providing a way of inserting your C code directly where you want it 
-called, rather than hooking up a function to C code written elsewhere. 
-This module was also designed from the outset with an emphasis on 
-easily sharing C functions and data structures spread across various 
-packages and source files. Most importantly, the C code you see in your 
-script and your modules is the C code that gets executed when your run 
-your script. It gets compiled by the extremely fast Tiny C Compiler 
-I<at script parse time>.
+Neither C nor Perl is the perfect programming language. However, they 
+are both very good, and between the two of them cover the vast majority 
+of computational needs. Perl, of course, provides excellent string 
+parsing and file management with a modern object and module system, all 
+with a remarkably succinct and powerful syntax. C provides a crisp 
+means for specifying and manipulating complex yet compact data 
+structures and iterating over loops with minimal overhead. C::Blocks 
+brings the strengths of these two languages together: it provide the 
+easiest possible way to use the least amount of C for the greatest 
+amount of impact in your Perl.
+
+To use "the least amount of C" to accomplish a task, C::Blocks provides 
+a new keyword, C<cblock>, which inserts your C code directly into the 
+Perl OP tree precisely where you placed it. Because this block is 
+placed directly in the context where it will execute, it makes sense to 
+refer to lexical variables in the surrounding scope, something which is 
+unfathomable for OPs written in separate XS files. This rich context 
+makes it possible to use minimal C code to accomplish a great deal.
+
+In order for C::Blocks to provide "the easiest possible way" to use C 
+code, it provides a unique and Perlish mechanism for sharing symbol 
+tables and linking functions from across multiple compilation units. In 
+normal C you C<#include> the appropriate header files in order to 
+manage your symbol table, and you link against the compiled shared 
+object libraries. Of course, if you write a library with useful code, 
+you also need to prepare those headers (keeping them synchronized as 
+your codebase changes) and shared object files. With C::Blocks, you 
+only need to focus on writing the useful code: the symbol tables are 
+extracted from your code automatically; sharing occurs with C<use> 
+statements; and linking occurs as-needed.
+
+C::Blocks achieves "the greatest amount of impact" because it is built 
+upon a custom extension of the Tiny C Compiler. This compiler is 
+hand-written for fast compilation time, and so minimizes the script 
+startup time. Furthermore, it can compile your C code to machine code 
+without ever writing to disk, providing the efficiencies of compiled 
+code without the cost of disk latency. The custom extension provides the
+special symbol-table management already mentioned.
 
 C<C::Blocks> achieves all of this by providing new keywords that 
-demarcate blocks of C code. There are essentially three types of 
+demarcate blocks of C code and by providing mechanisms for marshalling 
+your data between Perl and C. There are essentially three types of 
 blocks: those that indicate a procedural chunk of C code that should be 
 run, those that declare C functions, variables, etc., that are used by 
 other blocks, and those which produce XS functions that get hooked into 
@@ -225,7 +258,8 @@ This produces the output
 
 Code in C<cblock>s have access to declarations contained in any C<clex> 
 or C<cshare> blocks that precede it. These blocks are discussed in the 
-next section.
+next section. By default, they also have access to the entire Perl C
+API, and thus nearly all of the C standard library.
 
 You can also use sigiled variable names in your C<cblock>s, and they 
 will be mapped directly to the correct lexically scoped variables.
@@ -285,7 +319,6 @@ lexical scope as the C<clex> block.
 Such a block might look like this:
 
  use C::Blocks;
- use C::Blocks::PerlAPI;
  
  clex {
      typedef struct _point_t {
@@ -306,13 +339,9 @@ Such a block might look like this:
 	 #define point_from_SV(point_sv) _point_from_SV(aTHX_ point_sv)
  }
 
-Notice that I need to include C<PerlAPI> because I use structs and 
-functions defined in the Perl C API (C<SV*> and C<SvPVbyte_nolen>). The
-function C<sqrt> is defined in libmath, but that gets brought along
-with the Perl API, so we don't need to explicitly include it.
-
-Later in your file, you could make use of the functions in a C<cblock> 
-such as:
+(The function C<sqrt> is defined in libmath, which is included with the 
+Perl API, which is loaded by default.) Later in your file, you could 
+make use of the functions in a C<cblock> such as:
 
  # Generate some synthetic data;
  my @pairs = map { rand() } 1 .. 10;

@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More;
-use C::Blocks;
+use C::Blocks -noPerlAPI;
 
 # This tests the ability to create functions and struct definitions in
 # one package and share them with other packages. It does not rely on

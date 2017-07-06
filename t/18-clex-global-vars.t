@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More;
-use C::Blocks;
+use C::Blocks -noPerlAPI;
 
 ###### Create a lexically scoped global variable ######
 

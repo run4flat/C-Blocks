@@ -6,7 +6,7 @@ use Test::More;
 # to wrap these in string evals.
 eval q{
 	# Should work
-	use C::Blocks;
+	use C::Blocks -noPerlAPI;
 	cblock {
 		int i = 0;
 	}
@@ -15,7 +15,7 @@ is($@, '', 'Compilation works fine');
 
 eval q{
 	# Should work
-	use C::Blocks;
+	use C::Blocks -noPerlAPI;
 	cblock {
 		int i = 0;
 	}
@@ -30,7 +30,7 @@ isnt($@, '', 'saying no C::Blocks then using "cblock" issues exception');
 like($@, qr/syntax error .* near "cblock/, 'the exception is due to bad "cblock" keyword');
 
 eval q{
-	use C::Blocks;
+	use C::Blocks -noPerlAPI;
 	cblock {
 		int i = 0;
 	}
@@ -39,7 +39,7 @@ eval q{
 	
 	my $foo = 1;
 	
-	use C::Blocks;
+	use C::Blocks -noPerlAPI;
 	cblock {
 		int i = 0;
 	}

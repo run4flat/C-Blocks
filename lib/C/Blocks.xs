@@ -293,11 +293,6 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->add_test_SV = 0;
 	data->keep_curly_brackets = 1;
 	
-	/* The user may have loaded perlapi explicitly. However, we won't
-	 * check unless we find a need to check. Start by assuming it's not
-	 * loaded. */
-	data->has_loaded_perlapi = 0;
-	
 	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
 	data->code_top = newSVpvn("", 0);
 	data->code_main = newSVpvn("", 0);

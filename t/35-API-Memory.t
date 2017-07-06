@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Test::More;
 use C::Blocks;
-use C::Blocks::PerlAPI;
 
 # Try allocating a double array and filling it with numbers.
 my $c_array_ptr;
