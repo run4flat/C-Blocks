@@ -56,4 +56,28 @@ BEGIN {
 }
 is ($C::Blocks::_msg, 'block 33', "Interpolation occurs at compile time with modified variable values");
 
+########################################################################
+# Package of interpolation block
+########################################################################
+# Interpolation blocks should operate within the current package. It
+# turns out that the obvious mechanism for calling interpolation blocks,
+# namely eval_pv, uses the main package. This test ensures that the
+# proper work-arounds are in place so that the package is right.
+
+our $caller;
+sub note_caller {
+	$caller = caller;
+}
+package OtherPackage;
+cblock {
+	${
+		main::note_caller();
+		''
+	}
+}
+
+package main;
+
+is($caller, 'OtherPackage', 'Interpolation blocks are executed in local package');
+
 done_testing;

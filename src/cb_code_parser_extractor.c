@@ -597,11 +597,21 @@ static void find_end_of_xsub_name(pTHX_ c_blocks_data * data) {
 
 static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 	/* Temporarily replace the closing bracket with null so we can
-	 * eval_pv the buffer without copying. */
+	 * use it as a null-terminated string in the following newSVpvf. */
 	*pstate->data->end = '\0';
+	
+	/* Create a string with proper package and line number information */
+	SV * to_eval = newSVpvf("package %s;\n#line %d \"%s\"\n%s",
+		SvPVbyte_nolen(PL_curstname),
+		CopLINE(PL_curcop) + pstate->data->N_newlines,
+		CopFILE(PL_curcop),
+		pstate->sigil_start + 2
+	);
 	/* XXX working here - should catch eval and return special value.
 	 * For now, croak on error (and leak). */
-	SV * returned_sv = eval_pv(pstate->sigil_start + 2, 1);
+	SV * returned_sv = eval_pv(SvPVbyte_nolen(to_eval), 1);
+	/* clean up the temporary SV */
+	SvREFCNT_dec(to_eval);
 	
 	char * fixed_returned
 		= cb_replace_double_colons_with_double_underscores(aTHX_ returned_sv);
