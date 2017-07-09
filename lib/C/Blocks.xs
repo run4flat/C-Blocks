@@ -698,8 +698,7 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	tcc_delete(state);
 	
 	/* Make the parser count the number of lines correctly */
-	int i;
-	for (i = 0; i < data->N_newlines; i++) lex_stuff_pv("\n", 0);
+	CopLINE(PL_curcop) += data->N_newlines;
 
 	/* Return success */
 	return KEYWORD_PLUGIN_STMT;

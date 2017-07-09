@@ -164,7 +164,9 @@ void cb_fixup_xsub_name(pTHX_ c_blocks_data * data) {
 	/* copy also into the main code container */
 	sv_catpvf(data->code_main, "XSPROTO(%s) {", data->xs_c_name);
 	
-	/* remove the name from the buffer */
+	/* remove the name from the buffer. At the moment, data->end points
+	 * to the first character *after* the name, so we are resetting the
+	 * start of the buffer to *that* character. */
 	lex_unstuff(data->end);
 }
 
@@ -234,8 +236,8 @@ void cb_extract_c_code(pTHX_ c_blocks_data * data, int keyword_type) {
 	 * into the main code container. Don't copy the final bracket, so
 	 * that bottom's code can be appended later. */
 	sv_catpvn(data->code_main, PL_bufptr, data->end - PL_bufptr - 1);
-	/* end points to the first character after the closing bracket, so
-	 * don't copy (or unstuff) that. */
+	/* end points to the first character after the closing bracket,
+	 * which is where we want PL_bufptr to be, so update it. */
 	lex_unstuff(data->end);
 	data->end = PL_bufptr;
 	/* Add the closing bracket to the end, if appropriate */
@@ -600,6 +602,15 @@ static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 	 * use it as a null-terminated string in the following newSVpvf. */
 	*pstate->data->end = '\0';
 	
+	int N_newlines_added = 0;
+	int i;
+	/* Note first two chars are '$' and '{', so skip those */
+	for (i = 2; pstate->sigil_start[i]; i++) {
+		/* newlines in the interpolation block are going to be removed,
+		 * so subtract. */
+		if (pstate->sigil_start[i] == '\n') N_newlines_added--;
+	}
+	
 	/* Create a string with proper package and line number information */
 	SV * to_eval = newSVpvf("package %s;\n#line %d \"%s\"\n%s",
 		SvPVbyte_nolen(PL_curstname),
@@ -616,12 +627,25 @@ static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 	char * fixed_returned
 		= cb_replace_double_colons_with_double_underscores(aTHX_ returned_sv);
 	
+	/* count the lines added */
+	for (i = 0; fixed_returned[i]; i++) {
+		if (fixed_returned[i] == '\n') N_newlines_added++;
+	}
+	
+	
 	/* Replace the interpolation block with contents of eval. Be sure
 	 * to get rid of the entire block up to the closing bracket, which
 	 * is now the null character added above. */
 	sv_catpv_nomg(pstate->data->code_main, fixed_returned);
+	sv_catpvf(pstate->data->code_main, "\n#line %d \"%s\"\n",
+		CopLINE(PL_curcop) + pstate->data->N_newlines + N_newlines_added,
+		CopFILE(PL_curcop)
+	);
+	/* Set the buffer so it begins with the first character after the
+	 * closing curly bracket */
 	lex_unstuff(pstate->data->end + 1);
-	pstate->data->end = PL_bufptr;
+	/* Set the end so that it advances *to* the first character in the buffer */
+	pstate->data->end = PL_bufptr - 1;
 //	SvREFCNT_dec(returned_sv); // XXX is this correct?
 	
 	/* XXX working here - add #line to make sure tcc correctly indicates
