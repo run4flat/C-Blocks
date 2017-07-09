@@ -6,7 +6,9 @@
 /* I think defining DPPP_PL_parser_NO_DUMMY breaks perls prior to 5.9.5
  * but I'm not sure (ppport suggests as much). But I also think that
  * those might have been equally broken by some of other preprocessor
- * hackery. Do we care? --Steffen */
+ * hackery. Do we care? --Steffen
+ *
+ * No, I do not care about such ancient Perls. -- David */
 #define DPPP_PL_parser_NO_DUMMY
 #include "ppport.h"
 
