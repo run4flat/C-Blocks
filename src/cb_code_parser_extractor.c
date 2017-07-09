@@ -62,6 +62,7 @@ static inline int is_whitespace_char(char to_check) {
 static int process_next_char_no_vars (pTHX_ parse_state * pstate);
 
 /* FIXME: The following functions are UNIMPLEMENTED */
+/* Note: I tried to address this once, but found it tricky. --David */
 /* static int process_next_char_sigiled_block (pTHX_ parse_state * pstate); */
 /* static int process_next_char_sigil_blocks_ok (pTHX_ parse_state * pstate); */
 
@@ -85,8 +86,10 @@ static void find_end_of_xsub_name(pTHX_ c_blocks_data * data);
 /**** Implementation ****/
 /************************/
 
-/* XXX contents should be added to code_main here, rather than copied
- * with LEX_KEEP_PREVIOUS. That's a relic of a previous approach. */
+/* Note: contents should *not* be added to code_main here, we need
+ * LEX_KEEP_PREVIOUS. Sigiled variable names and interpolation blocks
+ * both utilize the parser buffer to hold some stuff before they do
+ * their work. */
 #define ENSURE_LEX_BUFFER(end, croak_message)                   \
 	if (end == PL_bufend) {                                     \
 		int length_so_far = end - PL_bufptr;                    \
@@ -263,7 +266,13 @@ static int direct_replace_double_colons(char * to_check) {
  * because interpolation blocks can be used anywhere. This is written
  * such that the variable-handling parsers call this function first, and
  * perform follow-ups if they get PR_MAYBE_SIGIL. Reinstates normal
- * parsing after interpolation blocks have been identified. */
+ * parsing after interpolation blocks have been identified.
+ *
+ * NOTE: this is used also to extract Perl interpolation blocks. It is
+ * smart enough not to interfere with double-colons or sigils, and that
+ * handles all concerns *except* for comments or pod with unmatched
+ * curly brackets. It would be nice to have a specialized Perl-code
+ * parser, but for now this is sufficient. */
 static int process_next_char_no_vars (pTHX_ parse_state * pstate) {
 	switch (pstate->data->end[0]) {
 		case '{':
