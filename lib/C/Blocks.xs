@@ -239,14 +239,20 @@ void my_tcc_error_func (void * message_ptr, const char * msg ) {
 /**** C code parser/extractor ****/
 /*********************************/
 
+void post_filter_restore_underbar(pTHX_ void* under_backup) {
+	/* XXX Is this really the only way to "local $_" in C??? */
+	SV * underbar = find_rundefsv();
+	sv_setsv(underbar, (SV*)under_backup);
+	SvREFCNT_dec((SV*)under_backup);
+}
 
 void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
-	/* Get $_ and place the code in it */
+	/* back up $_ and setup a restore point, i.e. localize it */
 	SV * underbar = find_rundefsv();
-	/* XXX should I use some form of localization instead, like
-	 * SAVECLEARSV? This way if a filter croaks, $_ will be restored.
-	 * OK, this needs a test... */
 	SV * under_backup = newSVsv(underbar);
+	SAVEDESTRUCTOR_X(post_filter_restore_underbar, under_backup);
+	
+	/* place the code in $_ */
 	sv_setpvf(underbar, "%s%s%s", SvPVbyte_nolen(data->code_top),
 		SvPVbyte_nolen(data->code_main), SvPVbyte_nolen(data->code_bottom));
 	
@@ -287,9 +293,6 @@ void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
 	
 	/* copy contents of underbar into main */
 	sv_setsv(data->code_main, underbar);
-	
-	/* restore underbar when done */
-	sv_setsv(underbar, under_backup);
 }
 
 /*************************/
