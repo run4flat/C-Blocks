@@ -647,18 +647,6 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 		machine_code_size);
 	if (machine_code_size > 0) {
 		void * machine_code = cb_mem_alloc(machine_code_size);
-#if 0
-		/* Add enough bytes to align on cache line size */
-		SV * machine_code_SV = newSV(machine_code_size + 63);
-		AV * machine_code_cache = get_av("C::Blocks::__code_cache_array", GV_ADDMULTI | GV_ADD);
-		uintptr_t machine_code_loc = (uintptr_t)SvPVX(machine_code_SV);
-		if ((machine_code_loc & 0x63) != 0) {
-			machine_code_loc &= ~0x63;
-			machine_code_loc += 64;
-		}
-		int relocate_returned = tcc_relocate(state, (void*)machine_code_loc);
-		av_push(machine_code_cache, machine_code_SV);
-#endif
 		int relocate_returned = tcc_relocate(state, machine_code);
 		if (SvPOK(data->error_msg_sv)) {
 			/* Look for errors and croak */
