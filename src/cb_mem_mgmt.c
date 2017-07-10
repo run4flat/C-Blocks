@@ -1,5 +1,16 @@
 #include <cb_mem_mgmt.h>
 
+/* XXX I am 99% certain that this code can be undone. I generally like
+ * the idea of consolidating memory allocations, but this was all
+ * written in response to cache miss issues before feature creep ensued.
+ * Cache issues have been resolved upstream (in tcc itself), so this
+ * can probably be removed and the old approach in C/Blocks.xs should be
+ * fine:
+ *   SV * machine_code_SV = newSV(machine_code_size);
+ *   ...
+ *   av_push(machine_code_cache, machine_code_SV);
+ */
+
 typedef struct executable_memory executable_memory;
 struct executable_memory {
 	uintptr_t curr_address;
