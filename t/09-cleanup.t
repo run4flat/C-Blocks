@@ -10,11 +10,48 @@ use Test::More;
 
 # Load cblocks
 use C::Blocks -noPerlAPI;
+$C::Blocks::_add_msg_functions = 1;
 
 ########################################################################
-# Does a croaking filter leave $_ modified?
+# syntax error
 ########################################################################
 
+undef $C::Blocks::_cleanup_called;
+eval q{
+	cblock {
+		int i (
+	}
+};
+my $death_note = $@;
+subtest "C syntax error" => sub {
+	like($death_note, qr/C::Blocks compiler error/, "triggerred syntax error");
+	is ($C::Blocks::_cleanup_called, 1, "calls low-level cleanup method");
+};
+
+########################################################################
+# type croak
+########################################################################
+
+sub Foo::c_blocks_init_cleanup { die "What happens now?" }
+
+undef $C::Blocks::_cleanup_called;
+eval q{
+	my Foo $thing;
+	cblock {
+		$thing = 5;
+	}
+};
+$death_note = $@;
+subtest "type with c_blocks_init_cleanup function that croaks" => sub {
+	like($death_note, qr/What happens now/, "triggerred croak in type");
+	is ($C::Blocks::_cleanup_called, 1, "calls low-level cleanup method");
+};
+
+########################################################################
+# croaking filter
+########################################################################
+
+undef $C::Blocks::_cleanup_called;
 $_ = 'not clobbered';
 sub my_filter {
 	die "What happens now?";
@@ -23,7 +60,11 @@ eval q{
 	use C::Blocks::Filter '&my_filter';
 	cblock {}
 };
-
-is ($_, 'not clobbered', 'Filter that croaks does not clobber $_');
+$death_note = $@;
+subtest "Croaking filter" => sub {
+	like ($death_note, qr/What happens now/, "Die propogated/caught");
+	is ($_, 'not clobbered', 'does not clobber $_');
+	is ($C::Blocks::_cleanup_called, 1, "calls low-level cleanup method");
+};
 
 done_testing;

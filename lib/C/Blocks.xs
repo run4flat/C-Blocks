@@ -341,6 +341,12 @@ void cleanup_c_blocks_data(pTHX_ void* data_vp) {
 	Safefree(data->xs_c_name);
 	Safefree(data->xs_perl_name);
 	Safefree(data->xsub_name);
+	/* indicate successful cleanup of data */
+	if (data->add_test) {
+		SV * cleanup_indicator = get_sv("C::Blocks::_cleanup_called",
+			GV_ADD | GV_ADDMULTI);
+		sv_setiv(cleanup_indicator, 1);
+	}
 }
 
 /* Add testing functions if requested. This must be called before
@@ -617,6 +623,15 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	else if (keyword_type == IS_CSUB) cb_fixup_xsub_name(aTHX_ data);
 	else if (keyword_type == IS_CSHARE || keyword_type == IS_CLEX) {
 		data->keep_curly_brackets = 0;
+	}
+	
+	/*****************/
+	/*   Debugging   */
+	/*****************/
+	if (data->add_test) {
+		SV * cleanup_indicator = get_sv("C::Blocks::_cleanup_called",
+			GV_ADD | GV_ADDMULTI);
+		sv_setiv(cleanup_indicator, 0);
 	}
 	
 	/************************/
