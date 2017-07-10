@@ -627,11 +627,9 @@ static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 		CopFILE(PL_curcop),
 		pstate->sigil_start + 2
 	);
-	/* XXX working here - should catch eval and return special value.
-	 * For now, croak on error (and leak). */
+	/* mortalize so it goes away soon */
+	sv_2mortal(to_eval);
 	SV * returned_sv = eval_pv(SvPVbyte_nolen(to_eval), 1);
-	/* clean up the temporary SV */
-	SvREFCNT_dec(to_eval);
 	
 	char * fixed_returned
 		= cb_replace_double_colons_with_double_underscores(aTHX_ returned_sv);
