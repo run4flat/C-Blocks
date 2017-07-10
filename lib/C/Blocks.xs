@@ -3,6 +3,9 @@
 #include "perl.h"
 #include "XSUB.h"
 
+/* Needs tests: run_filters
+ */
+
 /* I think defining DPPP_PL_parser_NO_DUMMY breaks perls prior to 5.9.5
  * but I'm not sure (ppport suggests as much). But I also think that
  * those might have been equally broken by some of other preprocessor
@@ -240,6 +243,9 @@ void my_tcc_error_func (void * message_ptr, const char * msg ) {
 void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
 	/* Get $_ and place the code in it */
 	SV * underbar = find_rundefsv();
+	/* XXX should I use some form of localization instead, like
+	 * SAVECLEARSV? This way if a filter croaks, $_ will be restored.
+	 * OK, this needs a test... */
 	SV * under_backup = newSVsv(underbar);
 	sv_setpvf(underbar, "%s%s%s", SvPVbyte_nolen(data->code_top),
 		SvPVbyte_nolen(data->code_main), SvPVbyte_nolen(data->code_bottom));
@@ -268,6 +274,9 @@ void run_filters (pTHX_ c_blocks_data * data, int keyword_type) {
 					full_method = form("%s::c_blocks_filter", start);
 				}
 				PUSHMARK(SP);
+				/* XXX If this croaks will I have screwed up the list of
+				 * filters since I didn't re-establish the backup? Needs
+				 * a test... */
 				call_pv(full_method, G_DISCARD|G_NOARGS);
 				start = filters + 1;
 				*filters = backup;
@@ -646,6 +655,15 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	sv_setiv(get_sv("C::Blocks::_last_machine_code_size", GV_ADD | GV_ADDMULTI),
 		machine_code_size);
 	if (machine_code_size > 0) {
+		/* XXX IDEA: allocate SV to hold machine code and store the
+		 * SV in a *hash*, keyed by either the symtab pointer or the
+		 * machine code pointer (needs to be fleshed out). When a new
+		 * block utilizes this machine code, the SV's refcount goes up;
+		 * when a block is destroyed (known via some sort of destruct
+		 * magic attached to the block), the SV's refcount goes down. 
+		 * This would make it possible to de-allocate machine code that
+		 * is no longer in user, which would be especially helpful for
+		 * string eval'd cblocks. */
 		void * machine_code = cb_mem_alloc(machine_code_size);
 		int relocate_returned = tcc_relocate(state, machine_code);
 		if (SvPOK(data->error_msg_sv)) {
