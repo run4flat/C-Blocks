@@ -304,10 +304,9 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	data->xs_c_name = 0;
 	data->xs_perl_name = 0;
 	data->xsub_name = 0;
-	data->add_test_SV = 0;
 	data->keep_curly_brackets = 1;
 	
-	data->add_test_SV = get_sv("C::Blocks::_add_msg_functions", 0);
+	data->add_test = SvOK(get_sv("C::Blocks::_add_msg_functions", 0));
 	data->code_top = newSVpvn("", 0);
 	data->code_main = newSVpvn("", 0);
 	data->code_bottom = newSVpvn("", 0);
@@ -347,7 +346,7 @@ void cleanup_c_blocks_data(pTHX_ void* data_vp) {
 /* Add testing functions if requested. This must be called before
  * add_function_signature_to_block is called. */
 void add_msg_function_decl(pTHX_ c_blocks_data * data) {
-	if (SvOK(data->add_test_SV)) {
+	if (data->add_test) {
 		sv_catpv(data->code_top, "void c_blocks_send_msg(char * msg);"
 			"void c_blocks_send_bytes(void * msg, int bytes);"
 			"char * c_blocks_get_msg();"
@@ -644,7 +643,7 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	/******************************************/
 	
 	/* test symbols */
-	if (SvOK(data->add_test_SV)) {
+	if (data->add_test) {
 		tcc_add_symbol(state, "c_blocks_send_msg", _c_blocks_send_msg);
 		tcc_add_symbol(state, "c_blocks_send_bytes", _c_blocks_send_bytes);
 		tcc_add_symbol(state, "c_blocks_get_msg", _c_blocks_get_msg);

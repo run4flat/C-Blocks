@@ -11,13 +11,13 @@ typedef struct c_blocks_data {
 	char * xs_perl_name;
 	char * xsub_name;
 	SV * exsymtabs;
-	SV * add_test_SV;
 	SV * code_top;
 	SV * code_main;
 	SV * code_bottom;
 	SV * error_msg_sv;
 	int N_newlines;
 	int keep_curly_brackets;
+	int add_test;
 } c_blocks_data;
 
 
