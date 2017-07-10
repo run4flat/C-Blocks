@@ -35,7 +35,6 @@ enum {
 	PR_NON_SIGIL,       /* called does not need to worry about sigil
 						 * handling: either not a sigil, or sigil_start
 						 * was already set. */
-	PR_EXCEPTION,       /* interpolation block threw an exception */
 };
 
 
@@ -229,9 +228,6 @@ void cb_extract_c_code(pTHX_ c_blocks_data * data, int keyword_type) {
 		
 		if (*data->end == '\n') data->N_newlines++;
 		still_working = my_parse_state.process_next_char(aTHX_ &my_parse_state);
-		if (still_working == PR_EXCEPTION) {
-			/* XXX working here - if an exception in Perl block, must clean up! */
-		}
 		data->end++;
 	} while (still_working);
 	
