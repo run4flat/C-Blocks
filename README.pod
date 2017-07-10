@@ -6,26 +6,22 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
 
 =head1 STATUS
 
-Pre-Beta
+Nearly Beta
 
-The current blocker for beta is that C::Blocks::Object::Magic throws 
-segmentation faults. This is a blocker because the code in 
-C::Blocks::Object::Magic is not too complicated (as far as the compiler 
-should be conerned). Fixing this is a top priority of the Alpha stage. 
-C::Blocks::Object::Magic and its tests are not yet included in the CPAN 
-distribution, so even though this distribution is expected to pass its 
-test suite when installed from CPAN, it is still subtly broken. You can 
-be more confident in the distribution's robustness once it reaches 
-Beta.
+The current blocker for the first beta release is feeback from CPAN
+Testers. A large number of improvements have been made to C::Blocks
+since the v0.42. These need to be tested before an official Beta release
+can be made. In particular, Alien::TinyCCx needs to be made to work on
+Mac systems. Once that is working, and after any issues are ironed out
+on Mac (as well as lingering problems reported by Testers), we will have
+our first Beta release.
 
 For more on the milestones for Alpha, Beta, and v1.0, see Goals and
 Milestones below.
 
-I do not yet make any promises about backwards compatibility. (But, I 
-use this distribution in my own code, so you can anticipate that a fair 
-bit of the API has seen use and is not likely to change much.) In 
-particular, the compiler setup and type APIs will be ironed out, in 
-backwards-incompatible ways, during Beta.
+Though do not make any promises about backwards compatibility, most of 
+the C::Blocks API is settling down. However, the compiler setup and 
+type APIs are still in flux. These will be finalized during Beta.
 
 =head1 DESCRIPTION
 
