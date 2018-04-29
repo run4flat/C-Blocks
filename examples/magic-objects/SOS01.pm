@@ -47,17 +47,17 @@ use up the extra memory for the HV* if I really need it. Objects that
 only spend their lives in C would just waste a little memory associated
 with the uninitialized (null) pointer.
 
-There is a subtlety to that, though. When the constructor creates a Perl
-representation of the object, it should have a reference count of 1.
-However, if one object contains another object within it, and it returns
-*that* *object* by some accessor method, then the reference count should
-be two. One reference accounts for the object holding this object, and
-the other accounts for the Perl-side variable holding this object. Both
-of these situations will create a previously nonexistent HV, but the
-reference counts should differ. It seems that in this case, the
-Perl-level constructor should use the same "pathway" as the one
-returning the child object, but the constructor should decrement the
-count by one.
+There is a subtlety to that, though. When the constructor creates a 
+Perl representation of the object, it should have a reference count of 
+1. However, if one object contains another object within it (call that 
+the subobject), and it returns *that* *object* by some accessor method, 
+then the reference count to the subobject should be two. One reference 
+accounts for the object holding this object, and the other accounts for 
+the Perl-side variable holding this object. Both of these situations 
+will create a previously nonexistent HV, but the reference counts 
+should differ. It seems that in this case, the Perl-level constructor 
+should use the same "pathway" as the one returning the child object, 
+but the constructor should decrement the count by one.
 
 =cut
 
