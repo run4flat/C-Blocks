@@ -4,6 +4,8 @@ use warnings;
 ########################################################################
                 package C::Blocks::Types::Struct;
 ########################################################################
+our $VERSION = '0.42';
+$VERSION = eval $VERSION;
 use Carp;
 
 sub import {
@@ -86,7 +88,11 @@ __END__
 
 =head1 NAME
 
-C::Blocks::Types::Struct - a simple interface for declaring struct types
+C::Blocks::Types::Struct - declare non-sharable struct types stored as packed data
+
+=head1 VERSION
+
+This documentation is for v0.42
 
 =head1 SYNOPSIS
 

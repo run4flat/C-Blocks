@@ -5,6 +5,8 @@ use C::Blocks::Types::Struct;
 ########################################################################
                 package C::Blocks::Types::IsaStruct;
 ########################################################################
+our $VERSION = '0.42';
+$VERSION = eval $VERSION;
 use Carp;
 
 # To document: short_name  => String [last bareword of caller's package]
@@ -77,7 +79,11 @@ __END__
 
 =head1 NAME
 
-C::Blocks::Types::IsaStruct - utility for declaring shared struct types
+C::Blocks::Types::IsaStruct - declare sharable struct types stored as packed data
+
+=head1 VERSION
+
+This documentation is for v0.42
 
 =head1 SYNOPSIS
 

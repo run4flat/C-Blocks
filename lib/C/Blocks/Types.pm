@@ -182,7 +182,7 @@ C::Blocks::Types - type classes for basic C data types for C::Blocks
 
 =head1 VERSION
 
-This documentation is for v0.40_1
+This documentation is for v0.42
 
 =head1 SYNOPSIS
 
