@@ -52,6 +52,7 @@ sub c_blocks_init_cleanup {
 			SvCUR(SV_$C_name) = sizeof($C_type);
 			SvPOK_only(SV_$C_name);
 		}
+		SvREADONLY_on(SV_$C_name);
 		$C_type * POINTER_TO_$C_name = ($C_type *)SvPVX(SV_$C_name);
 	};
 	
@@ -63,14 +64,17 @@ sub c_blocks_pack_SV {
 	my ($type_package, $C_name, $SV_name, $must_declare_SV) = @_;
 	my $C_type = $type_package->c_blocks_data_type;
 	
-	return "SV * $SV_name = newSVpvn(&$C_name, sizeof($C_type));"
+	return "SV * $SV_name = newSVpvn(&$C_name, sizeof($C_type)); SvREADONLY_on($SV_name);"
 		if $must_declare_SV;
-	return "sv_setpvn($SV_name, &$C_name, sizeof($C_type));";
+	return "sv_setpvn($SV_name, &$C_name, sizeof($C_type)); SvREADONLY_on($SV_name);";
 }
 
 sub c_blocks_new_SV {
 	my ($type_package, $C_name) = @_;
 	my $C_type = $type_package->c_blocks_data_type;
+	# XXX flag readonly???? Maybe create newSVreadonly function in this
+	# module and ensure it gets exported? Or bolt that function into the
+	# Perl API?
 	return "newSVpvn(&$C_name, sizeof($C_type))"
 }
 

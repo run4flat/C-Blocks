@@ -42,4 +42,17 @@ cblock {
 ok ($x == 5 && $y == -5, "Automatic data allocation works; two-argument declaration works")
 	or diag "x is $x and y is $y";
 
+# Make sure that I cannot change a Perl scalar that has been marked as
+# a struct.
+my $modified = eval { $thing = 1 };
+ok (!$modified, "Cannot modify a struct from Perl side");
+like ($@, qr/Modification of a read-only/,
+	"Perl-side change fails due to read-only setting");
+# make it possible to modify thing again
+cblock {
+	SvREADONLY_off(SV_$thing);
+}
+$thing = 'foo';
+pass("Can modify thing after turning the SvREADONLY flag off");
+
 done_testing;
