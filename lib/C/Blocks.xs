@@ -308,7 +308,8 @@ void initialize_c_blocks_data(pTHX_ c_blocks_data* data) {
 	
 	data->add_test = SvOK(get_sv("C::Blocks::_add_msg_functions", 0));
 	data->code_top = newSVpvn("", 0);
-	data->code_main = newSVpvn("", 0);
+	data->code_main = newSVpvf("\n#line %d \"%s\"\n", CopLINE(PL_curcop),
+		CopFILE(PL_curcop));
 	data->code_bottom = newSVpvn("", 0);
 	data->error_msg_sv = newSV(0);
 	
@@ -465,8 +466,7 @@ void execute_compiler (pTHX_ TCCState * state, c_blocks_data * data, int keyword
 	/* compile the code, which is (by this time) stored entirely in main */
 	STRLEN main_len;
 	char * to_compile = SvPVbyte(data->code_main, main_len);
-	tcc_compile_string_ex(state, to_compile, main_len,
-		CopFILE(PL_curcop), CopLINE(PL_curcop));
+	tcc_compile_string(state, to_compile);
 	
 	/* Handle any compilation errors */
 	if (SvPOK(data->error_msg_sv)) {
@@ -606,6 +606,24 @@ void c_blocks_final_cleanup(pTHX_ void *ptr) {
 	cb_mem_mgmt_cleanup();
 }
 
+/* Keyword plugin for parsing cq expression. This is called by
+ * _my_keyword_plugin */
+STATIC int _cq_keyword_plugin(pTHX_ OP **op_ptr, int keyword_type,
+	c_blocks_data * data
+) {
+	data->keep_curly_brackets = 0;
+	cb_extract_c_code(aTHX_ data, keyword_type);
+	run_filters(aTHX_ data, keyword_type);
+	
+	/* Build the OP that returns this string constant */
+	*op_ptr = newSVOP(OP_CONST, 0, data->code_main);
+	SvREFCNT_inc(data->code_main); /* cleanup calls SvREFCNT_dec */
+	
+	/* Make the parser count the number of lines correctly */
+	CopLINE(PL_curcop) += data->N_newlines;
+	
+	return KEYWORD_PLUGIN_EXPR;
+}
 
 /* See below: my_keyword_plugin is a shim around this function */
 STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
@@ -617,6 +635,10 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	/* Clear out any leading whitespace, including comments. Do this before
 	 * initialization so that the assignment of the end pointer is correct. */
 	lex_read_space(0);
+	
+	/* cq backdoor */
+	if (keyword_type == IS_CQ) return _cq_keyword_plugin(aTHX_ op_ptr,
+		keyword_type, data);
 	
 	add_msg_function_decl(aTHX_ data);
 	if (keyword_type == IS_CBLOCK) add_function_signature_to_block(aTHX_ data);

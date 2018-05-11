@@ -30,6 +30,7 @@ sub import {
 	*{$caller.'::csub'} = sub () {};
 	*{$caller.'::cshare'} = sub () {};
 	*{$caller.'::clex'} = sub () {};
+	*{$caller.'::cq'} = sub () {};
 
 	# Enable keywords in lexical scope ("C::Blocks/keywords" isn't
 	# a magical choice of hints hash entry, it just needs to match XS)
@@ -179,8 +180,16 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
           . '"' }
  }
  
- print "All done!\n"; 
-
+ 
+ ### Produce a string with your C code which includes the
+ ### current line number and applies filters
+ my $code_string = cq {
+     printf("Hello, world!\n");
+ }
+ 
+ 
+ print "All done!\n";
+ 
 =head1 PRE-BETA
 
 This project is currently in pre-beta. Is known to compile and pass its
@@ -515,6 +524,36 @@ In addition to generating raw C code, you can modify code before it is
 compiled with a filter module. Filter modules are given the complete
 contents of the code in the underbar variable C<$_> before it is
 processed through the compiler. See L<C::Blocks::Filter> for more details.
+
+=head2 Partial Code Chunks
+
+While filtering is powerful, more programatic approaches are sometimes
+needed. With these kinds of modules, one of your function or method
+arguments would be a chunk of code that needs to be wrapped in a
+programatic way. This is merely string manipulation. However, when many
+small pieces of code are strung together, it is easy to lose track of
+where the pieces came from. Furthermore, applying filters to your string
+containing your small block of C code is a bit of a hassle.
+
+To address both of these, we have the C<cq> keyword. This keyword 
+mimics the Perl tradition of other quoting keywords such as C<q> and 
+C<qw>. Just like all the other C::Blocks keywords, the content of C<cq> 
+is parsed at compile time, much like C<q> and C<qw>. Just like the 
+other block keywords of C::Blocks, but unlike Perl's quoting keywords, 
+it only allows matching curly-brace delimited blocks of code. (It also 
+allows for comments after the C<cq> but before the opening brace, but 
+why would you do that?)
+
+This is meant for code generation, but it is also helpful for testing.
+A C<cq> keyword produces an I<expression>, which means you can send it
+straight to C<print> if you want to see the output:
+
+ print "C code: [",
+     cq { printf("Hello!\n"); },
+     "]\n";
+
+This is particularly helpful when working on filters, and when writing
+tests for filters.
 
 =head2 Configuring the Compiler
 

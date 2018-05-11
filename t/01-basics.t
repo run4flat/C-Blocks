@@ -67,4 +67,20 @@ for (1..3) {
 	};
 }
 
+my $code = cq {
+	printf("Hello, world!\n");
+};
+
+like($code, qr/#line \d+/, "cq code string has line directive");
+like($code, qr/printf\("Hello, world!\\n"\);/, "cq code string contains correct code");
+
+my $code = cq {
+	Foo
+	${
+		cq {
+			Bar
+		}
+	}
+};
+
 done_testing;

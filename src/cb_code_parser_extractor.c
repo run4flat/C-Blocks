@@ -23,6 +23,7 @@ struct _parse_state {
 	int bracket_count;              /* unmatched open curly brackets */
 	int interpolation_bracket_count_start; /* number of open brackets
 											* when interpolation block began */
+	int interpolation_line_number;  /* line number where interpolation block began */
 	char delimiter;                 /* for delimited next_char parsing */
 };
 
@@ -107,6 +108,10 @@ static void find_end_of_xsub_name(pTHX_ c_blocks_data * data);
  * already been checked and found to be 'c' */
 int cb_identify_keyword (char * keyword_ptr, STRLEN keyword_len) {
 	if (keyword_ptr[0] != 'c') return 0;
+	if (keyword_len == 2) {
+		if (keyword_ptr[1] == 'q') return IS_CQ;
+		return 0;
+	}
 	if (keyword_len == 4) {
 		if (	keyword_ptr[1] == 's'
 			&&	keyword_ptr[2] == 'u'
@@ -396,6 +401,7 @@ static int process_next_char_post_sigil(pTHX_ parse_state * pstate) {
 	if (pstate->data->end[-1] == '$' && pstate->data->end[0] == '{') {
 		pstate->process_next_char = process_next_char_no_vars;
 		pstate->interpolation_bracket_count_start = pstate->bracket_count++;
+		pstate->interpolation_line_number = CopLINE(PL_curcop) + pstate->data->N_newlines;
 		return PR_NON_SIGIL;
 	}
 	
@@ -619,7 +625,7 @@ static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 	/* Create a string with proper package and line number information */
 	SV * to_eval = newSVpvf("package %s;\n#line %d \"%s\"\n%s",
 		SvPVbyte_nolen(PL_curstname),
-		CopLINE(PL_curcop) + pstate->data->N_newlines,
+		pstate->interpolation_line_number,
 		CopFILE(PL_curcop),
 		pstate->sigil_start + 2
 	);

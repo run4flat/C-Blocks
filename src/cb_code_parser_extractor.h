@@ -30,7 +30,7 @@
 #define pad_compname_type(a)	Perl_pad_compname_type(aTHX_ a)
 #endif
 
-enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB } keyword_type_list;
+enum { IS_CBLOCK = 1, IS_CSHARE, IS_CLEX, IS_CSUB, IS_CQ } keyword_type_list;
 
 int cb_identify_keyword (char * keyword_ptr, STRLEN keyword_len);
 
