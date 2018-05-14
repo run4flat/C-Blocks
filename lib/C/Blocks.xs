@@ -608,21 +608,21 @@ void c_blocks_final_cleanup(pTHX_ void *ptr) {
 
 /* Keyword plugin for parsing cq expression. This is called by
  * _my_keyword_plugin */
-STATIC int _cq_keyword_plugin(pTHX_ OP **op_ptr, int keyword_type,
-	c_blocks_data * data
-) {
+STATIC int _cq_keyword_plugin(pTHX_ OP **op_ptr, c_blocks_data * data) {
+	/* remove line-number spec */
+	sv_setpvs(data->code_main, "");
+	
+	/* extract the cq block */
 	data->keep_curly_brackets = 0;
-	cb_extract_c_code(aTHX_ data, keyword_type);
-	run_filters(aTHX_ data, keyword_type);
+	cb_extract_c_code(aTHX_ data, IS_CQ);
 	
-	/* Build the OP that returns this string constant */
-	*op_ptr = newSVOP(OP_CONST, 0, data->code_main);
-	SvREFCNT_inc(data->code_main); /* cleanup calls SvREFCNT_dec */
+	/* Wrap everything in function-call parens and qq curly brackets.
+	 * The actual cq is a Perl function that adds the line number
+	 * directive and applies the filters. */
+	lex_stuff_pv(form("( qq{%s} )", SvPVbyte_nolen(data->code_main)), 0);
 	
-	/* Make the parser count the number of lines correctly */
-	CopLINE(PL_curcop) += data->N_newlines;
-	
-	return KEYWORD_PLUGIN_EXPR;
+	/* pretend we didn't do anything... */
+	return KEYWORD_PLUGIN_DECLINE;
 }
 
 /* See below: my_keyword_plugin is a shim around this function */
@@ -638,7 +638,7 @@ STATIC int _my_keyword_plugin(pTHX_ char *keyword_ptr,
 	
 	/* cq backdoor */
 	if (keyword_type == IS_CQ) return _cq_keyword_plugin(aTHX_ op_ptr,
-		keyword_type, data);
+		data);
 	
 	add_msg_function_decl(aTHX_ data);
 	if (keyword_type == IS_CBLOCK) add_function_signature_to_block(aTHX_ data);

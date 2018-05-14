@@ -66,13 +66,14 @@ static int process_next_char_no_vars (pTHX_ parse_state * pstate);
 /* static int process_next_char_sigiled_block (pTHX_ parse_state * pstate); */
 /* static int process_next_char_sigil_blocks_ok (pTHX_ parse_state * pstate); */
 
+/* Parsing state functions */
 static int process_next_char_sigil_vars_ok (pTHX_ parse_state * pstate);
 static int process_next_char_delimited (pTHX_ parse_state * pstate);
 static int process_next_char_C_comment (pTHX_ parse_state * pstate);
 static int process_next_char_post_sigil (pTHX_ parse_state * pstate);
 static int process_next_char_sigiled_var (pTHX_ parse_state * pstate);
-
 static int process_next_char_colon(pTHX_ parse_state * pstate);
+
 static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate);
 
 static int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
@@ -81,6 +82,12 @@ static int call_init_cleanup_builder_method(pTHX_ parse_state * pstate,
 static int direct_replace_double_colons(char * to_check);
 
 static void find_end_of_xsub_name(pTHX_ c_blocks_data * data);
+
+/* cq parsing state functions */
+static int process_next_char_cq (pTHX_ parse_state * pstate);
+static int process_next_char_cq_post_escape (pTHX_ parse_state * pstate);
+static int process_next_char_cq_quote (pTHX_ parse_state * pstate);
+static int process_next_char_cq_quote_post_escape (pTHX_ parse_state * pstate);
 
 /************************/
 /**** Implementation ****/
@@ -219,6 +226,10 @@ void cb_extract_c_code(pTHX_ c_blocks_data * data, int keyword_type) {
 	if (keyword_type == IS_CBLOCK) {
 		my_parse_state.process_next_char = process_next_char_sigil_vars_ok;
 		my_parse_state.default_next_char = process_next_char_sigil_vars_ok;
+	}
+	else if (keyword_type == IS_CQ) {
+		my_parse_state.process_next_char = process_next_char_cq;
+		my_parse_state.default_next_char = process_next_char_cq;
 	}
 	else {
 		my_parse_state.process_next_char = process_next_char_no_vars;
@@ -672,3 +683,101 @@ static int execute_Perl_interpolation_block(pTHX_ parse_state * pstate) {
 	return PR_NON_SIGIL;
 }
 
+/********************/
+/**** cq Parsing ****/
+/********************/
+/* Alternative base parser for cq. cq blocks are ultimately implemented
+ * as qq Perl quotations, so we just need to add a little bit of text
+ * and handle a few escapes. */
+static int process_next_char_cq (pTHX_ parse_state * pstate) {
+	switch (pstate->data->end[0]) {
+		case '{':
+			pstate->bracket_count++;
+			if (pstate->bracket_count == 1) {
+				/* Remove first bracket from the buffer */
+				lex_unstuff(pstate->data->end + 1);
+				pstate->data->end = PL_bufptr - 1;
+			}
+			return PR_NON_SIGIL;
+		case '}':
+			pstate->bracket_count--;
+			if (pstate->bracket_count == 0) return PR_CLOSING_BRACKET;
+			return PR_NON_SIGIL;
+		case '\'': case '\"':
+			/* Setup quote extraction state, matching on the
+			 * quotation character we just saw. */
+			pstate->process_next_char = process_next_char_cq_quote;
+			pstate->delimiter = pstate->data->end[0];
+			return PR_NON_SIGIL;
+		case '\\':
+			/* An unquoted backslash. For this, set up cq_post_escape
+			 * in case we have a curly bracket. */
+			pstate->process_next_char = process_next_char_cq_post_escape;
+			return PR_NON_SIGIL;
+	}
+}
+/* This is almost absurdly simple. It simply allows any character to
+ * pass through, then resets the parser. The primary role of this is to
+ * bypass all side-effects of the characters, such as bracket counting
+ * or double-quote parsing. */
+static int process_next_char_cq_post_escape (pTHX_ parse_state * pstate) {
+	pstate->process_next_char = process_next_char_cq;
+	return PR_NON_SIGIL;
+}
+/* This parser is like next_char_cq except that it sets up a more
+ * sophisticated post-escape parser. */
+static int process_next_char_cq_quote (pTHX_ parse_state * pstate) {
+	if (pstate->data->end[0] == pstate->delimiter) {
+		/* done parsing string if we find our closing character */
+		pstate->process_next_char = process_next_char_cq;
+		return PR_NON_SIGIL;
+	}
+	/* monitor bracket counts and look for escape sequences */
+	switch (pstate->data->end[0]) {
+		case '{':
+			pstate->bracket_count++;
+			return PR_NON_SIGIL;
+		case '}':
+			pstate->bracket_count--;
+			/* Raw cq code with an unterminated quotation mark is almost
+			 * certainly an error, so croak. It's possible to generate
+			 * cq strings with single quotation marks by interpolating
+			 * a variable, so this error does not prohibit doing that.
+			 * It just makes this unlikely case a lot harder. */
+			if (pstate->bracket_count == 0) {
+				CopLINE(PL_curcop) += pstate->data->N_newlines;
+				croak("Unterminated string");
+			}
+			return PR_NON_SIGIL;
+		case '\\':
+			pstate->process_next_char = process_next_char_cq_quote_post_escape;
+			return PR_NON_SIGIL;
+	}
+	return PR_NON_SIGIL;
+}
+/* When we encounter an escaped character in a C quoted string or
+ * character, we need to add extra escapes so that it makes it through
+ * the qq parsing. */
+static int process_next_char_cq_quote_post_escape (pTHX_ parse_state * pstate) {
+	switch (pstate->data->end[0]) {
+		case '\'': case '\"': case '\\': /* will be "eaten" by Perl's qq */
+		case 'n': case 'r': /* don't want qq to convert for us */
+			/* We need to escape these. Copy the lexical buffer into
+			 * code main, then clear out the lexical buffer up to but
+			 * not including this character. */
+			sv_catpvn(pstate->data->code_main, PL_bufptr,
+				pstate->data->end - PL_bufptr);
+			lex_unstuff(pstate->data->end);
+			pstate->data->end = PL_bufptr;
+			/* add the additional slash */
+			sv_catpvn(pstate->data->code_main, "\\", 1);
+	}
+	if (pstate->data->end[0] == '\\') {
+		/* add an extra slash so that \\ becomes \\\\, which gets
+		 * processed by qq back down to \\ */
+		sv_catpvn(pstate->data->code_main, "\\", 1);
+	}
+	/* reset to quotation parser */
+	pstate->process_next_char = process_next_char_cq_quote;
+	return PR_NON_SIGIL;
+}

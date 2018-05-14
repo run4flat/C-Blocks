@@ -30,7 +30,7 @@ sub import {
 	*{$caller.'::csub'} = sub () {};
 	*{$caller.'::cshare'} = sub () {};
 	*{$caller.'::clex'} = sub () {};
-	*{$caller.'::cq'} = sub () {};
+	*{$caller.'::cq'} = \&cq;
 
 	# Enable keywords in lexical scope ("C::Blocks/keywords" isn't
 	# a magical choice of hints hash entry, it just needs to match XS)
@@ -74,6 +74,29 @@ sub C::Blocks::load_lib {
 	
 	# add the symtab list to the calling context's hints hash
 	$^H{"C::Blocks/extended_symtab_tables"} .= $symtab_list;
+}
+
+# Applies the line number directive to the top of the block and runs the
+# caller's filters on the passed string
+sub cq {
+	my ($string) = @_;
+	
+	# Get caller's line number, file name, and hints hash.
+	my ($package, $filename, $line, $hinthash) = (caller(0))[0..2,10];
+	
+	# Run the filters
+	local $_ = $string;
+	for my $filter (split /\|/, $hinthash->{"C::Blocks/filters"} || '') {
+		last if $filter eq '';
+		if ($filter =~ s/^&//) {
+			$package->$filter();
+		}
+		else {
+			$filter->c_blocks_filter();
+		}
+	}
+	
+	return "\n#line $line \"$filename\"\n$_";
 }
 
 1;
@@ -182,10 +205,12 @@ C::Blocks - embeding a fast C compiler directly into your Perl parser
  
  
  ### Produce a string with your C code which includes the
- ### current line number and applies filters
+ ### current line number, applies filters, and allows for
+ ### variable interpolation:
+ my $func_name = 'printf';
  my $code_string = cq {
-     printf("Hello, world!\n");
- }
+     $func_name("Hello, world!\n");
+ };
  
  
  print "All done!\n";
@@ -477,84 +502,6 @@ L</SYNOPSIS> is enough to get you started. For a more in-depth discussion, see
 L<http://blog.booking.com/native-extensions-for-perl-without-smoke-and-mirrors.html>.
 Once you've gotten through that, check out L<perlapi>.
 
-=head2 Generating C Code
-
-Because C<C::Blocks> hooks on keywords, it is naturally invoked in
-C<cblock>, C<cshare>, C<clex>, and C<csub> blocks which are themselves
-contained within a string eval. However, string evals compile at
-runtime, not script parse time. Although it would be easy to generate C
-code using Perl, writing useful C<clex> and C<cshare> blocks is tricky.
-
-For this reason, C<C::Blocks> provides a bit of notation for an
-"interpolation block." An interpolation block is a block of Perl code
-that is run as soon as it is extracted (i.e. during script compile time).
-The return value is then inserted directly into the text that gets
-compiled. Thus, these two C<cblock>s end up doing the same thing:
-
- cblock {
-     printf("Hello!\n");
- }
- 
- cblock {
-     ${ 'printf' } ("Hello!\n");
- }
-
-The example given in the L</SYNOPSIS> is probably more meaningful. It
-also illustrates that the value returned by the Perl code has to be
-literal C code, including the left and right double quotes for strings.
-This arises because sigils (and interpolation blocks by extension, as
-they are delimited by a sigil) are ignored within strings and C comments.
-
-Note: The current implementation is unpolished. In particular, it does
-not intelligently handle exceptions thrown during the evaluation of the
-Perl code. (Indeed, at the moment it suppresses them.)
-
-For the most part, any side effects from the code contained in
-interpolation blocks behave exactly like side effects from BEGIN blocks.
-There is an exception, however, for Perls earlier than 5.18. In these
-older Perls, lexical variables become uninitialized after all interpolation
-blocks execute, but before any BEGIN blocks run. This only applies to
-lexically scoped variables, however. Changes to package-scoped variables
-(including lexically scoped names, i.e. C<our $package_var>) persist,
-as would be expected if these variables were set in BEGIN blocks.
-
-=head2 Filtering C Code
-
-In addition to generating raw C code, you can modify code before it is
-compiled with a filter module. Filter modules are given the complete
-contents of the code in the underbar variable C<$_> before it is
-processed through the compiler. See L<C::Blocks::Filter> for more details.
-
-=head2 Partial Code Chunks
-
-While filtering is powerful, more programatic approaches are sometimes
-needed. With these kinds of modules, one of your function or method
-arguments would be a chunk of code that needs to be wrapped in a
-programatic way. This is merely string manipulation. However, when many
-small pieces of code are strung together, it is easy to lose track of
-where the pieces came from. Furthermore, applying filters to your string
-containing your small block of C code is a bit of a hassle.
-
-To address both of these, we have the C<cq> keyword. This keyword 
-mimics the Perl tradition of other quoting keywords such as C<q> and 
-C<qw>. Just like all the other C::Blocks keywords, the content of C<cq> 
-is parsed at compile time, much like C<q> and C<qw>. Just like the 
-other block keywords of C::Blocks, but unlike Perl's quoting keywords, 
-it only allows matching curly-brace delimited blocks of code. (It also 
-allows for comments after the C<cq> but before the opening brace, but 
-why would you do that?)
-
-This is meant for code generation, but it is also helpful for testing.
-A C<cq> keyword produces an I<expression>, which means you can send it
-straight to C<print> if you want to see the output:
-
- print "C code: [",
-     cq { printf("Hello!\n"); },
-     "]\n";
-
-This is particularly helpful when working on filters, and when writing
-tests for filters.
-
 =head2 Configuring the Compiler
 
 Sometimes you need to configure the compiler. The most common situation
@@ -569,10 +516,17 @@ API IS SUBJECT TO CHANGE, LIKELY WITHOUT NOTICE.
 
 To set most compiler settings, you simply treat
 C<$C::Blocks::compiler_options> like the command-line. For example, if
-you want to set preprocessor definition at runtime (but don't want to
-use an interpolation block for some reason), you can use
+you are working with header files in a particular path, you could 
+include that with a C<-I> flag:
 
- BEGIN { $C::Blocks::compiler_options = '-DDEBUG' }
+ BEGIN {
+     my $path = get_path_to_my_lib();
+     $C::Blocks::compiler_options .= "-I$path";
+ }
+
+(Note: if you want to set preprocessor definitions, I highly recommend
+using an interpolation block, which are discussed below under
+L</GENRATING C CODE>.)
 
 A very important aspect to remember is that the compiler options, and
 the shared libraries mentioned next, only apply to the first block they
@@ -630,161 +584,156 @@ the double-colons will pass through unscathed. In addition, this
 replacement occurs with text provided by interpolation blocks and code
 provided for type initialization and cleanup.
 
-=head1 PERFORMANCE
+=head2 But Wait, There's More
 
-C<C::Blocks> is not a silver bullet for performance. Other Perl 
-libraries more tailored to your goal may serve you better. Sometimes 
-they will lead to fewer lines of code, or clearer code, than the 
-corresponding C code. Other times they will be built on solid libraries 
-which are blazing fast already. C<C::Blocks> is implemented using the 
-Tiny C Compiler, a compiler that I<compiles> fast and produces machine 
-code, but which is of mediocre quality. If you compiled the exact same 
-code with a high-quality compiler such as C<gcc -O3>, it would take 
-longer to compile, but the resulting machine code would be more 
-efficient. When can you expect a C::Blocks solution to be a good 
-choice?
+This section has introduced the basic constructs of C::Blocks with an
+emphasis on using the C language. However, C::Blocks provides much more
+than just these.
 
-=head2 When not to use C::Blocks
+All code is merely collections of text strings. The C preprocessor 
+provides rudimentary string processing capabilities, but Perl is far 
+more powerful. For this reason, C::Blocks provides a number of tools 
+and mechanisms for generating C. These are discussed in the next 
+section.
 
-Don't rewrite an existing XS module using C::Blocks. A C::Blocks API to 
-your XS code might be useful, but don't rewrite mature XS code. 
-C::Blocks can save you from the effort of producing a new XS 
-distribution, but if you've already put in that effort, don't throw it 
-away.
+Perl and C have different views on their data. While C::Blocks provides 
+a simple mechanism for referring to Perl variables in the current 
+lexical scope, the methods up to this point have offered little in the 
+way of marshalling data from Perl to C and back. This is a common and 
+oftentimes verbose task. C::Blocks mitigates this problem with a system 
+for automatically generating the marshalling code using Perl's 
+oft-ignored type annotations. These are discussed under L</TYPES>.
 
-Don't replace a handful of Perl statements with their C-API 
-equivalents. Perl's core has been pretty highly optimized and is 
-compiled at high optimization levels. At best, you'll get incremental
-performance gains, and they will likely come at the expense of many
-additional lines of code. This probably isn't worth it.
+=head1 GENERATING C CODE
 
-Don't discount the cost of marshalling Perl data into C data. Obtaining 
-C representations of your data will always cost you at least a few 
-clock cycles, and it will usually add lines of code, too. You're likely 
-to see the best performance benefits if you can marshall the data as 
-early as possible and use that C-accessible data many times over. For 
-example, if you have a data-parsing stage in which you build a complex 
-data structure representing that data, try to build a C structure 
-instead of a Perl structure at parse time. All future operations will
-have access to the C representation.
+Hopefully the above mechanisms for writing C code in Perl are sufficient
+for most of your needs. However, C is a minimal language and you may
+sometimes find yourself wanting to generate or modify your C code
+systematically. C<C::Blocks> provides a number of tools for doing this.
 
-=head2 C::Blocks vs Perl and PDL
+=head2 More than String Evals
 
-In what follows, I assume you have already marshalled your data into a
-C data structure, like an array or a struct.
+Because C<C::Blocks> hooks on keywords, it is naturally invoked in
+C<cblock>, C<cshare>, C<clex>, and C<csub> blocks which are themselves
+contained within a string eval. However, string evals compile at
+runtime, not script parse time. Although it would be easy to generate C
+code using Perl, writing useful C<clex> and C<cshare> blocks is tricky.
+For this reason, additional capabilities have been developed including
+interpolation blocks, code filters, and a mechanism for quoting chunks
+of C code.
 
-C<C::Blocks> outperforms Perl on O(N) numeric calculations on arrays, 
-often by a factor greater than 10. (An O(N) calculation is any 
-algorithm that only needs to examine each data point once, so the 
-calculation should scale with the number of data points.) In fact, 
-C<C::Blocks> is competitive with L<PDL> in such calculations. 
-C<C::Blocks> requires more lines of code, though. For a calculation of 
-the average of a dataset, L<PDL> uses only one line, a Perl 
-implementation uses three, and C::Blocks uses 14. What you gain in 
-speed you lose in lines of code.
+=head2 Interpolation Blocks
 
-Another interesting comparison between L<PDL> and C::Blocks is the 
-calculation of euclidian distance for an N-dimensional vector, where N 
-scales from very small to very large numbers. The calculation is always 
-O(N), but is more complex than the simple average already discussed, 
-and not explicitly implemented as a low-level L<PDL> routine. The 
-L<PDL> implementation is only a single very readable line, highlighting 
-L<PDL>'s expresiveness. The C::Blocks implementation is 14 lines of 
-traditional C code, making it straight-forward but lengthy. The 
-C::Blocks has the upper hand in execution rate---always faster than 
-L<PDL>, though never more than by a factor of two---and in predictable 
-scaling---almost perfectly linear in system size, vs slightly nonlinear 
-behavior in the PDL implementation. I'd say the number of lines of code
-is the primary deciding factor here, but the trade-off might fall
-differently for more complicated calculations.
+For this reason, C<C::Blocks> provides a bit of notation for an
+"interpolation block." An interpolation block is a block of Perl code
+that is run as soon as it is extracted (i.e. during script compile time).
+The return value is then inserted directly into the text that gets
+compiled. Thus, these two C<cblock>s end up doing the same thing:
 
-The calculation of the Mandelbrot set provides a very interesting 
-benchmark. The algorithm involves a loop that has a fixed maximun 
-number of iterations, but which can exit early if the calculation 
-converges. This exit-early algorithm knocks PDL out of the race. 
-There's no good way to implement this in PDL short of writing a 
-low-level implementation.
+ cblock {
+     printf("Hello!\n");
+ }
+ 
+ cblock {
+     ${ 'printf' } ("Hello!\n");
+ }
 
-The comparsion between C::Blocks and PDL can best be summarized thus. 
-If you have a very small dataset, less than 1000 elements, C::Blocks 
-will out-perform PDL due to PDL's costly method launch mechanism. If 
-you have multiple tightly nested for-loops, where operations within the 
-for loops are based on the indices, then C::Blocks will likely give you 
-a competitive computation rate, at the cost of many more lines of code. 
-If those for-loops have the possibility of an early exit, PDL may run 
-significantly slower than C::Blocks, and may even run slower than pure 
-Perl. Finally, if you have image manipulations or calculations, PDL is 
-almost certainly the better tool, as it has a lot of low-level image 
-manipulation routines already.
+The example given in the L</SYNOPSIS> is probably more meaningful. It
+also illustrates that the value returned by the Perl code has to be
+literal C code, including the left and right double quotes for strings.
+This arises because sigils (and interpolation blocks by extension, as
+they are delimited by a sigil) are ignored within strings and C comments.
 
-=head2 C::Blocks vs Graph
+Note: The current implementation is unpolished. In particular, it does
+not intelligently handle exceptions thrown during the evaluation of the
+Perl code. (Indeed, at the moment it suppresses them.)
 
-I have not had the opportunity to write and run additional benchmarks 
-for C::Blocks. The next obvious choice would be a comparison with
-L<Graph>, but I have not yet endeavored to produce those calculations.
+For the most part, any side effects from the code contained in
+interpolation blocks behave exactly like side effects from BEGIN blocks.
+There is an exception, however, for Perls earlier than 5.18. In these
+older Perls, lexical variables become uninitialized after all interpolation
+blocks execute, but before any BEGIN blocks run. This only applies to
+lexically scoped variables, however. Changes to package-scoped variables
+(including lexically scoped names, i.e. C<our $package_var>) persist,
+as would be expected if these variables were set in BEGIN blocks.
 
-=head1 KEYWORDS
+=head2 Filtering C Code
 
-The way that C<C::Blocks> provides these functionalities is through lexically
-scoped keywords: C<cblock>, C<clex>, C<cshare>, and C<csub>. These keywords
-precede a block of C code encapsulated in curly brackets. Because these use the
-Perl keyword API, they parse the C code during Perl's parse stage, so any code
-errors in your C code will be caught during parse time, not during run time.
+In addition to generating raw C code, you can modify code before it is
+compiled with a filter module. Filter modules are given the complete
+contents of the code in the underbar variable C<$_> before it is
+processed through the compiler. See L<C::Blocks::Filter> for more details.
 
-=over
+=head2 Partial Code Chunks
 
-=item cblock { code }
+Both filtering and code generation are powerful. However, sometimes you 
+need a system that puts lots of small pieces of code together. The 
+tools we have mentioned up to this point are sufficient for that: you 
+would write a function (or method) that accepts strings with code 
+snippets and which assembles the pieces with other code fragments to 
+produce a working whole. While Perl may be good at assembling strings, 
+it is easy to lose track of where the pieces came from. This is 
+particularly problematic when the compiler encounters an issue with the 
+generated code and attempts to report a meaningful file and line number 
+for the mistake. In addition, applying filters to a string containing a 
+small block of C code is a bit of a hassle.
 
-C code contained in a C<cblock> gets wrapped into a special type of C function
-and compiled during the compilation stage of the surrounding Perl code. The
-resulting function is inserted into the Perl op tree at the precise location of
-the block and is called when the interpreter reaches this part of the code.
+To address both of these, we have the C<cq> keyword, which mimics the 
+Perl C<qq> keyword with a couple of small but useful additions. First, 
+it prepends your text with a C<#line> directive corresponding to the 
+first line of the C<cq> statement. Second, it ensures that escape 
+sequences such as C<\n> and C<\r> that are found within C strings are 
+passed along literally in those forms. Third, it applies the filters 
+currently in place to the string. Fourth, it allows for variable 
+interpolation, just like C<qq>. Put together, this generally Does What
+You Mean when you are assembling small snippets of C code to a system
+that assembles the pieces for you.
 
-The code in a C<cblock> is wrapped into a function, so function and struct
-declarations are not allowed. Also, variable declarations and preprocessor
-definitions are confined to the C<cblock> and will not be present in later
-C<cblock>s. For that sort of behavior, see C<clex>.
+To illustrate, consider this example:
 
-By default, variables with C<$> sigils are interpreted as referring to
-the C<SV*> representing the variable in the current lexical scope. The
-exception is when a variable is declared with a type, a la
+ #line 1 cq.pl
+ my $func_name = 'sum';
+ my $op = '+';
+ my $code = cq {
+     printf("Performing '$func_name'\n");
+     RESULT = a $op b;
+ };
 
- my Class::Name $thing;
+The variable C<$code> ends up holding a string that begins with C<#line 
+3 "cq.pl">, with a newline on either side. This ensures that if this 
+string is ever fed to the compiler (indeed, even if it is interpolated 
+into another string that is fed to the compiler), it will properly 
+report the actual location of the C<cq> string literal. Furthermore, 
+the variables C<$op> and C<func_name> are interpolated into the string, 
+but the C<\n> within the C<printf>'s string literal is not replaced 
+with a literal newline.
 
-Here C<Class::Name> specifies the type of C<$thing>. The package
-C<Class::Name> has information used by C::Blocks to unpack and repack
-C<$thing> into the appropriate C data type. Implementation details are
-discussed under L<C::Blocks/TYPES>.
+Just like the other block keywords of C::Blocks, but unlike Perl's 
+quoting keywords, it only allows matching curly-brace delimited blocks 
+of code. (It also allows for comments after the C<cq> but before the 
+opening brace, but why would you do that?)
 
-Note: If you need to leave a C<cblock> early, you should use a C<return>
-statement without any arguments. In particular, this will bypass any
-cleanup code provided by types.
+This is meant for code generation, but it is also helpful for testing.
+A C<cq> keyword produces an I<expression>, which means you can send it
+straight to C<print> if you want to see the output:
 
-=item clex { code }
+ print "C code: [",
+     cq { printf("Hello!\n"); },
+     "]\n";
 
-C<clex> blocks contain function, variable, struct, enum, union, and 
-preprocessor declarations that you want to use in other C<cblock>, 
-C<clex>, C<cshare>, and C<csub> blocks that follow. It is important to 
-note that these are strictly I<declarations> and I<definitions> that 
-are compiled at Perl's compile time and shared with other blocks.
-
-Sigil variables in C<clex> blocks are currently ignored.
-
-=item cshare { code }
-
-C<cshare> blocks are just like C<clex> blocks except that the 
-declarations can be shared with other modules when they C<use> the 
-current module.
-
-=item csub name { code }
-
-C code contained in a csub block is wrapped into an xsub function definition.
-This means that after this code is compiled, it is accessible just like any
-other xsub.
-
-=back
+This is particularly helpful when working on filters, and when writing
+tests for filters.
 
 =head1 TYPES
+
+C::Blocks makes it easy to refer to lexically scoped variables by 
+simply placing the variables directly into your C<cblock>s. Perl 
+provides a rich API for extracting C data from those Perl variables, 
+and setting the content of those variables with other C data. But when 
+you know that your C code always expects your C<$var> to be an integer, 
+these rich capabilities quickly become annoying boilerplate. C::Blocks 
+provides a way to take care of this boilerplate by using Perl's type 
+annotations.
 
 Perl lets you declare the type of a lexically scoped variable with
 syntax like this:
@@ -961,6 +910,183 @@ for how you could use cleanup code together with initialization code.
 (Eventually include a full example of a class that wraps itself around
 a C struct, including all necessary cshare statements, so that the
 init code's call to special functions make sense.)
+
+=head1 PERFORMANCE
+
+C<C::Blocks> is not a silver bullet for performance. Other Perl 
+libraries more tailored to your goal may serve you better. Sometimes 
+they will lead to fewer lines of code, or clearer code, than the 
+corresponding C code. Other times they will be built on solid libraries 
+which are blazing fast already. C<C::Blocks> is implemented using the 
+Tiny C Compiler, a compiler that I<compiles> fast and produces machine 
+code, but which is of mediocre quality. If you compiled the exact same 
+code with a high-quality compiler such as C<gcc -O3>, it would take 
+longer to compile, but the resulting machine code would be more 
+efficient. When can you expect a C::Blocks solution to be a good 
+choice?
+
+=head2 When not to use C::Blocks
+
+Don't rewrite an existing XS module using C::Blocks. A C::Blocks API to 
+your XS code might be useful, but don't rewrite mature XS code. 
+C::Blocks can save you from the effort of producing a new XS 
+distribution, but if you've already put in that effort, don't throw it 
+away.
+
+Don't replace a handful of Perl statements with their C-API 
+equivalents. Perl's core has been pretty highly optimized and is 
+compiled at high optimization levels. At best, you'll get incremental
+performance gains, and they will likely come at the expense of many
+additional lines of code. This probably isn't worth it.
+
+Don't discount the cost of marshalling Perl data into C data. Obtaining 
+C representations of your data will always cost you at least a few 
+clock cycles, and it will usually add lines of code, too. You're likely 
+to see the best performance benefits if you can marshall the data as 
+early as possible and use that C-accessible data many times over. For 
+example, if you have a data-parsing stage in which you build a complex 
+data structure representing that data, try to build a C structure 
+instead of a Perl structure at parse time. All future operations will
+have access to the C representation.
+
+=head2 C::Blocks vs Perl and PDL
+
+In what follows, I assume you have already marshalled your data into a
+C data structure, like an array or a struct.
+
+C<C::Blocks> outperforms Perl on O(N) numeric calculations on arrays, 
+often by a factor greater than 10. (An O(N) calculation is any 
+algorithm that only needs to examine each data point once, so the 
+calculation should scale with the number of data points.) In fact, 
+C<C::Blocks> is competitive with L<PDL> in such calculations. 
+C<C::Blocks> requires more lines of code, though. For a calculation of 
+the average of a dataset, L<PDL> uses only one line, a Perl 
+implementation uses three, and C::Blocks uses 14. What you gain in 
+speed you lose in lines of code.
+
+Another interesting comparison between L<PDL> and C::Blocks is the 
+calculation of euclidian distance for an N-dimensional vector, where N 
+scales from very small to very large numbers. The calculation is always 
+O(N), but is more complex than the simple average already discussed, 
+and not explicitly implemented as a low-level L<PDL> routine. The 
+L<PDL> implementation is only a single very readable line, highlighting 
+L<PDL>'s expresiveness. The C::Blocks implementation is 14 lines of 
+traditional C code, making it straight-forward but lengthy. The 
+C::Blocks has the upper hand in execution rate---always faster than 
+L<PDL>, though never more than by a factor of two---and in predictable 
+scaling---almost perfectly linear in system size, vs slightly nonlinear 
+behavior in the PDL implementation. I'd say the number of lines of code
+is the primary deciding factor here, but the trade-off might fall
+differently for more complicated calculations.
+
+The calculation of the Mandelbrot set provides a very interesting 
+benchmark. The algorithm involves a loop that has a fixed maximun 
+number of iterations, but which can exit early if the calculation 
+converges. This exit-early algorithm knocks PDL out of the race. 
+There's no good way to implement this in PDL short of writing a 
+low-level implementation.
+
+The comparsion between C::Blocks and PDL can best be summarized thus. 
+If you have a very small dataset, less than 1000 elements, C::Blocks 
+will out-perform PDL due to PDL's costly method launch mechanism. If 
+you have multiple tightly nested for-loops, where operations within the 
+for loops are based on the indices, then C::Blocks will likely give you 
+a competitive computation rate, at the cost of many more lines of code. 
+If those for-loops have the possibility of an early exit, PDL may run 
+significantly slower than C::Blocks, and may even run slower than pure 
+Perl. Finally, if you have image manipulations or calculations, PDL is 
+almost certainly the better tool, as it has a lot of low-level image 
+manipulation routines already.
+
+=head2 C::Blocks vs Graph
+
+I have not had the opportunity to write and run additional benchmarks 
+for C::Blocks. The next obvious choice would be a comparison with
+L<Graph>, but I have not yet endeavored to produce those calculations.
+
+=head1 KEYWORD SYNOPSES
+
+The way that C<C::Blocks> provides its functionality is principally 
+through lexically scoped keywords: C<cblock>, C<clex>, C<cshare>, 
+C<csub>, and C<cq>. The operaiton of these keywords has already been
+discussed at length above. What follows is a synopsis of each keyword.
+
+=over
+
+=item cblock { code }
+
+C code contained in a C<cblock> gets wrapped into a special type of C 
+function and compiled during the compilation stage of the surrounding 
+Perl code. The resulting function is inserted into the Perl op tree at 
+the precise location of the block and is called when the interpreter 
+reaches this part of the code. Part (or all) of the code in a C<cblock> 
+can be generated using interpolation blocks.
+
+The code in a C<cblock> is wrapped into a function, so function and struct
+declarations are not allowed. Also, variable declarations and preprocessor
+definitions are confined to the C<cblock> and will not be present in later
+C<cblock>s. For that sort of behavior, see C<clex>.
+
+By default, variables with C<$> sigils are interpreted as referring to
+the C<SV*> representing the variable in the current lexical scope. The
+exception is when the variable's lexical declaration includes a type
+annotation, a la
+
+ my Class::Name $thing;
+
+Here C<Class::Name> specifies the type of C<$thing>. The package
+C<Class::Name> has information used by C::Blocks to unpack and repack
+C<$thing> into the appropriate C data type. Implementation details are
+discussed under L<C::Blocks/TYPES>.
+
+Note: If you need to leave a C<cblock> early, you should use a C<return>
+statement without any arguments. In particular, this will bypass any
+cleanup code provided by types.
+
+=item clex { code }
+
+C<clex> blocks contain function, variable, struct, enum, union, and 
+preprocessor declarations that you want to use in other C<cblock>, 
+C<clex>, C<cshare>, and C<csub> blocks that follow. It is important to 
+note that these are strictly I<declarations> and I<definitions> that 
+are compiled at Perl's compile time and shared with other blocks. Part 
+(or all) of the code in a C<clex> can be generated using interpolation 
+blocks.
+
+Sigil variables in C<clex> blocks are currently ignored, and their
+existence will probably lead to compilation errors.
+
+=item cshare { code }
+
+C<cshare> blocks are just like C<clex> blocks except that the 
+declarations can be shared with other modules when they C<use> the 
+current module.
+
+=item csub name { code }
+
+C code contained in a csub block is wrapped into an xsub function 
+definition. This means that after this code is compiled, it is 
+accessible from Perl just like any other xsub. Part (or all) of the 
+code in a C<csub> can be generated using interpolation blocks.
+
+=item cq { code }
+
+When strings of C code need to be generated, the C<cq> keyword provides 
+a useful mixture of capabilities. Blocks of text within C<cq> blocks 
+are mostly treated like text within double-quoted strings: sigiled 
+variables are interpolated, escape sequences are such as C<\n> are 
+converted. An important difference is that escape sequences within C
+strings are left intact so that they can be converted to the proper
+string literals by the C parser. Two other important differences are
+that a preprocessor directive is prepended to the string indicating the
+source file and line number, and the final post-interpolation string is
+run through the current lexical scope's source filters.
+
+Unlike all the other C::Blocks keywords, C<cq> blocks B<DO NOT> support
+interpolation blocks. Just like double-quoted strings with variable
+interpolations, the content of C<cq> blocks are finalized at runtime.
+
+=back
 
 =head1 TROUBLESHOOTING
 
