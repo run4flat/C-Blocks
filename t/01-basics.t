@@ -67,6 +67,7 @@ for (1..3) {
 	};
 }
 
+$C::Blocks::cq_line_directives = 1;
 my $code = cq {
 	printf("Hello, world!\n");
 };

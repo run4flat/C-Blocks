@@ -76,8 +76,9 @@ sub C::Blocks::load_lib {
 	$^H{"C::Blocks/extended_symtab_tables"} .= $symtab_list;
 }
 
-# Applies the line number directive to the top of the block and runs the
-# caller's filters on the passed string
+# runs the caller's filters on the passed string and optionally prepends
+# a #line directive
+our $cq_line_directives;
 sub cq {
 	my ($string) = @_;
 	
@@ -96,7 +97,10 @@ sub cq {
 		}
 	}
 	
-	return "\n#line $line \"$filename\"\n$_";
+	# optionally apply a line directive
+	$_ = "\n#line $line \"$filename\"\n$_" if $cq_line_directives;
+	
+	return $_;
 }
 
 1;
@@ -672,22 +676,27 @@ tools we have mentioned up to this point are sufficient for that: you
 would write a function (or method) that accepts strings with code 
 snippets and which assembles the pieces with other code fragments to 
 produce a working whole. While Perl may be good at assembling strings, 
-it is easy to lose track of where the pieces came from. This is 
-particularly problematic when the compiler encounters an issue with the 
-generated code and attempts to report a meaningful file and line number 
-for the mistake. In addition, applying filters to a string containing a 
-small block of C code is a bit of a hassle.
+there are many small nuissances using Perl's built-in string handling. 
+Escaping slashes (when you want to have a C<\n> in a C string literal, 
+for instance) gets annoying, especially when you also want to utilize 
+variable interpolation. Applying filters to a string containing a small 
+block of C code is a hassle. Tracking down the exact lines where code 
+snippets come from is impossible. This last issue is particularly 
+problematic when the compiler encounters an issue with the generated 
+code and attempts to report a meaningful file and line number for the 
+mistake.
 
-To address both of these, we have the C<cq> keyword, which mimics the 
+To address all of these, we have the C<cq> keyword, which mimics the 
 Perl C<qq> keyword with a couple of small but useful additions. First, 
-it prepends your text with a C<#line> directive corresponding to the 
-first line of the C<cq> statement. Second, it ensures that escape 
-sequences such as C<\n> and C<\r> that are found within C strings are 
-passed along literally in those forms. Third, it applies the filters 
-currently in place to the string. Fourth, it allows for variable 
-interpolation, just like C<qq>. Put together, this generally Does What
-You Mean when you are assembling small snippets of C code to a system
-that assembles the pieces for you.
+it ensures that escape sequences such as C<\n> and C<\r> that are found 
+within C character and string literals are passed along untouched. 
+Second, it applies the filters currently in place to the string. Third, 
+it allows for variable interpolation, just like C<qq>. Fourth, if the 
+pacakge variable C<$C::Blocks::cq_line_directives> is true, it prepends 
+a C line directive corresponding to the line of the C<cq> statement. 
+Put together, this generally Does What You Mean when you are assembling 
+small snippets of C code. When it doesn't, of course, you can always
+simply use Perl's built-in string quoting mechanisms.
 
 To illustrate, consider this example:
 
@@ -1204,8 +1213,7 @@ these amazing pieces of technology.
 
 =head1 LICENSE AND COPYRIGHT
 
-Code copyright 2013-2015 Dickinson College. Documentation copyright 2013-2015
-David Mertens.
+Copyright 2013-2018 David Mertens.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published

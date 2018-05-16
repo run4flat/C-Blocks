@@ -43,6 +43,7 @@ ${ '' }
 }
 is(__LINE__, 4, "Empty block with empty interpolation block surrouned by newlines reports correct lines");
 
+$C::Blocks::cq_line_directives = 1;
 my $line = __LINE__; my $code = cq {};
 like($code, qr/#line $line/, "generated cq has correct line number");
 
