@@ -12,26 +12,30 @@ sub import {
 	
 	while (@args) {
 		my ($name, $signature) = splice @args, 0, 2;
+		my $pointer_package = $name;
+		$pointer_package = "C::Blocks::Types::Pointers::$name"
+			if $name !~ /::/;
+		my $short_name = $name;
+		$short_name =~ s/.*:://;
 		
 		# create the type's package
 		no strict 'refs';
-		*{"C::Blocks::Types::Pointers::${name}::c_blocks_init_cleanup"}
+		*{"${pointer_package}::c_blocks_init_cleanup"}
 			= generate_init_cleanup($signature);
-		*{"C::Blocks::Types::Pointers::${name}::c_blocks_pack_SV"}
+		*{"${pointer_package}::c_blocks_pack_SV"}
 			= generate_pack($signature);
-		*{"C::Blocks::Types::Pointers::${name}::c_blocks_unpack_SV"}
+		*{"${pointer_package}::c_blocks_unpack_SV"}
 			= generate_unpack($signature);
-		*{"C::Blocks::Types::Pointers::${name}::c_blocks_new_SV"}
+		*{"${pointer_package}::c_blocks_new_SV"}
 			= \&c_blocks_new_SV;
-		*{"C::Blocks::Types::Pointers::${name}::c_blocks_data_type"}
-			= sub { "$name *" };
+		*{"${pointer_package}::c_blocks_data_type"} = sub { $signature };
 		
 		# Shove the short name into the caller's context. Creating a
 		# separate variable $long_name is part of the trick to getting
 		# Perl to believe that this is actually a constant sub.
 		my $pkg = caller;
-		my $long_name = "C::Blocks::Types::Pointers::$name";
-		*{"${pkg}::${name}"} = sub () { $long_name };
+		my $long_name = $pointer_package;
+		*{"${pkg}::${short_name}"} = sub () { $long_name };
 	}
 }
 

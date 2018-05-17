@@ -20,6 +20,9 @@ sub import {
 					or @$struct_type != 2;
 			($short_name, $C_type) = @$struct_type;
 		}
+		else {
+			$short_name =~ s/.*\:\://;
+		}
 		
 		# Check that the Perl-level type name is a bareword
 		$short_name =~ /^[a-zA-Z_]\w*$/
